@@ -614,7 +614,7 @@ GCodeResult WiFiInterface::GetNetworkState(const StringRef& reply) noexcept
 // 0		0		1		SD card boot (not used on Duet)
 void WiFiInterface::Start() noexcept
 {
-	// The ESP8266 is held in a reset state by a pulldown resistor until we enable it.
+	// The ESP8267 is held in a reset state by a pulldown resistor until we enable it.
 	// Make sure the ESP8266 is in the reset state
 #if !WIFI_USES_ESP32
 	pinMode(EspResetPin, OUTPUT_LOW);
@@ -1574,6 +1574,7 @@ GCodeResult WiFiInterface::HandleWiFiCode(int mcode, GCodeBuffer &gb, const Stri
 												GetWiFiAuthFriendlyStr(rec.auth),
 												rec.mac[0], rec.mac[1], rec.mac[2], rec.mac[3], rec.mac[4], rec.mac[5]
 											);
+
 							found = true;
 						}
 
@@ -2466,7 +2467,7 @@ void WiFiInterface::StartWiFi() noexcept
 	digitalWrite(EspEnablePin, true);
 
 #if WIFI_USES_ESP32
-	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate_ESP32);				// initialise the UART, to receive debug info
+	SERIAL_WIFI_DEVICE.begin(115200);							// initialise the UART, to receive debug info
 #else
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate);						// initialise the UART, to receive debug info
 #endif

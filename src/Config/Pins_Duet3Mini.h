@@ -32,6 +32,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20038000;
 // Features definition
 #define HAS_LWIP_NETWORKING		1
 #define HAS_WIFI_NETWORKING		1
+#define WIFI_USES_ESP32			0
 #define HAS_W5500_NETWORKING	0
 #define HAS_SBC_INTERFACE		1
 
