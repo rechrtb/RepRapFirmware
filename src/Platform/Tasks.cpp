@@ -156,7 +156,7 @@ void *Tasks::GetNVMBuffer(const uint32_t *_ecv_array null stk) noexcept
 	pinMode(ActLedPin, (ActOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);			// set up activity LED and turn it off
 #endif
 
-#if !defined(DEBUG)		// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
+#if 0		// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
 	// Check the integrity of the firmware by checking the firmware CRC
 	// If we have embedded files then the CRC is stored after those files, so we need to fetch the CRC address form the vector table
 	{

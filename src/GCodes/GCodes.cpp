@@ -58,6 +58,8 @@ void GCodes::CommandEmergencyStop(AsyncSerial *p) noexcept
 }
 #endif
 
+StreamGCodeInput* usbInput;
+
 GCodes::GCodes(Platform& p) noexcept :
 #if HAS_AUX_DEVICES && ALLOW_ARBITRARY_PANELDUE_PORT
 	serialChannelForPanelDueFlashing(1),
@@ -115,10 +117,10 @@ GCodes::GCodes(Platform& p) noexcept :
 #if defined(SERIAL_MAIN_DEVICE)
 # if SAME5x
 	// SAME5x USB driver already uses an efficient buffer for receiving data from USB
-	StreamGCodeInput * const usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
+	usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
 # else
 	// Old USB driver is inefficient when read in single-character mode
-	BufferedStreamGCodeInput * const usbInput = new BufferedStreamGCodeInput(SERIAL_MAIN_DEVICE);
+	const usbInput = new BufferedStreamGCodeInput(SERIAL_MAIN_DEVICE);
 # endif
 	gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::USB)] = new GCodeBuffer(GCodeChannel::USB, usbInput, fileInput, UsbMessage, Compatibility::Marlin);
 #elif HAS_SBC_INTERFACE
