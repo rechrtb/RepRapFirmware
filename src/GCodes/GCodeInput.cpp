@@ -11,48 +11,15 @@
 #include "GCodes.h"
 #include "GCodeBuffer/GCodeBuffer.h"
 
-#include "ring.h"
-
 const size_t GCodeInputFileReadThreshold = 128;		// How many free bytes must be available before data is read from the file
 const size_t GCodeInputUSBReadThreshold = 128;		// How many free bytes must be available before we read more data from USB
 
 // Read some input bytes into the GCode buffer. Return true if there is a line of GCode waiting to be processed.
 // This needs to be efficient
 
-extern StreamGCodeInput* usbInput;
-
 bool StandardGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 {
 	const size_t bytesToPass = BytesCached();
-
-#if CORE_USES_TINYUSB
-	if (bytesToPass && this == usbInput)
-	{
-		if (!rbufInited)
-		{
-			rbuf.Init();
-			rbufInited = true;
-		}
-
-		volatile size_t toRead = std::min(bytesToPass, rbuf.InitialSize - rbuf.Size());
-
-		if (toRead)
-		{
-			if (toRead + rbuf.Size() == rbuf.InitialSize)
-			{
-				toRead--;
-			}
-
-			if (toRead)
-			{
-				char temp[toRead];
-				size_t readBytes = ReadBytes(temp, toRead);
-
-				rbuf.Write(temp, readBytes);
-			}
-		}
-	}
-#endif
 
 #if HAS_MASS_STORAGE
 	// To save calling IsWritingBinary on every character when we are not uploading a file in binary mode, use a separate loop for uploading
@@ -70,35 +37,6 @@ bool StandardGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 	else
 #endif
 	{
-#if CORE_USES_TINYUSB
-		if (this == usbInput)
-		{
-			volatile size_t rbufSz = rbuf.Size();
-
-			if (rbufSz)
-			{
-				for (size_t i = 0; i < rbufSz ; i++)
-				{
-					char c = 0;
-					rbuf.Read(c);
-					if (gb->Put(c))					// process a character, returns true if a line of GCode is complete
-					{
-	#if HAS_MASS_STORAGE
-						if (gb->IsWritingFile())
-						{
-							gb->WriteToFile();
-						}
-						else
-	#endif
-						{
-							return true;			// a line of GCode is complete, so stop here
-						}
-					}
-				}
-			}
-		}
-		else
-#endif
 		{
 			for (size_t i = 0; i < bytesToPass; i++)
 			{
