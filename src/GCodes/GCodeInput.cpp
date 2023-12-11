@@ -71,11 +71,6 @@ void StreamGCodeInput::Reset() noexcept
 	}
 }
 
-size_t StreamGCodeInput::ReadBytes(char *buf, size_t len) noexcept
-{
-	return device.readBytes(buf, len);
-}
-
 char StreamGCodeInput::ReadByte() noexcept
 {
 	return static_cast<char>(device.read());

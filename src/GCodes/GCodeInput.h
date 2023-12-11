@@ -14,8 +14,6 @@
 
 #include <Stream.h>
 
-#include "ring.h"
-
 const size_t GCodeInputBufferSize = 256;						// How many bytes can we cache per input source? Make this a power of 2 for efficiency
 
 
@@ -36,11 +34,6 @@ public:
 
 protected:
 	virtual char ReadByte() noexcept = 0;						// Get the next byte from the source
-	virtual size_t ReadBytes(char *buf, size_t len) noexcept { return 0; };						// Get the next byte from the source
-
-private:
-	ring::Buf<char> rbuf;
-	bool rbufInited = false;
 };
 
 // This class wraps around an existing Stream device which lets us avoid double buffering.
@@ -54,7 +47,6 @@ public:
 
 protected:
 	char ReadByte() noexcept override;
-	size_t ReadBytes(char *buf, size_t len) noexcept override;
 
 private:
 	Stream &_ecv_from device;
