@@ -193,11 +193,14 @@ void BufferedStreamGCodeInput::Reset() noexcept
 
 bool BufferedStreamGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 {
-	const size_t spaceLeft = BufferSpaceLeft();
-	if (spaceLeft >= GCodeInputUSBReadThreshold)
+	if (device.available())
 	{
-		const size_t maxToTransfer = (readingPointer > writingPointer) ? spaceLeft : GCodeInputBufferSize - writingPointer;
-		writingPointer = (writingPointer + device.readBytes(buffer + writingPointer, maxToTransfer)) % GCodeInputBufferSize;
+		const size_t spaceLeft = BufferSpaceLeft();
+		if (spaceLeft >= GCodeInputUSBReadThreshold)
+		{
+			const size_t maxToTransfer = (readingPointer > writingPointer) ? spaceLeft : GCodeInputBufferSize - writingPointer;
+			writingPointer = (writingPointer + device.readBytes(buffer + writingPointer, maxToTransfer)) % GCodeInputBufferSize;
+		}
 	}
 	return StandardGCodeInput::FillBuffer(gb);
 }
