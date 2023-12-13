@@ -46,10 +46,10 @@ constexpr uint32_t IAP_IMAGE_START = 0x20458000;		// last 32kb of RAM
 #define HAS_VREF_MONITOR		1
 
 #define SUPPORT_CAN_EXPANSION	1
-#define DUAL_CAN				1					// support the second CAN interface as simple CAN (not FD)
+#define DUAL_CAN				0					// support the second CAN interface as simple CAN (not FD)
 #define SUPPORT_LED_STRIPS		1
-#define SUPPORT_DMA_DOTSTAR		1
-#define SUPPORT_DMA_NEOPIXEL	1
+#define SUPPORT_DMA_DOTSTAR		0
+#define SUPPORT_DMA_NEOPIXEL	0
 #define SUPPORT_LASER			1					// support laser cutters and engravers using G1 S parameter
 #define SUPPORT_IOBITS			1					// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR		1					// set nonzero to support DHT temperature/humidity sensors
@@ -70,8 +70,8 @@ constexpr uint32_t IAP_IMAGE_START = 0x20458000;		// last 32kb of RAM
 # define SUPPORT_PROBE_POINTS_FILE		1
 #endif
 
-#define SUPPORT_TELNET			1
-#define SUPPORT_MQTT			1
+#define SUPPORT_TELNET			0
+#define SUPPORT_MQTT			0
 #define SUPPORT_ASYNC_MOVES		1
 #define SUPPORT_BRAKE_PWM		1
 #define SUPPORT_KEEPOUT_ZONES	1
