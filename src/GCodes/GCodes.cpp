@@ -59,6 +59,7 @@ void GCodes::CommandEmergencyStop(AsyncSerial *p) noexcept
 #endif
 
 
+StandardGCodeInput* usbInput = nullptr;
 
 GCodes::GCodes(Platform& p) noexcept :
 #if HAS_AUX_DEVICES && ALLOW_ARBITRARY_PANELDUE_PORT
@@ -115,17 +116,17 @@ GCodes::GCodes(Platform& p) noexcept :
 	gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::Telnet)] = nullptr;
 #endif // SUPPORT_TELNET || HAS_SBC_INTERFACE
 #if defined(SERIAL_MAIN_DEVICE)
-	StandardGCodeInput* usbInput = nullptr;
-# if SAME5x && !CORE_USES_TINYUSB
-	// SAME5x USB driver already uses an efficient buffer for receiving data from USB
-	usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
-# else
+// # if SAME5x && !CORE_USES_TINYUSB
+// 	// SAME5x USB driver already uses an efficient buffer for receiving data from USB
+// 	usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
+// # else
 	// Old USB driver and TinyUSB-based driver is inefficient when read in single-character mode.
 	// In the case of TinyUSB, each read incurs penality from unlocking and locking mutexes for its internal
 	// buffers -- all for a single byte. Better to implement some intermediate buffer and amortize
 	// the overhead across reading many bytes at a time.
 	usbInput = new BufferedStreamGCodeInput(SERIAL_MAIN_DEVICE);
-# endif
+	// usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
+// # endif
 	gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::USB)] = new GCodeBuffer(GCodeChannel::USB, usbInput, fileInput, UsbMessage, Compatibility::Marlin);
 #elif HAS_SBC_INTERFACE
 	gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::USB)] = new GCodeBuffer(GCodeChannel::USB, nullptr, fileInput, UsbMessage, Compatbility::marlin);
@@ -1556,6 +1557,9 @@ void GCodes::Diagnostics(MessageType mtype) noexcept
 		text.cat((movementOwner == nullptr) ? "null" : movementOwner->GetChannel().ToString());
 	}
 	platform.MessageF(mtype, "Movement locks held by %s\n", text.c_str());
+
+	extern size_t usbInputCounts;
+	platform.MessageF(mtype, "Gcode input lines from USB %u\n", usbInputCounts);
 
 	for (GCodeBuffer *gb : gcodeSources)
 	{

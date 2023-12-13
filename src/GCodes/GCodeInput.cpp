@@ -17,6 +17,8 @@ const size_t GCodeInputUSBReadThreshold = GCodeInputBufferSize / 2;		// How many
 // Read some input bytes into the GCode buffer. Return true if there is a line of GCode waiting to be processed.
 // This needs to be efficient
 
+size_t usbInputCounts = 0;
+
 bool StandardGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 {
 	const size_t bytesToPass = BytesCached();
@@ -38,11 +40,16 @@ bool StandardGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 #endif
 	{
 		{
+			extern StandardGCodeInput* usbInput;
 			for (size_t i = 0; i < bytesToPass; i++)
 			{
 				const char c = ReadByte();
 				if (gb->Put(c))					// process a character, returns true if a line of GCode is complete
 				{
+					if (this == usbInput)
+					{
+						usbInputCounts++;
+					}
 #if HAS_MASS_STORAGE
 					if (gb->IsWritingFile())
 					{
