@@ -12,7 +12,7 @@
 #include "GCodeBuffer/GCodeBuffer.h"
 
 const size_t GCodeInputFileReadThreshold = 128;		// How many free bytes must be available before data is read from the file
-const size_t GCodeInputUSBReadThreshold = 128;		// How many free bytes must be available before we read more data from USB
+const size_t GCodeInputUSBReadThreshold = GCodeInputBufferSize / 2;		// How many free bytes must be available before we read more data from USB
 
 // Read some input bytes into the GCode buffer. Return true if there is a line of GCode waiting to be processed.
 // This needs to be efficient
@@ -84,7 +84,7 @@ size_t StreamGCodeInput::BytesCached() const noexcept
 // Dynamic G-code input class for caching codes from software-defined sources
 
 RegularGCodeInput::RegularGCodeInput() noexcept
-	: state(GCodeInputState::idle), writingPointer(0), readingPointer(0)
+	: state(GCodeInputState::idle), writingPointer(0), readingPointer(0), full(false)
 {
 }
 
@@ -101,17 +101,19 @@ char RegularGCodeInput::ReadByte() noexcept
 	{
 		readingPointer = 0;
 	}
+	full = false;
 	return c;
 }
 
 size_t RegularGCodeInput::BytesCached() const noexcept
 {
-	return (writingPointer - readingPointer) % GCodeInputBufferSize;
+	return full ? GCodeInputBufferSize : (writingPointer - readingPointer) % GCodeInputBufferSize;
 }
 
 size_t RegularGCodeInput::BufferSpaceLeft() const noexcept
 {
-	return (readingPointer - writingPointer - 1u) % GCodeInputBufferSize;
+	size_t diff = (readingPointer - writingPointer) % GCodeInputBufferSize;
+	return full ? 0 : (diff ? diff : GCodeInputBufferSize);
 }
 
 // BufferedStreamGCodeInput methods
@@ -131,8 +133,9 @@ bool BufferedStreamGCodeInput::FillBuffer(GCodeBuffer *gb) noexcept
 		const size_t spaceLeft = BufferSpaceLeft();
 		if (spaceLeft >= GCodeInputUSBReadThreshold)
 		{
-			const size_t maxToTransfer = (readingPointer > writingPointer) ? spaceLeft : GCodeInputBufferSize - writingPointer;
+			size_t maxToTransfer = readingPointer > writingPointer ? spaceLeft : GCodeInputBufferSize - writingPointer;
 			writingPointer = (writingPointer + device.readBytes(buffer + writingPointer, maxToTransfer)) % GCodeInputBufferSize;
+			full = (writingPointer == readingPointer);
 		}
 	}
 	return StandardGCodeInput::FillBuffer(gb);

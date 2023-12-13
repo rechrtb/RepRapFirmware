@@ -85,6 +85,8 @@ protected:
 	GCodeInputState state;
 	size_t writingPointer, readingPointer;
 	char buffer[GCodeInputBufferSize];
+
+	bool full;
 };
 
 // Class to buffer input from streams that have very slow single-character interfaces, in particular the Microchip SAM4E/4S/E70 USB driver
