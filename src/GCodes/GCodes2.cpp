@@ -3789,12 +3789,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 											: (cp & 1) ? "requires checksum or CRC"
 												: "does not require checksum or CRC"
 									);
+#if defined(SERIAL_MAIN_DEVICE)
 						if (chan == 0 && SERIAL_MAIN_DEVICE.IsConnected())
 						{
 							reply.cat(", connected");
 						}
+						else
+#else
+#endif
 #if HAS_AUX_DEVICES
-						else if (chan != 0 && platform.IsAuxRaw(chan - 1))
+						if (chan != 0 && platform.IsAuxRaw(chan - 1))
 						{
 							reply.cat(", raw mode");
 						}

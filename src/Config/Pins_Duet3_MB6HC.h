@@ -113,7 +113,7 @@ constexpr size_t MaxExtrudersPerTool = 10;			// Increased in 3.4 due to OEM requ
 constexpr unsigned int MaxTriggers = 32;			// Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
 constexpr size_t NumSerialChannels = 3;				// The number of serial IO channels not counting the WiFi serial connection (USB and one auxiliary UART)
-#define SERIAL_MAIN_DEVICE serialUSB
+// #define SERIAL_MAIN_DEVICE serialUSB
 #define SERIAL_AUX_DEVICE serialUart1
 #define SERIAL_AUX2_DEVICE serialUart2
 
