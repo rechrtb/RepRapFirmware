@@ -3832,10 +3832,6 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 	}
 }
 
-void Platform::SetUsbHostMode(bool host) noexcept
-{
-	// Set host mode
-}
 
 uint32_t Platform::GetBaudRate(size_t chan) const noexcept
 {
