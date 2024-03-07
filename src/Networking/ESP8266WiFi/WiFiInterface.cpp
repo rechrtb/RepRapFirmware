@@ -2387,7 +2387,7 @@ void WiFiInterface::StartWiFi() noexcept
 	digitalWrite(EspEnablePin, true);
 
 #if WIFI_USES_ESP32
-	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate_ESP32);				// initialise the UART, to receive debug info
+	SERIAL_WIFI_DEVICE.begin(115200);				// initialise the UART, to receive debug info
 #else
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate);						// initialise the UART, to receive debug info
 #endif
