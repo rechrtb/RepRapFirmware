@@ -29,7 +29,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20458000;		// last 32kb of RAM
 # define HAS_MASS_STORAGE		0
 # define HAS_HIGH_SPEED_SD		0
 #else
-# define HAS_SBC_INTERFACE		1
+# define HAS_SBC_INTERFACE		0
 # define HAS_MASS_STORAGE		1
 # define HAS_HIGH_SPEED_SD		1
 #endif
