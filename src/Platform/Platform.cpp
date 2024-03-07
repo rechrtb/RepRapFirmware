@@ -544,10 +544,12 @@ void Platform::Init() noexcept
 	baudRates[0] = MAIN_BAUD_RATE;
 	commsParams[0] = 0;
 	usbMutex.Create("USB");
+#if defined(SERIAL_MAIN_DEVICE)
 #if SAME5x && !CORE_USES_TINYUSB
     SERIAL_MAIN_DEVICE.Start();
 #else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
+#endif
 #endif
 
 #if HAS_AUX_DEVICES
@@ -973,8 +975,10 @@ void Platform::Exit() noexcept
 	active = false;
 
 	// Close down USB and serial ports and release output buffers
+#if defined(SERIAL_MAIN_DEVICE)
 	SERIAL_MAIN_DEVICE.end();
 	usbOutput.ReleaseAll();
+#endif
 
 #if HAS_AUX_DEVICES
 	for (AuxDevice& dev : auxDevices)
@@ -1015,7 +1019,7 @@ bool Platform::FlushMessages() noexcept
 		}
 	}
 #endif
-
+#if defined(SERIAL_MAIN_DEVICE)
 	// Write non-blocking data to the USB line
 	bool usbHasMore = !usbOutput.IsEmpty();				// test first to see if we can avoid getting the mutex
 	if (usbHasMore)
@@ -1052,8 +1056,12 @@ bool Platform::FlushMessages() noexcept
 		}
 		usbHasMore = !usbOutput.IsEmpty();
 	}
-
-	return auxHasMore || usbHasMore;
+#endif
+	return auxHasMore
+#if defined(SERIAL_MAIN_DEVICE)
+			|| usbHasMore
+#endif
+			;
 }
 
 void Platform::Spin() noexcept
@@ -1725,7 +1733,7 @@ void Platform::InitialiseInterrupts() noexcept
 #endif
 }
 
-#if CORE_USES_TINYUSB	//debug
+#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)	//debug
 extern uint32_t numUsbInterrupts;
 #endif
 
@@ -1869,7 +1877,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 	reprap.Timing(mtype);
 
-#if CORE_USES_TINYUSB	//DEBUG
+#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)	//DEBUG
 	MessageF(mtype, "USB interrupts %" PRIu32 "\n", numUsbInterrupts);
 #endif
 
@@ -3290,6 +3298,7 @@ bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const n
 
 void Platform::AppendUsbReply(OutputBuffer *buffer) noexcept
 {
+#if defined(SERIAL_MAIN_DEVICE)
 	if (!SERIAL_MAIN_DEVICE.IsConnected())
 	{
 		// If the serial USB line is not open, discard the message right away
@@ -3301,6 +3310,7 @@ void Platform::AppendUsbReply(OutputBuffer *buffer) noexcept
 		MutexLocker lock(usbMutex);
 		usbOutput.Push(buffer);
 	}
+#endif
 }
 
 // Aux port functions
@@ -3424,6 +3434,7 @@ void Platform::RawMessage(MessageType type, const char *_ecv_array message) noex
 		AppendAuxReply(1, message, message[0] == '{' || (type & RawMessageFlag) != 0);
 	}
 
+#if defined(SERIAL_MAIN_DEVICE)
 	if ((type & BlockingUsbMessage) != 0)
 	{
 		// Debug output sends messages in blocking mode. We now give up sending if we are close to software watchdog timeout.
@@ -3461,6 +3472,7 @@ void Platform::RawMessage(MessageType type, const char *_ecv_array message) noex
 			usbOutputBuffer->cat(message);		// append the message
 		}
 	}
+#endif
 }
 
 // Note: this overload of Platform::Message does not process the special action flags in the MessageType.
@@ -3617,6 +3629,7 @@ void Platform::Message(MessageType type, const char *_ecv_array message) noexcep
 // Send a debug message to USB using minimal stack
 void Platform::DebugMessage(const char *_ecv_array fmt, va_list vargs) noexcept
 {
+#if defined(SERIAL_MAIN_DEVICE)
 	MutexLocker lock(usbMutex);
 	vuprintf([](char c) -> bool
 				{
@@ -3636,6 +3649,7 @@ void Platform::DebugMessage(const char *_ecv_array fmt, va_list vargs) noexcept
 				fmt,
 				vargs
 			);
+#endif
 }
 
 #if HAS_MASS_STORAGE
@@ -3839,6 +3853,7 @@ uint32_t Platform::GetCommsProperties(size_t chan) const noexcept
 // Re-initialise a serial channel.
 void Platform::ResetChannel(size_t chan) noexcept
 {
+#if defined(SERIAL_MAIN_DEVICE)
 	if (chan == 0)
 	{
 		SERIAL_MAIN_DEVICE.end();
@@ -3847,9 +3862,10 @@ void Platform::ResetChannel(size_t chan) noexcept
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
 #endif
-	}
+	} else
+#endif
 #if HAS_AUX_DEVICES
-	else if (chan < NumSerialChannels)
+	if (chan < NumSerialChannels)
 	{
 		auxDevices[chan - 1].Disable();
 		auxDevices[chan - 1].Enable(baudRates[chan]);
