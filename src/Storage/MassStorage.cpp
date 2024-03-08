@@ -23,6 +23,10 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 # include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #endif
 
+#if SUPPORT_USB_DRIVE
+#include <Libraries/usbh_msc/usbh_msc.h>
+#endif
+
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
 // The FatFS subsystem locks and releases the appropriate volume mutex when it is called.
@@ -48,6 +52,15 @@ enum class CardDetectState : uint8_t
 	removing
 };
 
+#if SUPPORT_USB_DRIVE
+enum class UsbDriveState : uint8_t
+{
+	none = 0,
+	inserted,
+	mounted
+};
+#endif
+
 struct SdCardInfo INHERIT_OBJECT_MODEL
 {
 	FATFS fileSystem;
@@ -65,6 +78,18 @@ struct SdCardInfo INHERIT_OBJECT_MODEL
 protected:
 	DECLARE_OBJECT_MODEL
 };
+
+
+#if SUPPORT_USB_DRIVE
+struct UsbDriveInfo
+{
+	FATFS fileSystem;
+	Mutex volMutex;
+	uint32_t timer;
+	uint16_t seq;
+	UsbDriveState driveState;
+};
+#endif
 
 void SdCardInfo::Clear(unsigned int card) noexcept
 {
@@ -133,6 +158,11 @@ DEFINE_GET_OBJECT_MODEL_TABLE(SdCardInfo)
 #endif
 
 static SdCardInfo info[NumSdCards];
+
+#if SUPPORT_USB_DRIVE
+static UsbDriveInfo drives[NumUsbDrives];
+#endif
+
 static DIR findDir;
 #endif
 
@@ -438,6 +468,10 @@ void MassStorage::Spin() noexcept
 		}
 	}
 # endif
+
+#if SUPPORT_USB_DRIVE
+	volatile bool mounted = usbDriveMounted();
+#endif
 
 	// Check if any files are supposed to be closed
 	{

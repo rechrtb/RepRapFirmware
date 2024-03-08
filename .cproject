@@ -1552,7 +1552,7 @@
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1433720846" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
 							</tool>
 							<tool commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG} ${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" id="cdt.managedbuild.tool.gnu.cross.c.compiler.336202814" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
-								<option defaultValue="gnu.c.optimization.level.most" id="gnu.c.compiler.option.optimization.level.1469190336" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" useByScannerDiscovery="false" value="gnu.c.optimization.level.size" valueType="enumerated"/>
+								<option defaultValue="gnu.c.optimization.level.most" id="gnu.c.compiler.option.optimization.level.1469190336" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" useByScannerDiscovery="false" value="gnu.c.optimization.level.optimize" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.debugging.level.1149877463" name="Debug Level" superClass="gnu.c.compiler.option.debugging.level" useByScannerDiscovery="false" value="gnu.c.debugging.level.max" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.misc.verbose.1432610665" name="Verbose (-v)" superClass="gnu.c.compiler.option.misc.verbose" useByScannerDiscovery="false" value="false" valueType="boolean"/>
 								<option id="gnu.c.compiler.option.misc.other.1768268369" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="true" value="-c -mcpu=cortex-m7 -mthumb -fno-math-errno -mfpu=fpv5-d16 -mfloat-abi=hard -mfp16-format=ieee -mno-unaligned-access -ffunction-sections -fdata-sections -nostdlib -Wundef -Wdouble-promotion -Werror=return-type -Werror=implicit -fsingle-precision-constant &quot;-Wa,-ahl=$*.s&quot;" valueType="string"/>
@@ -1586,6 +1586,7 @@
 								</option>
 								<option id="gnu.c.compiler.option.dialect.std.1375046536" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.dialect.flags.977498232" name="Other dialect flags" superClass="gnu.c.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu99" valueType="string"/>
+								<option id="gnu.c.compiler.option.optimization.flags.1515074596" superClass="gnu.c.compiler.option.optimization.flags" value="-g" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.835911007" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.linker.1848330557" name="Cross GCC Linker" superClass="cdt.managedbuild.tool.gnu.cross.c.linker"/>
@@ -1614,7 +1615,7 @@
 								</inputType>
 							</tool>
 							<tool command="g++" id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1099530917" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
-								<option id="gnu.cpp.compiler.option.optimization.level.1984091712" name="Optimization Level" superClass="gnu.cpp.compiler.option.optimization.level" useByScannerDiscovery="false" value="gnu.cpp.compiler.optimization.level.size" valueType="enumerated"/>
+								<option id="gnu.cpp.compiler.option.optimization.level.1984091712" name="Optimization Level" superClass="gnu.cpp.compiler.option.optimization.level" useByScannerDiscovery="false" value="gnu.cpp.compiler.optimization.level.optimize" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.debugging.level.1089618663" name="Debug Level" superClass="gnu.cpp.compiler.option.debugging.level" useByScannerDiscovery="false" value="gnu.cpp.compiler.debugging.level.max" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.other.verbose.2120996990" name="Verbose (-v)" superClass="gnu.cpp.compiler.option.other.verbose" useByScannerDiscovery="false" value="false" valueType="boolean"/>
 								<option id="gnu.cpp.compiler.option.other.other.1858600173" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" useByScannerDiscovery="true" value="-c -mcpu=cortex-m7 -mthumb -fno-math-errno -mfpu=fpv5-d16 -mfloat-abi=hard -mfp16-format=ieee -mno-unaligned-access -ffunction-sections -fdata-sections -fno-threadsafe-statics -fno-rtti -fexceptions -nostdlib -Wundef -Wdouble-promotion -Werror=return-type -Wsuggest-override -fsingle-precision-constant &quot;-Wa,-ahl=$*.s&quot; -fstack-usage" valueType="string"/>
@@ -1654,6 +1655,7 @@
 								</option>
 								<option id="gnu.cpp.compiler.option.dialect.std.314608141" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.dialect.flags.69489869" name="Other dialect flags" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++17" valueType="string"/>
+								<option id="gnu.cpp.compiler.option.optimization.flags.438226813" superClass="gnu.cpp.compiler.option.optimization.flags" value="-g" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1198997248" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 						</toolChain>

@@ -75,6 +75,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20458000;		// last 32kb of RAM
 #define SUPPORT_ASYNC_MOVES		1
 #define SUPPORT_BRAKE_PWM		1
 #define SUPPORT_KEEPOUT_ZONES	1
+#define SUPPORT_USB_DRIVE		1
 
 #define USE_MPU					1					// Needed if USE_CACHE is set, so that we can have non-cacheable memory regions
 #define USE_CACHE				1
@@ -198,6 +199,11 @@ constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
 constexpr Pin SdSpiCSPins[1] = { PortDPin(22) };								// this one is allocated using M950 on MB6HC boards before version 1.02
 constexpr uint32_t ExpectedSdCardSpeed = 25000000;
 constexpr IRQn SdhcIRQn = HSMCI_IRQn;
+
+#if SUPPORT_USB_DRIVE
+// USB Drives
+constexpr size_t NumUsbDrives = 2;
+#endif
 
 // DotStar LED control
 #define LEDSTRIP_USES_USART	0
