@@ -11,7 +11,7 @@
 #include <AnalogOut.h>
 #include <matrix/matrix.h>
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 # include <TinyUsbInterface.h>
 # include <Platform/TaskPriorities.h>
 #endif
@@ -93,7 +93,7 @@ void EthernetInit() noexcept
 	}
 }
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 
 constexpr size_t UsbDeviceTaskStackWords = 200;
 static Task<UsbDeviceTaskStackWords> usbDeviceTask;
@@ -121,9 +121,13 @@ void DeviceInit() noexcept
 # endif
 #endif
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
-	CoreUsbInit(NvicPriorityUSB);
-	usbDeviceTask.Create(CoreUsbDeviceTask, "USBD", nullptr, TaskPriority::UsbPriority);
+#if CORE_USES_TINYUSB
+#if defined(SERIAL_MAIN_DEVICE)
+	CoreUsbInit(NvicPriorityUSB, false);
+#else
+	CoreUsbInit(NvicPriorityUSB, true);
+#endif
+	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", nullptr, TaskPriority::UsbPriority);
 #endif
 }
 
@@ -133,7 +137,7 @@ void StopAnalogTask() noexcept
 
 void StopUsbTask() noexcept
 {
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 	usbDeviceTask.TerminateAndUnlink();
 #endif
 }
