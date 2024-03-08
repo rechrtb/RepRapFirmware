@@ -139,7 +139,11 @@ void *Tasks::GetNVMBuffer(const uint32_t *_ecv_array null stk) noexcept
 	const bool DiagOnPolarity = (bt == BoardType::Duet3_6HC_v102) ? DiagOnPolarity102 : DiagOnPolarityPre102;
 	if (bt == BoardType::Duet3_6HC_v102)
 	{
+#if defined(SERIAL_MAIN_DEVICE)
 		pinMode(UsbPowerSwitchPin, OUTPUT_LOW);								// turn USB power off
+#else
+		pinMode(UsbPowerSwitchPin, OUTPUT_HIGH);
+#endif
 		pinMode(UsbModePin, OUTPUT_LOW);									// USB mode = device/UFP
 	}
 #endif
