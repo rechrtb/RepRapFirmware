@@ -5,6 +5,7 @@
 
 #if HAS_MASS_STORAGE
 # include <Libraries/Fatfs/diskio.h>
+# include <Libraries/Fatfs/diskio_sdmmc.h>
 # include <Libraries/sd_mmc/sd_mmc.h>
 # include <Libraries/sd_mmc/conf_sd_mmc.h>
 
@@ -1316,7 +1317,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 
 	// Show the longest SD card write time
 	platform.MessageF(mtype, "SD card longest read time %.1fms, write time %.1fms, max retries %u\n",
-								(double)DiskioGetAndClearLongestReadTime(), (double)DiskioGetAndClearLongestWriteTime(), DiskioGetAndClearMaxRetryCount());
+								(double)DiskioSdmmcGetAndClearLongestReadTime(), (double)DiskioSdmmcGetAndClearLongestWriteTime(), DiskioSdmmcGetAndClearMaxRetryCount());
 # endif
 }
 
