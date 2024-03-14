@@ -387,7 +387,7 @@ void MassStorage::Init() noexcept
 # endif
 
 # if HAS_MASS_STORAGE
-	static const char * const VolMutexNames[] = { "SD0", "SD1" };
+	static const char * const VolMutexNames[] = { "SD0", "SD1", "USB0" };
 	static_assert(ARRAY_SIZE(VolMutexNames) >= NumSdCards, "Incorrect VolMutexNames array");
 
 	// Initialise the SD card structs
@@ -400,6 +400,12 @@ void MassStorage::Init() noexcept
 		inf.cdPin = SdCardDetectPins[card];
 		inf.cardState = (inf.cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
 		inf.volMutex.Create(VolMutexNames[card]);
+	}
+
+	for (size_t drive = 0; drive < NumUsbDrives; drive++)
+	{
+		UsbDriveInfo& inf = drives[drive];
+		inf.volMutex.Create(VolMutexNames[NumSdCards + drive]);
 	}
 
 	sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);		// initialize SD MMC stack
@@ -470,9 +476,6 @@ void MassStorage::Spin() noexcept
 	}
 # endif
 
-#if SUPPORT_USB_DRIVE
-	volatile bool mounted = usbDriveMounted();
-#endif
 
 	// Check if any files are supposed to be closed
 	{
@@ -1152,94 +1155,108 @@ bool MassStorage::IsCardDetected(size_t card) noexcept
 // This may only be called to mount one card at a time.
 GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportSuccess) noexcept
 {
-	if (card >= GetNumVolumes())
+#if SUPPORT_USB_DRIVE
+	if (card >= NumSdCards)
 	{
-		reply.copy("SD card number out of range");
+		if (usbDrivePresent())
+		{
+			UsbDriveInfo& inf = drives[card % NumSdCards];
+			const char path[3] = { (char)('0' + card), ':', 0 };
+			const FRESULT mounted = f_mount(&inf.fileSystem, path, 1);
+		}
 		return GCodeResult::error;
 	}
-
+	else
+#endif
+	{
+		if (card >= GetNumVolumes())
+		{
+			reply.copy("SD card number out of range");
+			return GCodeResult::error;
+		}
 # if HAS_MASS_STORAGE
-	SdCardInfo& inf = info[card];
-	MutexLocker lock1(fsMutex);
-	MutexLocker lock2(inf.volMutex);
-	if (!inf.mounting)
-	{
-		if (inf.isMounted)
+		SdCardInfo& inf = info[card];
+		MutexLocker lock1(fsMutex);
+		MutexLocker lock2(inf.volMutex);
+		if (!inf.mounting)
 		{
-			if (AnyFileOpen(&inf.fileSystem))
+			if (inf.isMounted)
 			{
-				// Don't re-mount the card if any files are open on it
-				reply.copy("SD card has open file(s)");
-				return GCodeResult::error;
+				if (AnyFileOpen(&inf.fileSystem))
+				{
+					// Don't re-mount the card if any files are open on it
+					reply.copy("SD card has open file(s)");
+					return GCodeResult::error;
+				}
+				(void)InternalUnmount(card);
 			}
-			(void)InternalUnmount(card);
+
+			inf.mountStartTime = millis();
+			inf.mounting = true;
+			delay(2);
 		}
 
-		inf.mountStartTime = millis();
-		inf.mounting = true;
-		delay(2);
-	}
+		if (inf.cardState == CardDetectState::notPresent)
+		{
+			reply.copy("No SD card present");
+			inf.mounting = false;
+			return GCodeResult::error;
+		}
 
-	if (inf.cardState == CardDetectState::notPresent)
-	{
-		reply.copy("No SD card present");
+		if (inf.cardState != CardDetectState::present)
+		{
+			return GCodeResult::notFinished;						// wait for debounce to finish
+		}
+
+		const sd_mmc_err_t err = sd_mmc_check(card);
+		if (err != SD_MMC_OK && millis() - inf.mountStartTime < 5000)
+		{
+			delay(2);
+			return GCodeResult::notFinished;
+		}
+
 		inf.mounting = false;
-		return GCodeResult::error;
-	}
-
-	if (inf.cardState != CardDetectState::present)
-	{
-		return GCodeResult::notFinished;						// wait for debounce to finish
-	}
-
-	const sd_mmc_err_t err = sd_mmc_check(card);
-	if (err != SD_MMC_OK && millis() - inf.mountStartTime < 5000)
-	{
-		delay(2);
-		return GCodeResult::notFinished;
-	}
-
-	inf.mounting = false;
-	if (err != SD_MMC_OK)
-	{
-		reply.printf("Cannot initialise SD card %u: %s", card, TranslateCardError(err));
-		return GCodeResult::error;
-	}
-
-	// Mount the file systems
-	const char path[3] = { (char)('0' + card), ':', 0 };
-	const FRESULT mounted = f_mount(&inf.fileSystem, path, 1);
-	if (mounted == FR_NO_FILESYSTEM)
-	{
-		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", card);
-		return GCodeResult::error;
-	}
-	if (mounted != FR_OK)
-	{
-		reply.printf("Cannot mount SD card %u: code %d", card, mounted);
-		return GCodeResult::error;
-	}
-
-	inf.isMounted = true;
-	reprap.VolumesUpdated();
-	if (reportSuccess)
-	{
-		float capacity = ((float)sd_mmc_get_capacity(card) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
-		const char* capUnits;
-		if (capacity >= 1000.0)
+		if (err != SD_MMC_OK)
 		{
-			capacity /= 1000;
-			capUnits = "Gb";
+			reply.printf("Cannot initialise SD card %u: %s", card, TranslateCardError(err));
+			return GCodeResult::error;
 		}
-		else
-		{
-			capUnits = "Mb";
-		}
-		reply.printf("%s card mounted in slot %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(card)), card, (double)capacity, capUnits);
-	}
 
-	++inf.seq;
+		// Mount the file systems
+		const char path[3] = { (char)('0' + card), ':', 0 };
+		const FRESULT mounted = f_mount(&inf.fileSystem, path, 1);
+		if (mounted == FR_NO_FILESYSTEM)
+		{
+			reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", card);
+			return GCodeResult::error;
+		}
+		if (mounted != FR_OK)
+		{
+			reply.printf("Cannot mount SD card %u: code %d", card, mounted);
+			return GCodeResult::error;
+		}
+
+		inf.isMounted = true;
+		reprap.VolumesUpdated();
+		if (reportSuccess)
+		{
+			float capacity = ((float)sd_mmc_get_capacity(card) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
+			const char* capUnits;
+			if (capacity >= 1000.0)
+			{
+				capacity /= 1000;
+				capUnits = "Gb";
+			}
+			else
+			{
+				capUnits = "Mb";
+			}
+			reply.printf("%s card mounted in slot %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(card)), card, (double)capacity, capUnits);
+		}
+
+		++inf.seq;
 # endif
+	}
 
 	return GCodeResult::ok;
 }
@@ -1440,14 +1457,28 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		info[vol].volMutex.Take();
+		if (vol >= NumSdCards)
+		{
+			drives[vol % NumSdCards].volMutex.Take();
+		}
+		else
+		{
+			info[vol].volMutex.Take();
+		}
 		return 1;
 	}
 
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		info[vol].volMutex.Release();
+		if (vol >= NumSdCards)
+		{
+			drives[vol % NumSdCards].volMutex.Release();
+		}
+		else
+		{
+			info[vol].volMutex.Release();
+		}
 	}
 
 	// Delete a sync object

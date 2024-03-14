@@ -20,7 +20,6 @@ static void wait_for_disk_io(BYTE pdrv)
   }
 }
 
-
 DSTATUS disk_usbhmsc_initialize (BYTE pdrv) noexcept
 {
   (void) pdrv;
