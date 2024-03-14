@@ -28,6 +28,8 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 #include <Libraries/usbh_msc/usbh_msc.h>
 #endif
 
+#include "StorageDevice.h"
+
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
 // The FatFS subsystem locks and releases the appropriate volume mutex when it is called.
@@ -160,6 +162,8 @@ DEFINE_GET_OBJECT_MODEL_TABLE(SdCardInfo)
 
 static SdCardInfo info[NumSdCards];
 
+static StorageDevice *storageDevices[NumSdCards + NumUsbDrives];
+
 #if SUPPORT_USB_DRIVE
 static UsbDriveInfo drives[NumUsbDrives];
 #endif
@@ -228,7 +232,11 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 // Return the number of volumes, which on the 6HC is normally 1 but can be increased to 2
 size_t MassStorage::GetNumVolumes() noexcept
 {
-	return (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid()) ? 2 : 1;		// we have 2 slots if the second one has a valid CS pin, else 1
+	size_t num = (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid()) ? 2 : 1;		// we have 2 slots if the second one has a valid CS pin, else 1
+#if SUPPORT_USB_DRIVE
+	num += NumUsbDrives;
+#endif
+	return num;
 }
 
 // Configure additional SD card slots
@@ -1457,13 +1465,13 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		if (vol >= NumSdCards)
+		if (vol < NumSdCards)
 		{
-			drives[vol % NumSdCards].volMutex.Take();
+			info[vol].volMutex.Take();
 		}
 		else
 		{
-			info[vol].volMutex.Take();
+			drives[vol % NumSdCards].volMutex.Take();
 		}
 		return 1;
 	}
@@ -1471,13 +1479,13 @@ extern "C"
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		if (vol >= NumSdCards)
+		if (vol < NumSdCards)
 		{
-			drives[vol % NumSdCards].volMutex.Release();
+			info[vol].volMutex.Release();
 		}
 		else
 		{
-			info[vol].volMutex.Release();
+			drives[vol % NumSdCards].volMutex.Release();
 		}
 	}
 
