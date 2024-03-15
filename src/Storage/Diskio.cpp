@@ -1,4 +1,10 @@
 
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
+#include <RepRapFirmware.h>
+
+# include <Libraries/Fatfs/diskio.h>
+# include <Libraries/Fatfs/diskio_sdmmc.h>
 
 // Functions called by FatFS to acquire/release mutual exclusion
 extern "C"
@@ -14,7 +20,7 @@ extern "C"
 	{
 		if (vol < NumSdCards)
 		{
-			info[vol].volMutex.Take();
+			//info[vol].volMutex.Take();
 		}
 		else
 		{
@@ -28,7 +34,7 @@ extern "C"
 	{
 		if (vol < NumSdCards)
 		{
-			info[vol].volMutex.Release();
+			//info[vol].volMutex.Release();
 		}
 		else
 		{

@@ -14,6 +14,13 @@ public:
         uint32_t speed;
     };
 
+    struct Stats
+    {
+        uint32_t maxReadTime;
+        uint32_t maxWriteTime;
+        uint32_t maxRetryCount;
+    };
+
 	enum class InfoResult : uint8_t
 	{
 		badSlot = 0,
@@ -44,6 +51,9 @@ public:
 
     InfoResult GetInfo(Info& info) noexcept;
 
+    void GetStats(Stats& stats) noexcept;
+    void ResetStats() noexcept;
+
 private:
 	FATFS fileSystem;
 	uint32_t mountStartTime;
@@ -52,6 +62,8 @@ private:
 	bool mounting;
 	bool isMounted;
     uint8_t num;
+
+    Stats stats;
 
     void Clear() noexcept;
 

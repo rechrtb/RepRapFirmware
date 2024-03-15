@@ -1,4 +1,8 @@
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
+#include <ObjectModel/ObjectModel.h>
+
 
 #include "SdCard.h"
 #include "MassStorage.h"
@@ -247,6 +251,16 @@ void SdCard::Clear() noexcept
 	fileSystem.win = sectorBuffers[num];
 	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
 #endif
+}
+
+void SdCard::GetStats(Stats& stats) noexcept
+{
+    stats = this->stats;
+}
+
+void SdCard::ResetStats() noexcept
+{
+    memset(&stats, 0, sizeof(stats));
 }
 
 unsigned int SdCard::Unmount() noexcept

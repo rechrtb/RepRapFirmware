@@ -4,8 +4,6 @@
 #include <ObjectModel/ObjectModel.h>
 
 #if HAS_MASS_STORAGE
-# include <Libraries/Fatfs/diskio.h>
-# include <Libraries/Fatfs/diskio_sdmmc.h>
 
 // Check that the LFN configuration in FatFS is sufficient
 static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
@@ -1061,9 +1059,14 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "SD card 0 %s\n", (sd0.IsPresent() ? "detected" : "not detected"));
 #  endif
 
+	SdCard::Stats stats;
+	sd0.GetStats(stats);
+
 	// Show the longest SD card write time
 	platform.MessageF(mtype, "SD card longest read time %.1fms, write time %.1fms, max retries %u\n",
-								(double)DiskioSdmmcGetAndClearLongestReadTime(), (double)DiskioSdmmcGetAndClearLongestWriteTime(), DiskioSdmmcGetAndClearMaxRetryCount());
+								(double)stats.maxReadTime, (double)stats.maxWriteTime, stats.maxRetryCount);
+
+	sd0.ResetStats();
 # endif
 }
 
@@ -1138,6 +1141,11 @@ SdCard::InfoResult MassStorage::GetCardInfo(size_t slot, SdCard::Info& info) noe
 Mutex& MassStorage::GetVolumeMutex(size_t vol) noexcept
 {
 	return info[vol].volMutex;
+}
+
+Mutex& MassStorage::GetFsMutex() noexcept
+{
+	return fsMutex;
 }
 
 # if SUPPORT_OBJECT_MODEL

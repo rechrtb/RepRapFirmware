@@ -111,7 +111,7 @@ namespace MassStorage
 	void RecordSimulationTime(const char *_ecv_array printingFilePath, uint32_t simSeconds) noexcept;	// Append the simulated printing time to the end of the file
 	uint16_t GetVolumeSeq(unsigned int volume) noexcept;
 
-	Mutex& GetFsMutex();
+	Mutex& GetFsMutex() noexcept;
 
 	SdCard::InfoResult GetCardInfo(size_t slot, SdCard::Info& info) noexcept;
 
