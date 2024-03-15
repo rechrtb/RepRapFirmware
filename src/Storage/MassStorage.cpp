@@ -6,14 +6,10 @@
 #if HAS_MASS_STORAGE
 # include <Libraries/Fatfs/diskio.h>
 # include <Libraries/Fatfs/diskio_sdmmc.h>
-# include <Libraries/sd_mmc/sd_mmc.h>
-# include <Libraries/sd_mmc/conf_sd_mmc.h>
 
 // Check that the LFN configuration in FatFS is sufficient
 static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 
-// Check that the correct number of SD cards is configured in the library
-static_assert(SD_MMC_MEM_CNT == NumSdCards);
 #endif
 
 #if HAS_SBC_INTERFACE
@@ -24,11 +20,6 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 # include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #endif
 
-#if SUPPORT_USB_DRIVE
-#include <Libraries/usbh_msc/usbh_msc.h>
-#endif
-
-#include "StorageDevice.h"
 
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
@@ -43,7 +34,6 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 // Private data and methods
 
 # if SAME70
-alignas(4) static __nocache uint8_t sectorBuffers[NumSdCards][512];
 alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
 # endif
 
@@ -54,15 +44,6 @@ enum class CardDetectState : uint8_t
 	present,
 	removing
 };
-
-#if SUPPORT_USB_DRIVE
-enum class UsbDriveState : uint8_t
-{
-	none = 0,
-	inserted,
-	mounted
-};
-#endif
 
 struct SdCardInfo INHERIT_OBJECT_MODEL
 {
@@ -82,27 +63,6 @@ protected:
 	DECLARE_OBJECT_MODEL
 };
 
-
-#if SUPPORT_USB_DRIVE
-struct UsbDriveInfo
-{
-	FATFS fileSystem;
-	Mutex volMutex;
-	uint32_t timer;
-	uint16_t seq;
-	UsbDriveState driveState;
-};
-#endif
-
-void SdCardInfo::Clear(unsigned int card) noexcept
-{
-	memset(&fileSystem, 0, sizeof(fileSystem));
-#if SAME70
-	fileSystem.win = sectorBuffers[card];
-	memset(sectorBuffers[card], 0, sizeof(sectorBuffers[card]));
-#endif
-}
-
 #if SUPPORT_OBJECT_MODEL
 
 // Object model table and functions
@@ -113,39 +73,49 @@ void SdCardInfo::Clear(unsigned int card) noexcept
 #define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(SdCardInfo, __VA_ARGS__)
 #define OBJECT_MODEL_FUNC_IF(_condition,...) OBJECT_MODEL_FUNC_IF_BODY(SdCardInfo, _condition,__VA_ARGS__)
 
-// These two functions are only called from one place each in the OM table, hence inlined
+// These functions are only called from one place each in the OM table, hence inlined
+static inline uint64_t GetCapacity(size_t slot)
+{
+	SdCard::Info returnedInfo;
+	(void)MassStorage::GetCardInfo(slot, returnedInfo);
+	return returnedInfo.cardCapacity;
+}
+
 static inline uint64_t GetFreeSpace(size_t slot)
 {
-	MassStorage::SdCardReturnedInfo returnedInfo;
+	SdCard::Info returnedInfo;
 	(void)MassStorage::GetCardInfo(slot, returnedInfo);
 	return returnedInfo.freeSpace;
 }
 
 static inline uint64_t GetPartitionSize(size_t slot)
 {
-	MassStorage::SdCardReturnedInfo returnedInfo;
+	SdCard::Info returnedInfo;
 	(void)MassStorage::GetCardInfo(slot, returnedInfo);
 	return returnedInfo.partitionSize;
+}
+
+static inline int32_t GetInterfaceSpeed(size_t slot)
+{
+	SdCard::Info returnedInfo;
+	(void)MassStorage::GetCardInfo(slot, returnedInfo);
+	return returnedInfo.speed * 1000000;
 }
 
 static const char * const VolPathNames[] = { "0:/", "1:/" };
 static_assert(ARRAY_SIZE(VolPathNames) >= NumSdCards, "Incorrect VolPathNames array");
 
-#ifdef DUET3_MB6HC
-static IoPort sd1Ports[2];		// first element is CS port, second is CD port
-#endif
-
 constexpr ObjectModelTableEntry SdCardInfo::objectModelTable[] =
 {
 	// Within each group, these entries must be in alphabetical order
 	// 0. volumes[] root
-	{ "capacity",			OBJECT_MODEL_FUNC_IF(self->isMounted, (uint64_t)sd_mmc_get_capacity(context.GetLastIndex()) * 1024u),	ObjectModelEntryFlags::none },
+	{ "capacity",			OBJECT_MODEL_FUNC_IF(self->isMounted, GetCapacity(context.GetLastIndex())),								ObjectModelEntryFlags::none },
 	{ "freeSpace",			OBJECT_MODEL_FUNC_IF(self->isMounted, GetFreeSpace(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "mounted",			OBJECT_MODEL_FUNC(self->isMounted),																		ObjectModelEntryFlags::none },
 	{ "openFiles",			OBJECT_MODEL_FUNC_IF(self->isMounted, MassStorage::AnyFileOpen(&(self->fileSystem))),					ObjectModelEntryFlags::none },
 	{ "partitionSize",		OBJECT_MODEL_FUNC_IF(self->isMounted, GetPartitionSize(context.GetLastIndex())),						ObjectModelEntryFlags::none },
 	{ "path",				OBJECT_MODEL_FUNC_NOSELF(VolPathNames[context.GetLastIndex()]),											ObjectModelEntryFlags::verbose },
-	{ "speed",				OBJECT_MODEL_FUNC_IF(self->isMounted, (int32_t)sd_mmc_get_interface_speed(context.GetLastIndex())),		ObjectModelEntryFlags::none },
+	{ "speed",				OBJECT_MODEL_FUNC_IF(self->isMounted, GetInterfaceSpeed(context.GetLastIndex())),						ObjectModelEntryFlags::none },
 };
 
 // TODO Add storages here in the format
@@ -162,11 +132,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(SdCardInfo)
 
 static SdCardInfo info[NumSdCards];
 
-static StorageDevice *storageDevices[NumSdCards + NumUsbDrives];
-
-#if SUPPORT_USB_DRIVE
-static UsbDriveInfo drives[NumUsbDrives];
-#endif
+static SdCard sdCards[NumSdCards];
 
 static DIR findDir;
 #endif
@@ -232,40 +198,15 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 // Return the number of volumes, which on the 6HC is normally 1 but can be increased to 2
 size_t MassStorage::GetNumVolumes() noexcept
 {
-	size_t num = (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid()) ? 2 : 1;		// we have 2 slots if the second one has a valid CS pin, else 1
-#if SUPPORT_USB_DRIVE
-	num += NumUsbDrives;
-#endif
-	return num;
+	return (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sdCards[1].Useable()) ? 2 : 1;		// we have 2 slots if the second one has a valid CS pin, else 1
 }
 
 // Configure additional SD card slots
 // The card detect pin may be NoPin if the SD card slot doesn't support card detect
 GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
-	(void)gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
-	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
-	if (gb.Seen('C'))
-	{
-		const PinAccess accessNeeded[2] = { PinAccess::write1, PinAccess::read };
-		if (IoPort::AssignPorts(gb, reply, PinUsedBy::sdCard, 2, portAddresses, accessNeeded) == 0)
-		{
-			return GCodeResult::error;
-		}
-		sd_mmc_change_cs_pin(1, sd1Ports[0].GetPin());
-		info[1].cdPin = sd1Ports[1].GetPin();
-		if (info[1].cdPin == NoPin)
-		{
-			info[1].cardState = CardDetectState::present;
-		}
-		reprap.VolumesUpdated();
-	}
-	else
-	{
-		reply.copy("SD card 1 uses pins ");
-		IoPort::AppendPinNames(reply, 2, portAddresses);
-	}
-	return GCodeResult::ok;
+	int slot = gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
+	return sdCards[slot].SetCSPin(gb, reply);
 }
 
 # endif
@@ -296,22 +237,6 @@ static bool VolumeUpdated(const char *path) noexcept
 	return false;
 }
 
-// Unmount a file system returning the number of open files were invalidated
-static unsigned int InternalUnmount(size_t card) noexcept
-{
-	SdCardInfo& inf = info[card];
-	MutexLocker lock1(fsMutex);
-	MutexLocker lock2(inf.volMutex);
-	const unsigned int invalidated = MassStorage::InvalidateFiles(&inf.fileSystem);
-	const char path[3] = { (char)('0' + card), ':', 0 };
-	f_mount(nullptr, path, 0);
-	inf.Clear(card);
-	sd_mmc_unmount(card);
-	inf.isMounted = false;
-	reprap.VolumesUpdated();
-	return invalidated;
-}
-
 static time_t ConvertTimeStamp(uint16_t fdate, uint16_t ftime) noexcept
 {
 	struct tm timeInfo;
@@ -326,50 +251,6 @@ static time_t ConvertTimeStamp(uint16_t fdate, uint16_t ftime) noexcept
 	timeInfo.tm_isdst = 0;
 	return mktime(&timeInfo);
 }
-
-static const char* TranslateCardType(card_type_t ct) noexcept
-{
-	switch (ct)
-	{
-		case CARD_TYPE_SD | CARD_TYPE_HC:
-			return "SDHC";
-		case CARD_TYPE_SD:
-			return "SD";
-		case CARD_TYPE_MMC | CARD_TYPE_HC:
-			return "MMC High Capacity";
-		case CARD_TYPE_MMC:
-			return "MMC";
-		case CARD_TYPE_SDIO:
-			return "SDIO";
-		case CARD_TYPE_SD_COMBO:
-			return "SD COMBO";
-		case CARD_TYPE_UNKNOWN:
-		default:
-			return "Unknown type";
-	}
-}
-
-static const char* TranslateCardError(sd_mmc_err_t err) noexcept
-{
-	switch (err)
-	{
-		case SD_MMC_ERR_NO_CARD:
-			return "Card not found";
-		case SD_MMC_ERR_UNUSABLE:
-			return "Card is unusable";
-		case SD_MMC_ERR_SLOT:
-			return "Slot unknown";
-		case SD_MMC_ERR_COMM:
-			return "Communication error";
-		case SD_MMC_ERR_PARAM:
-			return "Illegal input parameter";
-		case SD_MMC_ERR_WP:
-			return "Card write protected";
-		default:
-			return "Unknown error";
-	}
-}
-
 #endif
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE || HAS_EMBEDDED_FILES
@@ -395,95 +276,31 @@ void MassStorage::Init() noexcept
 # endif
 
 # if HAS_MASS_STORAGE
-	static const char * const VolMutexNames[] = { "SD0", "SD1", "USB0" };
-	static_assert(ARRAY_SIZE(VolMutexNames) >= NumSdCards, "Incorrect VolMutexNames array");
 
-	// Initialise the SD card structs
-	for (size_t card = 0; card < NumSdCards; ++card)
+	for (uint8_t card = 0; card < NumSdCards; ++card)
 	{
-		SdCardInfo& inf = info[card];
-		inf.Clear(card);
-		inf.mounting = inf.isMounted = false;
-		inf.seq = 0;
-		inf.cdPin = SdCardDetectPins[card];
-		inf.cardState = (inf.cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
-		inf.volMutex.Create(VolMutexNames[card]);
+		sdCards[card].Init(card);
 	}
-
-	for (size_t drive = 0; drive < NumUsbDrives; drive++)
-	{
-		UsbDriveInfo& inf = drives[drive];
-		inf.volMutex.Create(VolMutexNames[NumSdCards + drive]);
-	}
-
-	sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);		// initialize SD MMC stack
-
 	// We no longer mount the SD card here because it may take a long time if it fails
 # endif
 }
 
 
+#if HAS_MASS_STORAGE || HAS_SBC_INTERFACE || HAS_EMBEDDED_FILES
+Mutex& GetFsMutex()
+{
+	return fsMutex;
+}
+#endif
+
 void MassStorage::Spin() noexcept
 {
 # if HAS_MASS_STORAGE
-	for (size_t card = 0; card < NumSdCards; ++card)
+	for (SdCard& card : sdCards)
 	{
-		SdCardInfo& inf = info[card];
-		if (inf.cdPin != NoPin)
-		{
-			if (IoPort::ReadPin(inf.cdPin))
-			{
-				// Pin state says no card present
-				switch (inf.cardState)
-				{
-				case CardDetectState::inserting:
-				case CardDetectState::present:
-					inf.cardState = CardDetectState::removing;
-					inf.cdChangedTime = millis();
-					break;
-
-				case CardDetectState::removing:
-					if (millis() - inf.cdChangedTime > SdCardDetectDebounceMillis)
-					{
-						inf.cardState = CardDetectState::notPresent;
-						if (inf.isMounted)
-						{
-							const unsigned int numFiles = InternalUnmount(card);
-							if (numFiles != 0)
-							{
-								reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", card, numFiles);
-							}
-						}
-					}
-					break;
-
-				default:
-					break;
-				}
-			}
-			else
-			{
-				// Pin state says card is present
-				switch (inf.cardState)
-				{
-				case CardDetectState::removing:
-				case CardDetectState::notPresent:
-					inf.cardState = CardDetectState::inserting;
-					inf.cdChangedTime = millis();
-					break;
-
-				case CardDetectState::inserting:
-					inf.cardState = CardDetectState::present;
-					break;
-
-				default:
-					break;
-				}
-			}
-		}
+		card.Spin();
 	}
 # endif
-
 
 	// Check if any files are supposed to be closed
 	{
@@ -1151,7 +968,7 @@ unsigned int MassStorage::InvalidateFiles(const FATFS *fs) noexcept
 
 bool MassStorage::IsCardDetected(size_t card) noexcept
 {
-	return info[card].cardState == CardDetectState::present;
+	return sdCards[card].IsPresent();
 }
 
 #endif
@@ -1163,110 +980,13 @@ bool MassStorage::IsCardDetected(size_t card) noexcept
 // This may only be called to mount one card at a time.
 GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportSuccess) noexcept
 {
-#if SUPPORT_USB_DRIVE
-	if (card >= NumSdCards)
+	if (card >= GetNumVolumes())
 	{
-		if (usbDrivePresent())
-		{
-			UsbDriveInfo& inf = drives[card % NumSdCards];
-			const char path[3] = { (char)('0' + card), ':', 0 };
-			const FRESULT mounted = f_mount(&inf.fileSystem, path, 1);
-		}
+		reply.copy("SD card number out of range");
 		return GCodeResult::error;
 	}
-	else
-#endif
-	{
-		if (card >= GetNumVolumes())
-		{
-			reply.copy("SD card number out of range");
-			return GCodeResult::error;
-		}
-# if HAS_MASS_STORAGE
-		SdCardInfo& inf = info[card];
-		MutexLocker lock1(fsMutex);
-		MutexLocker lock2(inf.volMutex);
-		if (!inf.mounting)
-		{
-			if (inf.isMounted)
-			{
-				if (AnyFileOpen(&inf.fileSystem))
-				{
-					// Don't re-mount the card if any files are open on it
-					reply.copy("SD card has open file(s)");
-					return GCodeResult::error;
-				}
-				(void)InternalUnmount(card);
-			}
 
-			inf.mountStartTime = millis();
-			inf.mounting = true;
-			delay(2);
-		}
-
-		if (inf.cardState == CardDetectState::notPresent)
-		{
-			reply.copy("No SD card present");
-			inf.mounting = false;
-			return GCodeResult::error;
-		}
-
-		if (inf.cardState != CardDetectState::present)
-		{
-			return GCodeResult::notFinished;						// wait for debounce to finish
-		}
-
-		const sd_mmc_err_t err = sd_mmc_check(card);
-		if (err != SD_MMC_OK && millis() - inf.mountStartTime < 5000)
-		{
-			delay(2);
-			return GCodeResult::notFinished;
-		}
-
-		inf.mounting = false;
-		if (err != SD_MMC_OK)
-		{
-			reply.printf("Cannot initialise SD card %u: %s", card, TranslateCardError(err));
-			return GCodeResult::error;
-		}
-
-		// Mount the file systems
-		const char path[3] = { (char)('0' + card), ':', 0 };
-		const FRESULT mounted = f_mount(&inf.fileSystem, path, 1);
-		if (mounted == FR_NO_FILESYSTEM)
-		{
-			reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", card);
-			return GCodeResult::error;
-		}
-		if (mounted != FR_OK)
-		{
-			reply.printf("Cannot mount SD card %u: code %d", card, mounted);
-			return GCodeResult::error;
-		}
-
-		inf.isMounted = true;
-		reprap.VolumesUpdated();
-		if (reportSuccess)
-		{
-			float capacity = ((float)sd_mmc_get_capacity(card) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
-			const char* capUnits;
-			if (capacity >= 1000.0)
-			{
-				capacity /= 1000;
-				capUnits = "Gb";
-			}
-			else
-			{
-				capUnits = "Mb";
-			}
-			reply.printf("%s card mounted in slot %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(card)), card, (double)capacity, capUnits);
-		}
-
-		++inf.seq;
-# endif
-	}
-
-	return GCodeResult::ok;
+	return sdCards[card].Mount(card, reply, reportSuccess);
 }
 
 // Unmount the specified SD card, returning true if done, false if needs to be called again.
@@ -1288,7 +1008,7 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 		return GCodeResult::error;
 	}
 
-	(void)InternalUnmount(card);
+	sdCards[card].Unmount();
 	reply.printf("SD card %u may now be removed", card);
 	++inf.seq;
 # endif
@@ -1332,12 +1052,13 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "=== Storage ===\nFree file entries: %u\n", MassStorage::GetNumFreeFiles());
 
 # if HAS_MASS_STORAGE
+	SdCard &sd0 = sdCards[0];
 #  if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
 	platform.MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n",
-								(IsCardDetected(0) ? "detected" : "not detected"), (double)((float)sd_mmc_get_interface_speed(0) * 0.000001));
+								(sd0.IsPresent() ? "detected" : "not detected"), sd0.GetInterfaceSpeed());
 #  else
-	platform.MessageF(mtype, "SD card 0 %s\n", (MassStorage::IsCardDetected(0) ? "detected" : "not detected"));
+	platform.MessageF(mtype, "SD card 0 %s\n", (sd0.IsPresent() ? "detected" : "not detected"));
 #  endif
 
 	// Show the longest SD card write time
@@ -1404,38 +1125,14 @@ void MassStorage::RecordSimulationTime(const char *printingFilePath, uint32_t si
 }
 
 // Get information about the SD card and interface speed
-MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept
+SdCard::InfoResult MassStorage::GetCardInfo(size_t slot, SdCard::Info& info) noexcept
 {
 	if (slot >= GetNumVolumes())
 	{
-		return InfoResult::badSlot;
+		return SdCard::InfoResult::badSlot;
 	}
 
-	SdCardInfo& inf = info[slot];
-	if (!inf.isMounted)
-	{
-		return InfoResult::noCard;
-	}
-
-	returnedInfo.cardCapacity = (uint64_t)sd_mmc_get_capacity(slot) * 1024;
-	returnedInfo.speed = sd_mmc_get_interface_speed(slot);
-	String<StringLength50> path;
-	path.printf("%u:/", slot);
-	uint32_t freeClusters;
-	FATFS *fs;
-	const FRESULT fr = f_getfree(path.c_str(), &freeClusters, &fs);
-	if (fr == FR_OK)
-	{
-		returnedInfo.clSize = fs->csize * 512;
-		returnedInfo.partitionSize = (uint64_t)(fs->n_fatent - 2) * returnedInfo.clSize;
-		returnedInfo.freeSpace = (uint64_t)freeClusters * returnedInfo.clSize;
-	}
-	else
-	{
-		returnedInfo.clSize = 0;
-		returnedInfo.cardCapacity = returnedInfo.partitionSize = returnedInfo.freeSpace = 0;
-	}
-	return InfoResult::ok;
+	return sdCards[slot].GetInfo(info);
 }
 
 Mutex& MassStorage::GetVolumeMutex(size_t vol) noexcept
@@ -1451,51 +1148,6 @@ const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 }
 
 # endif
-
-
-// Functions called by FatFS to acquire/release mutual exclusion
-extern "C"
-{
-	// Create a sync object. We already created it so just need to return success.
-	int ff_mutex_create (int vol) noexcept
-	{
-		return 1;
-	}
-
-	// Lock sync object
-	int ff_mutex_take (int vol) noexcept
-	{
-		if (vol < NumSdCards)
-		{
-			info[vol].volMutex.Take();
-		}
-		else
-		{
-			drives[vol % NumSdCards].volMutex.Take();
-		}
-		return 1;
-	}
-
-	// Unlock sync object
-	void ff_mutex_give (int vol) noexcept
-	{
-		if (vol < NumSdCards)
-		{
-			info[vol].volMutex.Release();
-		}
-		else
-		{
-			drives[vol % NumSdCards].volMutex.Release();
-		}
-	}
-
-	// Delete a sync object
-	void ff_mutex_delete (int vol) noexcept
-	{
-		// nothing to do, we never delete the mutex
-	}
-}
-
 #endif
 
 // End

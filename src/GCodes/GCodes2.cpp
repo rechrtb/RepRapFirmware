@@ -28,6 +28,7 @@
 #include <Movement/StepperDrivers/DriverMode.h>
 #include <Hardware/SoftwareReset.h>
 #include <Hardware/ExceptionHandlers.h>
+#include <Storage/SdCard.h>
 #include <Version.h>
 
 #if SUPPORT_IOBITS

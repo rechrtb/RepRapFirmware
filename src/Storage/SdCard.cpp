@@ -1,10 +1,25 @@
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+
 #include "SdCard.h"
+#include "MassStorage.h"
 
 # if HAS_MASS_STORAGE
 
 # include <Libraries/sd_mmc/sd_mmc.h>
 # include <Libraries/sd_mmc/conf_sd_mmc.h>
 
+
+# if SAME70
+alignas(4) static __nocache uint8_t sectorBuffers[NumSdCards][512];
+#endif
+
+
+// Check that the correct number of SD cards is configured in the library
+static_assert(SD_MMC_MEM_CNT == NumSdCards);
+
+#ifdef DUET3_MB6HC
+static IoPort sd1Ports[2];		// first element is CS port, second is CD port
+#endif
 
 static const char* TranslateCardError(sd_mmc_err_t err) noexcept
 {
@@ -15,7 +30,7 @@ static const char* TranslateCardError(sd_mmc_err_t err) noexcept
 		case SD_MMC_ERR_UNUSABLE:
 			return "Card is unusable";
 		case SD_MMC_ERR_SLOT:
-			return "Slot unknown";
+			return "num unknown";
 		case SD_MMC_ERR_COMM:
 			return "Communication error";
 		case SD_MMC_ERR_PARAM:
@@ -50,10 +65,35 @@ static const char* TranslateCardType(card_type_t ct) noexcept
 	}
 }
 
+
+bool SdCard::Useable() noexcept
+{
+#if DUET3_MB6HC
+    if (num == 1)
+    {
+        return sd1Ports[0].IsValid();
+    }
+#endif
+    return true;
+}
+
+void SdCard::Init(uint8_t num) noexcept
+{
+    num = num;
+    Clear();
+    mounting = isMounted = false;
+    seq = 0;
+    cdPin = SdCardDetectPins[num];
+    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+    volMutex.Create("0");
+
+	// sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);		// initialize SD MMC stack
+}
+
+
 GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept
 {
-    // SdCardInfo& inf = info[card];
-    // MutexLocker lock1(fsMutex);
+    MutexLocker lock1(MassStorage::GetFsMutex());
     MutexLocker lock(volMutex);
 
     if (cardState == DetectState::notPresent)
@@ -111,13 +151,38 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
         {
             capUnits = "Mb";
         }
-        reply.printf("%s card mounted in slot %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
+        reply.printf("%s card mounted in num %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
     }
 
     ++seq;
 	return GCodeResult::ok;
 }
 
+
+GCodeResult SdCard::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
+{
+	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
+	if (gb.Seen('C'))
+	{
+        const PinAccess accessNeeded[2] = { PinAccess::write1, PinAccess::read };
+        if (IoPort::AssignPorts(gb, reply, PinUsedBy::sdCard, 2, portAddresses, accessNeeded) == 0)
+        {
+			return GCodeResult::error;
+        }
+        sd_mmc_change_cs_pin(1, sd1Ports[0].GetPin());
+        cdPin = sd1Ports[1].GetPin();
+        if (cdPin == NoPin)
+        {
+            cardState = DetectState::present;
+        }
+    }
+    else
+    {
+		IoPort::AppendPinNames(reply, 2, portAddresses);
+    }
+    reprap.VolumesUpdated();
+    return GCodeResult::ok;
+}
 
 void SdCard::Spin() noexcept
 {
@@ -140,14 +205,15 @@ void SdCard::Spin() noexcept
                     cardState = DetectState::notPresent;
                     if (isMounted)
                     {
-                        // const unsigned int numFiles = InternalUnmount(card);
-                        // if (numFiles != 0)
-                        // {
-                        //     reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", card, numFiles);
-                        // }
+                        const unsigned int numFiles = Unmount();
+                        if (numFiles != 0)
+                        {
+                            reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", num, numFiles);
+                        }
                     }
                 }
                 break;
+
             default:
                 break;
             }
@@ -176,19 +242,66 @@ void SdCard::Spin() noexcept
 
 void SdCard::Clear() noexcept
 {
-
+	memset(&fileSystem, 0, sizeof(fileSystem));
+#if SAME70
+	fileSystem.win = sectorBuffers[num];
+	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
+#endif
 }
 
-GCodeResult SdCard::Unmount(size_t num, const StringRef& reply) noexcept
+unsigned int SdCard::Unmount() noexcept
 {
-	MutexLocker lock(volMutex);
+	MutexLocker lock1(MassStorage::GetFsMutex());
+	MutexLocker lock2(volMutex);
+	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
 	const char path[3] = { (char)('0' + num), ':', 0 };
 	f_mount(nullptr, path, 0);
 	Clear();
 	sd_mmc_unmount(num);
 	isMounted = false;
 	reprap.VolumesUpdated();
-    return GCodeResult::ok;
+	return invalidated;
 }
+
+SdCard::InfoResult SdCard::GetInfo(Info& returnedInfo) noexcept
+{
+	if (!isMounted)
+	{
+		return InfoResult::noCard;
+	}
+
+	returnedInfo.cardCapacity = (uint64_t)sd_mmc_get_capacity(num) * 1024;
+	returnedInfo.speed = sd_mmc_get_interface_speed(num);
+	String<StringLength50> path;
+	path.printf("%u:/", num);
+	uint32_t freeClusters;
+	FATFS *fs;
+	const FRESULT fr = f_getfree(path.c_str(), &freeClusters, &fs);
+	if (fr == FR_OK)
+	{
+		returnedInfo.clSize = fs->csize * 512;
+		returnedInfo.partitionSize = (uint64_t)(fs->n_fatent - 2) * returnedInfo.clSize;
+		returnedInfo.freeSpace = (uint64_t)freeClusters * returnedInfo.clSize;
+	}
+	else
+	{
+		returnedInfo.clSize = 0;
+		returnedInfo.cardCapacity = returnedInfo.partitionSize = returnedInfo.freeSpace = 0;
+	}
+	return InfoResult::ok;
+}
+
+
+bool SdCard::IsPresent() noexcept
+{
+	return cardState == DetectState::present;
+}
+
+double SdCard::GetInterfaceSpeed() noexcept
+{
+	return 0;
+    //return (double)((float)sd_mmc_get_interface_speed(num) * 0.000001);
+}
+
 
 # endif

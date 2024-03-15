@@ -7,6 +7,7 @@
 #include "FileStore.h"
 #include "FileInfoParser.h"
 #include <RTOSIface/RTOSIface.h>
+#include "SdCard.h"
 
 #include <ctime>
 
@@ -110,23 +111,9 @@ namespace MassStorage
 	void RecordSimulationTime(const char *_ecv_array printingFilePath, uint32_t simSeconds) noexcept;	// Append the simulated printing time to the end of the file
 	uint16_t GetVolumeSeq(unsigned int volume) noexcept;
 
-	enum class InfoResult : uint8_t
-	{
-		badSlot = 0,
-		noCard = 1,
-		ok = 2
-	};
+	Mutex& GetFsMutex();
 
-	struct SdCardReturnedInfo
-	{
-		uint64_t cardCapacity;
-		uint64_t partitionSize;
-		uint64_t freeSpace;
-		uint32_t clSize;
-		uint32_t speed;
-	};
-
-	InfoResult GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept;
+	SdCard::InfoResult GetCardInfo(size_t slot, SdCard::Info& info) noexcept;
 
 # ifdef DUET3_MB6HC
 	GCodeResult ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Configure additional SD card slots
