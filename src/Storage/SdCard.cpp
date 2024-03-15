@@ -25,6 +25,63 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 static IoPort sd1Ports[2];		// first element is CS port, second is CD port
 #endif
 
+#if SUPPORT_OBJECT_MODEL
+
+// Object model table and functions
+// Note: if using GCC version 7.3.1 20180622 and lambda functions are used in this table, you must compile this file with option -std=gnu++17.
+// Otherwise the table will be allocate in RAM instead of flash, which wastes too much RAM.
+
+// Macro to build a standard lambda function that includes the necessary type conversions
+#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(SdCard, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC_IF(_condition,...) OBJECT_MODEL_FUNC_IF_BODY(SdCard, _condition,__VA_ARGS__)
+
+// These functions are only called from one place each in the OM table, hence inlined
+uint64_t SdCard::GetCapacity() const
+{
+	return 0;
+}
+
+uint64_t SdCard::GetFreeSpace() const
+{
+	return 0;
+}
+
+uint64_t SdCard::GetPartitionSize() const
+{
+	return 0;
+}
+
+double SdCard::GetInterfaceSpeed() const
+{
+	return 0;
+    //return (double)((float)sd_mmc_get_interface_speed(num) * 0.000001);
+}
+
+constexpr ObjectModelTableEntry SdCard::objectModelTable[] =
+{
+	// Within each group, these entries must be in alphabetical order
+	// 0. volumes[] root
+	{ "capacity",			OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetCapacity()),								    ObjectModelEntryFlags::none },
+	{ "freeSpace",			OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetFreeSpace()),							        ObjectModelEntryFlags::none },
+	{ "mounted",			OBJECT_MODEL_FUNC(self->isMounted),														ObjectModelEntryFlags::none },
+	{ "openFiles",			OBJECT_MODEL_FUNC_IF(self->isMounted, MassStorage::AnyFileOpen(&(self->fileSystem))),	ObjectModelEntryFlags::none },
+	{ "partitionSize",		OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetPartitionSize()),						        ObjectModelEntryFlags::none },
+	{ "path",				OBJECT_MODEL_FUNC(self->GetPathName()),										    	ObjectModelEntryFlags::verbose },
+	{ "speed",				OBJECT_MODEL_FUNC_IF(self->isMounted, (int32_t)self->GetInterfaceSpeed()),					        	ObjectModelEntryFlags::none },
+};
+
+// TODO Add storages here in the format
+/*
+	openFiles = null
+	path = null
+*/
+
+constexpr uint8_t SdCard::objectModelTableDescriptor[] = { 1, 7 };
+
+DEFINE_GET_OBJECT_MODEL_TABLE(SdCard)
+
+#endif
+
 static const char* TranslateCardError(sd_mmc_err_t err) noexcept
 {
 	switch (err)
@@ -158,7 +215,6 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
         reply.printf("%s card mounted in num %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
     }
 
-    ++seq;
 	return GCodeResult::ok;
 }
 
@@ -274,6 +330,7 @@ unsigned int SdCard::Unmount() noexcept
 	sd_mmc_unmount(num);
 	isMounted = false;
 	reprap.VolumesUpdated();
+	++seq;
 	return invalidated;
 }
 
@@ -311,11 +368,6 @@ bool SdCard::IsPresent() noexcept
 	return cardState == DetectState::present;
 }
 
-double SdCard::GetInterfaceSpeed() noexcept
-{
-	return 0;
-    //return (double)((float)sd_mmc_get_interface_speed(num) * 0.000001);
-}
 
 
 # endif

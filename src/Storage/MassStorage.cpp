@@ -35,101 +35,6 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
 # endif
 
-enum class CardDetectState : uint8_t
-{
-	notPresent = 0,
-	inserting,
-	present,
-	removing
-};
-
-struct SdCardInfo INHERIT_OBJECT_MODEL
-{
-	FATFS fileSystem;
-	uint32_t cdChangedTime;
-	uint32_t mountStartTime;
-	Mutex volMutex;
-	uint16_t seq;
-	Pin cdPin;
-	bool mounting;
-	bool isMounted;
-	CardDetectState cardState;
-
-	void Clear(unsigned int card) noexcept;
-
-protected:
-	DECLARE_OBJECT_MODEL
-};
-
-#if SUPPORT_OBJECT_MODEL
-
-// Object model table and functions
-// Note: if using GCC version 7.3.1 20180622 and lambda functions are used in this table, you must compile this file with option -std=gnu++17.
-// Otherwise the table will be allocate in RAM instead of flash, which wastes too much RAM.
-
-// Macro to build a standard lambda function that includes the necessary type conversions
-#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(SdCardInfo, __VA_ARGS__)
-#define OBJECT_MODEL_FUNC_IF(_condition,...) OBJECT_MODEL_FUNC_IF_BODY(SdCardInfo, _condition,__VA_ARGS__)
-
-// These functions are only called from one place each in the OM table, hence inlined
-static inline uint64_t GetCapacity(size_t slot)
-{
-	SdCard::Info returnedInfo;
-	(void)MassStorage::GetCardInfo(slot, returnedInfo);
-	return returnedInfo.cardCapacity;
-}
-
-static inline uint64_t GetFreeSpace(size_t slot)
-{
-	SdCard::Info returnedInfo;
-	(void)MassStorage::GetCardInfo(slot, returnedInfo);
-	return returnedInfo.freeSpace;
-}
-
-static inline uint64_t GetPartitionSize(size_t slot)
-{
-	SdCard::Info returnedInfo;
-	(void)MassStorage::GetCardInfo(slot, returnedInfo);
-	return returnedInfo.partitionSize;
-}
-
-static inline int32_t GetInterfaceSpeed(size_t slot)
-{
-	SdCard::Info returnedInfo;
-	(void)MassStorage::GetCardInfo(slot, returnedInfo);
-	return returnedInfo.speed * 1000000;
-}
-
-static const char * const VolPathNames[] = { "0:/", "1:/" };
-static_assert(ARRAY_SIZE(VolPathNames) >= NumSdCards, "Incorrect VolPathNames array");
-
-constexpr ObjectModelTableEntry SdCardInfo::objectModelTable[] =
-{
-	// Within each group, these entries must be in alphabetical order
-	// 0. volumes[] root
-	{ "capacity",			OBJECT_MODEL_FUNC_IF(self->isMounted, GetCapacity(context.GetLastIndex())),								ObjectModelEntryFlags::none },
-	{ "freeSpace",			OBJECT_MODEL_FUNC_IF(self->isMounted, GetFreeSpace(context.GetLastIndex())),							ObjectModelEntryFlags::none },
-	{ "mounted",			OBJECT_MODEL_FUNC(self->isMounted),																		ObjectModelEntryFlags::none },
-	{ "openFiles",			OBJECT_MODEL_FUNC_IF(self->isMounted, MassStorage::AnyFileOpen(&(self->fileSystem))),					ObjectModelEntryFlags::none },
-	{ "partitionSize",		OBJECT_MODEL_FUNC_IF(self->isMounted, GetPartitionSize(context.GetLastIndex())),						ObjectModelEntryFlags::none },
-	{ "path",				OBJECT_MODEL_FUNC_NOSELF(VolPathNames[context.GetLastIndex()]),											ObjectModelEntryFlags::verbose },
-	{ "speed",				OBJECT_MODEL_FUNC_IF(self->isMounted, GetInterfaceSpeed(context.GetLastIndex())),						ObjectModelEntryFlags::none },
-};
-
-// TODO Add storages here in the format
-/*
-	openFiles = null
-	path = null
-*/
-
-constexpr uint8_t SdCardInfo::objectModelTableDescriptor[] = { 1, 7 };
-
-DEFINE_GET_OBJECT_MODEL_TABLE(SdCardInfo)
-
-#endif
-
-static SdCardInfo info[NumSdCards];
-
 static SdCard sdCards[NumSdCards];
 
 static DIR findDir;
@@ -212,7 +117,7 @@ GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
 {
-	return info[volume].seq;
+	return sdCards[volume].GetSequenceNum();
 }
 
 // If 'path' is not the name of a temporary file, update the sequence number of its volume
@@ -226,9 +131,9 @@ static bool VolumeUpdated(const char *path) noexcept
 	   )
 	{
 		const unsigned int volume = (isdigit(path[0]) && path[1] == ':') ? path[0] - '0' : 0;
-		if (volume < ARRAY_SIZE(info))
+		if (volume < ARRAY_SIZE(sdCards))
 		{
-			++info[volume].seq;
+			sdCards[volume].IncrementSeq();
 			return true;
 		}
 	}
@@ -932,7 +837,7 @@ bool MassStorage::CheckDriveMounted(const char* path) noexcept
 	const size_t card = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
 						? path[0] - '0'
 						: 0;
-	return card < GetNumVolumes() && info[card].isMounted;
+	return card < GetNumVolumes() && sdCards[card].IsMounted();
 }
 
 // Return true if any files are open on the file system
@@ -998,8 +903,7 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 	}
 
 # if HAS_MASS_STORAGE
-	SdCardInfo& inf = info[card];
-	if (AnyFileOpen(&inf.fileSystem))
+	if (AnyFileOpen(sdCards[card].GetFS()))
 	{
 		// Don't unmount the card if any files are open on it
 		reply.copy("SD card has open file(s)");
@@ -1008,7 +912,7 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 
 	sdCards[card].Unmount();
 	reply.printf("SD card %u may now be removed", card);
-	++inf.seq;
+	sdCards[card].IncrementSeq();
 # endif
 
 	return GCodeResult::ok;
@@ -1018,7 +922,7 @@ bool MassStorage::IsDriveMounted(size_t drive) noexcept
 {
 	return drive < GetNumVolumes()
 #if HAS_MASS_STORAGE
-		&& info[drive].isMounted
+		&& sdCards[drive].IsMounted()
 #endif
 		;
 }
@@ -1138,11 +1042,6 @@ SdCard::InfoResult MassStorage::GetCardInfo(size_t slot, SdCard::Info& info) noe
 	return sdCards[slot].GetInfo(info);
 }
 
-Mutex& MassStorage::GetVolumeMutex(size_t vol) noexcept
-{
-	return info[vol].volMutex;
-}
-
 Mutex& MassStorage::GetFsMutex() noexcept
 {
 	return fsMutex;
@@ -1152,7 +1051,7 @@ Mutex& MassStorage::GetFsMutex() noexcept
 
 const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 {
-	return &info[vol];
+	return &sdCards[vol];
 }
 
 # endif

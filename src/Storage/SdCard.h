@@ -1,8 +1,9 @@
 #pragma once
 
+#include <ObjectModel/ObjectModel.h>
 #include "StorageDevice.h"
 
-class SdCard
+class SdCard INHERIT_OBJECT_MODEL
 {
 public:
     struct Info
@@ -45,7 +46,9 @@ public:
     GCodeResult SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept;
 
     bool IsPresent() noexcept;
-    double GetInterfaceSpeed() noexcept;
+    bool IsMounted() noexcept { return isMounted; }
+    FATFS* GetFS() noexcept { return &fileSystem; }
+    double GetInterfaceSpeed() const;
 
     bool Useable() noexcept;
 
@@ -54,7 +57,23 @@ public:
     void GetStats(Stats& stats) noexcept;
     void ResetStats() noexcept;
 
+    int GetSequenceNum() noexcept { return seq; }
+
+    void IncrementSeq() noexcept { ++seq; }
+
+protected:
+	DECLARE_OBJECT_MODEL
+
 private:
+
+    uint64_t GetCapacity() const;
+    uint64_t GetFreeSpace() const;
+    uint64_t GetPartitionSize() const;
+
+    const char* GetPathName() const { return pathName; }
+
+    const char *pathName;
+
 	FATFS fileSystem;
 	uint32_t mountStartTime;
 	Mutex volMutex;

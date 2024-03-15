@@ -18,7 +18,7 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		if (vol < NumSdCards)
+		if (vol < (int)NumSdCards)
 		{
 			//info[vol].volMutex.Take();
 		}
@@ -32,7 +32,7 @@ extern "C"
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		if (vol < NumSdCards)
+		if (vol < (int)NumSdCards)
 		{
 			//info[vol].volMutex.Release();
 		}
