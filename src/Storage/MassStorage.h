@@ -113,7 +113,23 @@ namespace MassStorage
 
 	Mutex& GetFsMutex() noexcept;
 
-	SdCard::InfoResult GetCardInfo(size_t slot, SdCard::Info& info) noexcept;
+	enum class InfoResult : uint8_t
+	{
+		badSlot = 0,
+		noCard = 1,
+		ok = 2
+	};
+
+	struct SdCardReturnedInfo
+	{
+		uint64_t cardCapacity;
+		uint64_t partitionSize;
+		uint64_t freeSpace;
+		uint32_t clSize;
+		uint32_t speed;
+	};
+
+	InfoResult GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept;
 
 # ifdef DUET3_MB6HC
 	GCodeResult ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Configure additional SD card slots

@@ -6,14 +6,6 @@
 class SdCard INHERIT_OBJECT_MODEL
 {
 public:
-    struct Info
-    {
-        uint64_t cardCapacity;
-        uint64_t partitionSize;
-        uint64_t freeSpace;
-        uint32_t clSize;
-        uint32_t speed;
-    };
 
     struct Stats
     {
@@ -49,13 +41,15 @@ public:
 
     bool IsPresent() noexcept;
     bool IsMounted() noexcept { return isMounted; }
-    FATFS* GetFS() noexcept { return &fileSystem; }
-    double GetInterfaceSpeed() const;
+
+    uint64_t GetCapacity() const;
+    uint64_t GetFreeSpace() const;
+    uint64_t GetPartitionSize() const;
+    uint64_t GetClusterSize() const;
+    uint32_t GetInterfaceSpeed() const;
 
     bool Useable() noexcept;
-
-    InfoResult GetInfo(Info& info) noexcept;
-
+    FATFS* GetFS() noexcept { return &fileSystem; }
     void GetStats(Stats& stats) noexcept;
     void ResetStats() noexcept;
 
@@ -70,9 +64,6 @@ private:
     const char *id;
     uint8_t volume;
 
-    uint64_t GetCapacity() const;
-    uint64_t GetFreeSpace() const;
-    uint64_t GetPartitionSize() const;
 
     const char* GetPathName() const { return pathName; }
 

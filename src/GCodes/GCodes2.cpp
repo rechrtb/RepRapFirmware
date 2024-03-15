@@ -28,7 +28,6 @@
 #include <Movement/StepperDrivers/DriverMode.h>
 #include <Hardware/SoftwareReset.h>
 #include <Hardware/ExceptionHandlers.h>
-#include <Storage/SdCard.h>
 #include <Version.h>
 
 #if SUPPORT_IOBITS
@@ -1418,12 +1417,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					gb.TryGetUIValue('P', slot, dummy);
 					int32_t format = 0;
 					gb.TryGetIValue('S', format, dummy);
-					SdCard::Info returnedInfo;
-					const SdCard::InfoResult res = MassStorage::GetCardInfo(slot, returnedInfo);
+					MassStorage::SdCardReturnedInfo returnedInfo;
+					const MassStorage::InfoResult res = MassStorage::GetCardInfo(slot, returnedInfo);
 					if (format == 2)
 					{
 						reply.printf("{\"SDinfo\":{\"slot\":%" PRIu32 ",\"present\":", slot);
-						if (res == SdCard::InfoResult::ok)
+						if (res == MassStorage::InfoResult::ok)
 						{
 							reply.catf("1,\"capacity\":%" PRIu64 ",\"partitionSize\":%" PRIu64 ",\"free\":%" PRIu64 ",\"speed\":%" PRIu32 ",\"clsize\":%" PRIu32 "}}",
 								returnedInfo.cardCapacity, returnedInfo.partitionSize, returnedInfo.freeSpace, returnedInfo.speed, returnedInfo.clSize);
@@ -1437,18 +1436,18 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					{
 						switch(res)
 						{
-						case SdCard::InfoResult::badSlot:
+						case MassStorage::InfoResult::badSlot:
 						default:
 							reply.printf("Bad SD slot number: %" PRIu32, slot);
 							result = GCodeResult::error;
 							break;
 
-						case SdCard::InfoResult::noCard:
+						case MassStorage::InfoResult::noCard:
 							reply.printf("No SD card mounted in slot %" PRIu32, slot);
 							result = GCodeResult::error;
 							break;
 
-						case SdCard::InfoResult::ok:
+						case MassStorage::InfoResult::ok:
 							reply.printf("SD card in slot %" PRIu32 ": capacity %.2fGB, partition size %.2fGB, free space %.2fGB, speed %.2fMBytes/sec, cluster size %" PRIu32 "%s",
 											slot,
 											(double)((float)returnedInfo.cardCapacity * 1e-9),

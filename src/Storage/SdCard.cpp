@@ -38,23 +38,27 @@ static IoPort sd1Ports[2];		// first element is CS port, second is CD port
 // These functions are only called from one place each in the OM table, hence inlined
 uint64_t SdCard::GetCapacity() const
 {
-	return 0;
+    return sd_mmc_get_capacity(volume) * 1024;
 }
 
 uint64_t SdCard::GetFreeSpace() const
 {
-	return 0;
+    return fileSystem.free_clst * GetClusterSize();
 }
 
 uint64_t SdCard::GetPartitionSize() const
 {
-	return 0;
+    return (fileSystem.n_fatent - 2) * GetClusterSize();
 }
 
-double SdCard::GetInterfaceSpeed() const
+uint64_t SdCard::GetClusterSize() const
 {
-	return 0;
-    //return (double)((float)sd_mmc_get_interface_speed(num) * 0.000001);
+    return (fileSystem.csize) * 512;
+}
+
+uint32_t SdCard::GetInterfaceSpeed() const
+{
+	return sd_mmc_get_interface_speed(volume);
 }
 
 constexpr ObjectModelTableEntry SdCard::objectModelTable[] =
@@ -148,21 +152,15 @@ bool SdCard::Useable() noexcept
     return true;
 }
 
-void SdCard::Init(uint8_t num) noexcept
+void SdCard::Init() noexcept
 {
-    num = num;
     Clear();
-    mounting = isMounted = false;
-    seq = 0;
-    cdPin = SdCardDetectPins[num];
-    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
     volMutex.Create("0");
-
 	// sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);		// initialize SD MMC stack
 }
 
 
-GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept
+GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
 {
     MutexLocker lock1(MassStorage::GetFsMutex());
     MutexLocker lock(volMutex);
@@ -343,35 +341,6 @@ unsigned int SdCard::Unmount() noexcept
 	++seq;
 	return invalidated;
 }
-
-SdCard::InfoResult SdCard::GetInfo(Info& returnedInfo) noexcept
-{
-	if (!isMounted)
-	{
-		return InfoResult::noCard;
-	}
-
-	returnedInfo.cardCapacity = (uint64_t)sd_mmc_get_capacity(num) * 1024;
-	returnedInfo.speed = sd_mmc_get_interface_speed(num);
-	String<StringLength50> path;
-	path.printf("%u:/", num);
-	uint32_t freeClusters;
-	FATFS *fs;
-	const FRESULT fr = f_getfree(path.c_str(), &freeClusters, &fs);
-	if (fr == FR_OK)
-	{
-		returnedInfo.clSize = fs->csize * 512;
-		returnedInfo.partitionSize = (uint64_t)(fs->n_fatent - 2) * returnedInfo.clSize;
-		returnedInfo.freeSpace = (uint64_t)freeClusters * returnedInfo.clSize;
-	}
-	else
-	{
-		returnedInfo.clSize = 0;
-		returnedInfo.cardCapacity = returnedInfo.partitionSize = returnedInfo.freeSpace = 0;
-	}
-	return InfoResult::ok;
-}
-
 
 bool SdCard::IsPresent() noexcept
 {

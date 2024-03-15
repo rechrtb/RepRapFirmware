@@ -888,6 +888,8 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 		return GCodeResult::error;
 	}
 
+
+
 	return sdCards[card].Mount(card, reply, reportSuccess);
 }
 
@@ -1031,14 +1033,27 @@ void MassStorage::RecordSimulationTime(const char *printingFilePath, uint32_t si
 }
 
 // Get information about the SD card and interface speed
-SdCard::InfoResult MassStorage::GetCardInfo(size_t slot, SdCard::Info& info) noexcept
+MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept
 {
 	if (slot >= GetNumVolumes())
 	{
-		return SdCard::InfoResult::badSlot;
+		return InfoResult::badSlot;
 	}
 
-	return sdCards[slot].GetInfo(info);
+	SdCard& card = sdCards[slot];
+
+	if (!card.IsMounted())
+	{
+		return InfoResult::noCard;
+	}
+
+	returnedInfo.cardCapacity = card.GetCapacity();
+	returnedInfo.partitionSize = card.GetPartitionSize();
+	returnedInfo.freeSpace = card.GetFreeSpace();
+	returnedInfo.clSize = card.GetClusterSize();
+	returnedInfo.speed = card.GetInterfaceSpeed();
+
+	return InfoResult::ok;
 }
 
 Mutex& MassStorage::GetFsMutex() noexcept
