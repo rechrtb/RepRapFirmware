@@ -35,7 +35,7 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
 # endif
 
-static SdCard sdCards[NumSdCards];
+static SdCard sdCards[NumSdCards] = { SdCard("SDO", 0),  SdCard("SD1", 1) };
 
 static DIR findDir;
 #endif
@@ -179,10 +179,9 @@ void MassStorage::Init() noexcept
 # endif
 
 # if HAS_MASS_STORAGE
-
-	for (uint8_t card = 0; card < NumSdCards; ++card)
+	for (SdCard& card : sdCards)
 	{
-		sdCards[card].Init(card);
+		card.Init();
 	}
 	// We no longer mount the SD card here because it may take a long time if it fails
 # endif

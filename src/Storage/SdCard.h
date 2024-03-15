@@ -37,7 +37,9 @@ public:
         removing
     };
 
-    void Init(uint8_t num) noexcept;
+    SdCard(const char *id, uint8_t volume);
+
+    void Init() noexcept;
 
     void Spin() noexcept;
     GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept;
@@ -65,6 +67,8 @@ protected:
 	DECLARE_OBJECT_MODEL
 
 private:
+    const char *id;
+    uint8_t volume;
 
     uint64_t GetCapacity() const;
     uint64_t GetFreeSpace() const;

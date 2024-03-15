@@ -127,10 +127,20 @@ static const char* TranslateCardType(card_type_t ct) noexcept
 }
 
 
+SdCard::SdCard(const char* id, uint8_t volume)
+{
+    id = id;
+    volume = volume;
+    mounting = isMounted = false;
+    seq = 0;
+    cdPin = SdCardDetectPins[volume];
+    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+}
+
 bool SdCard::Useable() noexcept
 {
 #if DUET3_MB6HC
-    if (num == 1)
+    if (volume == 1)
     {
         return sd1Ports[0].IsValid();
     }
@@ -169,7 +179,7 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
         return GCodeResult::notFinished;						// wait for debounce to finish
     }
 
-    const sd_mmc_err_t err = sd_mmc_check(num); // usb_host_support: sd card numbering
+    const sd_mmc_err_t err = sd_mmc_check(volume); // usb_host_support: sd card numbering
     if (err != SD_MMC_OK && millis() - mountStartTime < 5000)
     {
         delay(2);
@@ -179,21 +189,21 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
     mounting = false;
     if (err != SD_MMC_OK)
     {
-        reply.printf("Cannot initialise SD card %u: %s", num, TranslateCardError(err));
+        reply.printf("Cannot initialise SD card %u: %s", volume, TranslateCardError(err));
         return GCodeResult::error;
     }
 
     // Mount the file systems
-    const char path[3] = { (char)('0' + num), ':', 0 };
+    const char path[3] = { static_cast<char>('0' + volume), ':', 0 };
     const FRESULT mounted = f_mount(&fileSystem, path, 1);
     if (mounted == FR_NO_FILESYSTEM)
     {
-        reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", num);
+        reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
         return GCodeResult::error;
     }
     if (mounted != FR_OK)
     {
-        reply.printf("Cannot mount SD card %u: code %d", num, mounted);
+        reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
         return GCodeResult::error;
     }
 
@@ -201,7 +211,7 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
     reprap.VolumesUpdated();
     if (reportSuccess)
     {
-        float capacity = ((float)sd_mmc_get_capacity(num) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
+        float capacity = ((float)sd_mmc_get_capacity(volume) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
         const char* capUnits;
         if (capacity >= 1000.0)
         {
@@ -212,7 +222,7 @@ GCodeResult SdCard::Mount(size_t num, const StringRef& reply, bool reportSuccess
         {
             capUnits = "Mb";
         }
-        reply.printf("%s card mounted in num %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
+        reply.printf("%s card mounted in volume %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(volume)), volume, (double)capacity, capUnits);
     }
 
 	return GCodeResult::ok;
@@ -268,7 +278,7 @@ void SdCard::Spin() noexcept
                         const unsigned int numFiles = Unmount();
                         if (numFiles != 0)
                         {
-                            reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", num, numFiles);
+                            reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", volume, numFiles);
                         }
                     }
                 }
@@ -304,8 +314,8 @@ void SdCard::Clear() noexcept
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
 #if SAME70
-	fileSystem.win = sectorBuffers[num];
-	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
+	fileSystem.win = sectorBuffers[volume];
+	memset(sectorBuffers[volume], 0, sizeof(sectorBuffers[volume]));
 #endif
 }
 
@@ -324,10 +334,10 @@ unsigned int SdCard::Unmount() noexcept
 	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock2(volMutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
-	const char path[3] = { (char)('0' + num), ':', 0 };
+	const char path[3] = { (char)('0' + volume), ':', 0 };
 	f_mount(nullptr, path, 0);
 	Clear();
-	sd_mmc_unmount(num);
+	sd_mmc_unmount(volume);
 	isMounted = false;
 	reprap.VolumesUpdated();
 	++seq;
