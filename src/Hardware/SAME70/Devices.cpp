@@ -16,6 +16,8 @@
 # include <Platform/TaskPriorities.h>
 #endif
 
+// #include <SEGGER_SYSVIEW_FreeRTOS.h>
+
 AsyncSerial serialUart1(UART2, UART2_IRQn, ID_UART2, 512, 512,
 					[](AsyncSerial*) noexcept
 					{
@@ -120,6 +122,9 @@ void DeviceInit() noexcept
 	matrix_set_system_io(CCFG_SYSIO_SYSIO4 | CCFG_SYSIO_SYSIO5 | CCFG_SYSIO_SYSIO6 | CCFG_SYSIO_SYSIO7);
 # endif
 #endif
+
+	//SEGGER_SYSVIEW_DisableEvents(SYSVIEW_EVTMASK_ALL_TASKS);
+	// traceSTART();
 
 #if CORE_USES_TINYUSB
 #if defined(SERIAL_MAIN_DEVICE)

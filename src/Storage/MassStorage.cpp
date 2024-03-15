@@ -959,7 +959,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 #  if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
 	platform.MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n",
-								(sd0.IsPresent() ? "detected" : "not detected"), sd0.GetInterfaceSpeed());
+								(sd0.IsPresent() ? "detected" : "not detected"), static_cast<double>(sd0.GetInterfaceSpeed() * 0.000001f));
 #  else
 	platform.MessageF(mtype, "SD card 0 %s\n", (sd0.IsPresent() ? "detected" : "not detected"));
 #  endif
@@ -969,7 +969,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 
 	// Show the longest SD card write time
 	platform.MessageF(mtype, "SD card longest read time %.1fms, write time %.1fms, max retries %u\n",
-								(double)stats.maxReadTime, (double)stats.maxWriteTime, stats.maxRetryCount);
+								(double)stats.maxReadTime, (double)stats.maxWriteTime, static_cast<unsigned int>(stats.maxRetryCount));
 
 	sd0.ResetStats();
 # endif
