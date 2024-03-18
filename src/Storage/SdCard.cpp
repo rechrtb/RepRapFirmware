@@ -2,6 +2,7 @@
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
 #include <ObjectModel/ObjectModel.h>
+#include <Movement/StepTimer.h>
 
 
 #include "SdCard.h"
@@ -9,8 +10,12 @@
 
 # if HAS_MASS_STORAGE
 
-# include <Libraries/sd_mmc/sd_mmc.h>
-# include <Libraries/sd_mmc/conf_sd_mmc.h>
+#include <Libraries/Fatfs/ff.h> // for type definitions
+
+#include <Libraries/sd_mmc/sd_mmc.h>
+#include <Libraries/sd_mmc/conf_sd_mmc.h>
+#include <Libraries/sd_mmc/ctrl_access.h>
+#include <Libraries/sd_mmc/conf_sd_mmc.h>
 
 
 # if SAME70
@@ -25,6 +30,30 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 static IoPort sd1Ports[2];		// first element is CS port, second is CD port
 #endif
 
+//void debugPrintf(const char*, ...);
+
+//#if (SAM3S || SAM3U || SAM3N || SAM3XA_SERIES || SAM4S)
+//# include "rtc.h"
+//#endif
+
+/**
+ * \defgroup thirdparty_fatfs_port_group Port of low level driver for FatFS
+ *
+ * Low level driver for FatFS. The driver is based on the ctrl access module
+ * of the specific MCU device.
+ *
+ * @{
+ */
+
+/** Default sector size */
+#define SECTOR_SIZE_DEFAULT 512
+
+/** Supported sector size. These values are based on the LUN function:
+ * mem_sector_size(). */
+#define SECTOR_SIZE_512   1
+#define SECTOR_SIZE_1024 2
+#define SECTOR_SIZE_2048 4
+#define SECTOR_SIZE_4096 8
 
 static const char* TranslateCardError(sd_mmc_err_t err) noexcept
 {
@@ -86,9 +115,9 @@ void SdCard::Init() noexcept
     Clear();
 
     mounting = isMounted = false;
-    seq = 0;
+    seqNum = 0;
     cdPin = SdCardDetectPins[volume];
-    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+    detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
     volMutex.Create(id);
 
     if (volume == 0) // Initialize SD MMC stack on main SD
@@ -102,14 +131,14 @@ GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSucc
     MutexLocker lock1(MassStorage::GetFsMutex());
     MutexLocker lock(volMutex);
 
-    if (cardState == DetectState::notPresent)
+    if (detectState == DetectState::notPresent)
     {
         reply.copy("No SD card present");
         mounting = false;
         return GCodeResult::error;
     }
 
-    if (cardState != DetectState::present)
+    if (detectState != DetectState::present)
     {
         return GCodeResult::notFinished;						// wait for debounce to finish
     }
@@ -177,7 +206,7 @@ GCodeResult SdCard::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
         cdPin = sd1Ports[1].GetPin();
         if (cdPin == NoPin)
         {
-            cardState = DetectState::present;
+            detectState = DetectState::present;
         }
     }
     else
@@ -195,18 +224,18 @@ void SdCard::Spin() noexcept
         if (IoPort::ReadPin(cdPin))
         {
             // Pin state says no card present
-            switch (cardState)
+            switch (detectState)
             {
             case DetectState::inserting:
             case DetectState::present:
-                cardState = DetectState::removing;
+                detectState = DetectState::removing;
                 cdChangedTime = millis();
                 break;
 
             case DetectState::removing:
                 if (millis() - cdChangedTime > SdCardDetectDebounceMillis)
                 {
-                    cardState = DetectState::notPresent;
+                    detectState = DetectState::notPresent;
                     if (isMounted)
                     {
                         const unsigned int numFiles = Unmount();
@@ -225,16 +254,16 @@ void SdCard::Spin() noexcept
         else
         {
             // Pin state says card is present
-            switch (cardState)
+            switch (detectState)
             {
             case DetectState::removing:
             case DetectState::notPresent:
-                cardState = DetectState::inserting;
+                detectState = DetectState::inserting;
                 cdChangedTime = millis();
                 break;
 
             case DetectState::inserting:
-                cardState = DetectState::present;
+                detectState = DetectState::present;
                 break;
 
             default:
@@ -273,7 +302,7 @@ unsigned int SdCard::Unmount() noexcept
 	sd_mmc_unmount(volume);
 	isMounted = false;
 	reprap.VolumesUpdated();
-	++seq;
+	++seqNum;
 	return invalidated;
 }
 
@@ -287,5 +316,232 @@ uint32_t SdCard::GetInterfaceSpeed() const
 	return sd_mmc_get_interface_speed(volume);
 }
 
+
+DRESULT SdCard::DiskInitialize()
+{
+	if (volume > MAX_LUN) {
+		/* At least one of the LUN should be defined */
+		return static_cast<DRESULT>(STA_NOINIT);
+	}
+
+	Ctrl_status mem_status;
+
+	/* Check LUN ready (USB disk report CTRL_BUSY then CTRL_GOOD) */
+	for (int i = 0; i < 2; i ++) {
+		mem_status = mem_test_unit_ready(volume);
+		if (CTRL_BUSY != mem_status) {
+			break;
+		}
+	}
+	if (mem_status != CTRL_GOOD) {
+		return static_cast<DRESULT>(STA_NOINIT);
+	}
+
+	/* Check Write Protection Status */
+	if (mem_wr_protect(volume)) {
+		return static_cast<DRESULT>(STA_PROTECT);
+	}
+
+	/* The memory should already be initialized */
+	return RES_OK;
+}
+
+DRESULT SdCard::DiskStatus()
+{
+	switch (mem_test_unit_ready(volume)) {
+	case CTRL_GOOD:
+		return RES_OK;
+	case CTRL_NO_PRESENT:
+		return static_cast<DRESULT>(STA_NOINIT | STA_NODISK);
+	default:
+		return static_cast<DRESULT>(STA_NOINIT);
+	}
+}
+
+DRESULT SdCard::DiskRead(BYTE *buff, LBA_t sector, UINT count)
+{
+	if (reprap.Debug(Module::Storage))
+	{
+		debugPrintf("Read %u %u %lu\n", volume, count, sector);
+	}
+
+	const uint8_t uc_sector_size = mem_sector_size(volume);
+	if (uc_sector_size == 0)
+	{
+		return RES_ERROR;
+	}
+
+	/* Check valid address */
+	uint32_t ul_last_sector_num;
+	mem_read_capacity(volume, &ul_last_sector_num);
+	if ((sector + count * uc_sector_size) > (ul_last_sector_num + 1) * uc_sector_size)
+	{
+		return RES_PARERR;
+	}
+
+	/* Read the data */
+	unsigned int retryNumber = 0;
+	uint32_t retryDelay = SdCardRetryDelay;
+	for (;;)
+	{
+		uint32_t time = StepTimer::GetTimerTicks();
+		const Ctrl_status ret = memory_2_ram(volume, sector, buff, count);
+		time = StepTimer::GetTimerTicks() - time;
+		if (time > stats.maxReadTime)
+		{
+			stats.maxReadTime = time;
+		}
+
+		if (ret == CTRL_GOOD)
+		{
+			break;
+		}
+
+		if (reprap.Debug(Module::Storage))
+		{
+			debugPrintf("SD read error %d\n", (int)ret);
+		}
+
+		++retryNumber;
+		if (retryNumber == MaxSdCardTries)
+		{
+			return RES_ERROR;
+		}
+		delay(retryDelay);
+		retryDelay *= 2;
+	}
+
+	if (retryNumber > stats.maxRetryCount)
+	{
+		stats.maxRetryCount = retryNumber;
+	}
+
+	return RES_OK;
+}
+
+DRESULT SdCard::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
+{
+	if (reprap.Debug(Module::Storage))
+	{
+		debugPrintf("Write %u %u %lu\n", volume, count, sector);
+	}
+
+	const uint8_t uc_sector_size = mem_sector_size(volume);
+
+	if (uc_sector_size == 0)
+	{
+		return RES_ERROR;
+	}
+
+	// Check valid address
+	uint32_t ul_last_sector_num;
+	mem_read_capacity(volume, &ul_last_sector_num);
+	if ((sector + count * uc_sector_size) > (ul_last_sector_num + 1) * uc_sector_size)
+	{
+		return RES_PARERR;
+	}
+
+	// Write the data
+
+	unsigned int retryNumber = 0;
+	uint32_t retryDelay = SdCardRetryDelay;
+	for (;;)
+	{
+		uint32_t time = StepTimer::GetTimerTicks();
+		const Ctrl_status ret = ram_2_memory(volume, sector, buff, count);
+		time = StepTimer::GetTimerTicks() - time;
+		if (time > stats.maxWriteTime)
+		{
+			stats.maxWriteTime = time;
+		}
+
+		if (ret == CTRL_GOOD)
+		{
+			break;
+		}
+
+		if (reprap.Debug(Module::Storage))
+		{
+			debugPrintf("SD write error %d\n", (int)ret);
+		}
+
+		++retryNumber;
+		if (retryNumber == MaxSdCardTries)
+		{
+			return RES_ERROR;
+		}
+		delay(retryDelay);
+		retryDelay *= 2;
+	}
+
+	if (retryNumber > stats.maxRetryCount)
+	{
+		stats.maxRetryCount = retryNumber;
+	}
+
+	return RES_OK;
+}
+
+DRESULT SdCard::DiskIoctl(BYTE ctrl, void *buff)
+{
+	DRESULT res = RES_PARERR;
+
+	switch (ctrl) {
+	case GET_BLOCK_SIZE:
+		*(DWORD *)buff = 1;
+		res = RES_OK;
+		break;
+
+	/* Get the number of sectors on the disk (DWORD) */
+	case GET_SECTOR_COUNT:
+	{
+		uint32_t ul_last_sector_num;
+
+		/* Check valid address */
+		mem_read_capacity(volume, &ul_last_sector_num);
+
+		*(DWORD *)buff = ul_last_sector_num + 1;
+
+		res = RES_OK;
+	}
+	break;
+
+	/* Get sectors on the disk (WORD) */
+	case GET_SECTOR_SIZE:
+	{
+		uint8_t uc_sector_size = mem_sector_size(volume);
+
+		if ((uc_sector_size != SECTOR_SIZE_512) &&
+				(uc_sector_size != SECTOR_SIZE_1024) &&
+				(uc_sector_size != SECTOR_SIZE_2048) &&
+				(uc_sector_size != SECTOR_SIZE_4096)) {
+			/* The sector size is not supported by the FatFS */
+			return RES_ERROR;
+		}
+
+		*(uint8_t *)buff = uc_sector_size * SECTOR_SIZE_DEFAULT;
+
+		res = RES_OK;
+	}
+	break;
+
+	/* Make sure that data has been written */
+	case CTRL_SYNC:
+		{
+			if (mem_test_unit_ready(volume) == CTRL_GOOD) {
+				res = RES_OK;
+			} else {
+				res = RES_NOTRDY;
+			}
+		}
+		break;
+
+	default:
+		res = RES_PARERR;
+		break;
+	}
+
+	return res;
+}
 
 # endif

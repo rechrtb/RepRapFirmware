@@ -18,6 +18,9 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 # include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #endif
 
+#include <Libraries/Fatfs/ff.h> // for type definitions
+#include <Libraries/Fatfs/diskio.h>
+
 #include "SdCard.h"
 #include "UsbFlashDrive.h"
 
@@ -1106,6 +1109,34 @@ extern "C"
 	void ff_mutex_delete (int vol) noexcept
 	{
 		// nothing to do, we never delete the mutex
+	}
+
+	DSTATUS disk_initialize(BYTE drv) noexcept
+	{
+		return storageDevices[drv]->DiskInitialize();
+	}
+
+	DSTATUS disk_status(BYTE drv) noexcept
+	{
+		return storageDevices[drv]->DiskStatus();
+	}
+
+	DRESULT disk_read(BYTE drv, BYTE *buff, LBA_t sector, UINT count) noexcept
+	{
+		return storageDevices[drv]->DiskRead(buff, sector, count);
+	}
+
+	#if _READONLY == 0
+	DRESULT disk_write(BYTE drv, BYTE const *buff, LBA_t sector, UINT count) noexcept
+	{
+		return storageDevices[drv]->DiskWrite(buff, sector, count);
+	}
+
+	#endif /* _READONLY */
+
+	DRESULT disk_ioctl(BYTE drv, BYTE ctrl, void *buff) noexcept
+	{
+		return storageDevices[drv]->DiskIoctl(ctrl, buff);
 	}
 }
 

@@ -34,6 +34,12 @@ public:
     void GetStats(Stats& stats) noexcept;
     void ResetStats() noexcept;
 
+    DRESULT DiskInitialize() override;
+    DRESULT DiskStatus() override;
+    DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) override;
+    DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) override;
+    DRESULT DiskIoctl(BYTE ctrl, void *buff) override;
+
 private:
 	uint32_t cdChangedTime;
 	Pin cdPin;

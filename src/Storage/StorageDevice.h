@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 #include <ObjectModel/ObjectModel.h>
+#include <Libraries/Fatfs/diskio.h>
+
 #include "StorageDevice.h"
 
 class StorageDevice INHERIT_OBJECT_MODEL
@@ -33,14 +35,14 @@ public:
     virtual void Init() noexcept = 0;
 
     FATFS* GetFS() noexcept { return &fileSystem; }
-    int GetSequenceNum() noexcept { return seq; }
-    void IncrementSeq() noexcept { ++seq; }
+    int GetSequenceNum() noexcept { return seqNum; }
+    void IncrementSeq() noexcept { ++seqNum; }
     const char* GetPathName() noexcept { return path; }
     Mutex& GetMutex() { return volMutex; }
     virtual bool Useable() noexcept { return true; }
     bool IsMounted() noexcept { return isMounted; }
 
-    bool IsPresent() noexcept { return cardState == DetectState::present; }
+    bool IsPresent() noexcept { return detectState == DetectState::present; }
 
     virtual uint64_t GetCapacity() const = 0;
     virtual uint64_t GetFreeSpace() const;
@@ -48,24 +50,28 @@ public:
     virtual uint64_t GetClusterSize() const;
     virtual uint32_t GetInterfaceSpeed() const = 0;
 
+    virtual DRESULT DiskInitialize() = 0;
+    virtual DRESULT DiskStatus() = 0;
+    virtual DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) = 0;
+    virtual DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) = 0;
+    virtual DRESULT DiskIoctl(BYTE ctrl, void *buff) = 0;
+
 protected:
 	DECLARE_OBJECT_MODEL
 
     const char *id;
     uint8_t volume;
 
-	uint32_t mountStartTime;
-	bool mounting;
-	uint16_t seq;
-
-	bool isMounted;
 	Mutex volMutex;
 
+	bool mounting;
+	bool isMounted;
+	uint32_t mountStartTime;
+	DetectState detectState;
+	uint16_t seqNum;
+
     Stats stats;
-
 	FATFS fileSystem;
-
-	DetectState cardState;
 
     char path[3] = "0:";
 };
