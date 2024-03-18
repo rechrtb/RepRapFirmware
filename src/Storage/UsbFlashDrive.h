@@ -16,6 +16,8 @@ public:
 
     void Init() noexcept override {}
 
+    void Spin() noexcept override {}
+
     uint64_t GetCapacity() const override;
     uint32_t GetInterfaceSpeed() const override;
 

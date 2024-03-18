@@ -211,7 +211,7 @@ void MassStorage::Spin() noexcept
 # if HAS_MASS_STORAGE
 	for (StorageDevice* device : storageDevices)
 	{
-		device->Init();
+		device->Spin();
 	}
 # endif
 
@@ -1092,14 +1092,14 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		//storageDevices[vol].GetMutex().Take();
+		storageDevices[vol]->GetMutex().Take();
 		return 1;
 	}
 
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		//storageDevices[vol].GetMutex().Release();
+		storageDevices[vol]->GetMutex().Release();
 	}
 
 	// Delete a sync object

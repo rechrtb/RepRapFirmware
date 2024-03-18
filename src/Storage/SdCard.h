@@ -19,7 +19,7 @@ public:
 
     void Init() noexcept override;
 
-    void Spin() noexcept;
+    void Spin() noexcept override;
     GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept override;
     unsigned int Unmount() noexcept override;
 

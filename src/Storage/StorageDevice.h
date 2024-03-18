@@ -28,6 +28,7 @@ public:
 
     virtual GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept = 0;
     virtual unsigned int Unmount() noexcept = 0;
+    virtual void Spin() noexcept = 0;
 
     virtual void Init() noexcept = 0;
 
