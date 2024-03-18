@@ -7,9 +7,10 @@
 #include "FileStore.h"
 #include "FileInfoParser.h"
 #include <RTOSIface/RTOSIface.h>
-#include "SdCard.h"
+#include "StorageDevice.h"
 
 #include <ctime>
+
 
 // Info returned by FindFirst/FindNext calls
 struct FileInfo
@@ -62,7 +63,7 @@ namespace MassStorage
 # else
 	inline size_t GetNumVolumes() noexcept
 	{
-		return NumSdCards;
+		return NumSdCards + NumUsbDrive;
 	}
 # endif
 #endif

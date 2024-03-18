@@ -3,25 +3,19 @@
 #include <Libraries/usbh_msc/usbh_msc.h>
 #endif
 
-#if SUPPORT_USB_DRIVE
-enum class UsbDriveState : uint8_t
-{
-	none = 0,
-	inserted,
-	mounted
-};
-#endif
+#include "UsbFlashDrive.h"
 
-#if SUPPORT_USB_DRIVE
-struct UsbDriveInfo
+
+uint64_t UsbFlashDrive::GetCapacity() const
 {
-	FATFS fileSystem;
-	Mutex volMutex;
-	uint32_t timer;
-	uint16_t seq;
-	UsbDriveState driveState;
-};
-#endif
+	return 0;
+}
+
+uint32_t UsbFlashDrive::GetInterfaceSpeed() const
+{
+	return 0;
+}
+
 
 // #if SUPPORT_USB_DRIVE
 // static UsbDriveInfo drives[NumUsbDrives];

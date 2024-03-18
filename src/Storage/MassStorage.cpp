@@ -18,6 +18,8 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 # include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #endif
 
+#include "SdCard.h"
+#include "UsbFlashDrive.h"
 
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
@@ -36,6 +38,9 @@ alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWri
 # endif
 
 static SdCard sdCards[NumSdCards] = { SdCard("SDO", 0),  SdCard("SD1", 1) };
+static UsbFlashDrive usbDrives[NumUsbDrives] = {UsbFlashDrive("USB0", 2)};
+
+static StorageDevice* storageDevices[] = {&sdCards[0], &sdCards[1], &usbDrives[0]};
 
 static DIR findDir;
 #endif
@@ -101,7 +106,12 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 // Return the number of volumes, which on the 6HC is normally 1 but can be increased to 2
 size_t MassStorage::GetNumVolumes() noexcept
 {
-	return (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sdCards[1].Useable()) ? 2 : 1;		// we have 2 slots if the second one has a valid CS pin, else 1
+	size_t count = 0;
+	for (StorageDevice* device : storageDevices)
+	{
+		count += device->Useable();
+	}
+	return count;
 }
 
 // Configure additional SD card slots
@@ -118,7 +128,7 @@ GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
 {
-	return sdCards[volume].GetSequenceNum();
+	return storageDevices[volume]->GetSequenceNum();
 }
 
 // If 'path' is not the name of a temporary file, update the sequence number of its volume
@@ -132,9 +142,9 @@ static bool VolumeUpdated(const char *path) noexcept
 	   )
 	{
 		const unsigned int volume = (isdigit(path[0]) && path[1] == ':') ? path[0] - '0' : 0;
-		if (volume < ARRAY_SIZE(sdCards))
+		if (volume < ARRAY_SIZE(storageDevices))
 		{
-			sdCards[volume].IncrementSeq();
+			storageDevices[volume]->IncrementSeq();
 			return true;
 		}
 	}
@@ -180,9 +190,9 @@ void MassStorage::Init() noexcept
 # endif
 
 # if HAS_MASS_STORAGE
-	for (SdCard& card : sdCards)
+	for (StorageDevice* device : storageDevices)
 	{
-		card.Init();
+		device->Init();
 	}
 	// We no longer mount the SD card here because it may take a long time if it fails
 # endif
@@ -199,9 +209,9 @@ Mutex& GetFsMutex()
 void MassStorage::Spin() noexcept
 {
 # if HAS_MASS_STORAGE
-	for (SdCard& card : sdCards)
+	for (StorageDevice* device : storageDevices)
 	{
-		card.Spin();
+		device->Init();
 	}
 # endif
 
@@ -834,10 +844,10 @@ bool MassStorage::SetLastModifiedTime(const char *filePath, time_t time) noexcep
 // Ideally we would try to mount it if it is not, however mounting a drive can take a long time, and the functions that call this are expected to execute quickly.
 bool MassStorage::CheckDriveMounted(const char* path) noexcept
 {
-	const size_t card = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
+	const size_t device = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
 						? path[0] - '0'
 						: 0;
-	return card < GetNumVolumes() && sdCards[card].IsMounted();
+	return device < GetNumVolumes() && storageDevices[device]->IsMounted();
 }
 
 // Return true if any files are open on the file system
@@ -871,7 +881,7 @@ unsigned int MassStorage::InvalidateFiles(const FATFS *fs) noexcept
 
 bool MassStorage::IsCardDetected(size_t card) noexcept
 {
-	return sdCards[card].IsPresent();
+	return storageDevices[card]->IsPresent();
 }
 
 #endif
@@ -889,9 +899,7 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 		return GCodeResult::error;
 	}
 
-
-
-	return sdCards[card].Mount(card, reply, reportSuccess);
+	return storageDevices[card]->Mount(card, reply, reportSuccess);
 }
 
 // Unmount the specified SD card, returning true if done, false if needs to be called again.
@@ -905,16 +913,16 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 	}
 
 # if HAS_MASS_STORAGE
-	if (AnyFileOpen(sdCards[card].GetFS()))
+	if (AnyFileOpen(storageDevices[card]->GetFS()))
 	{
 		// Don't unmount the card if any files are open on it
 		reply.copy("SD card has open file(s)");
 		return GCodeResult::error;
 	}
 
-	sdCards[card].Unmount();
+	storageDevices[card]->Unmount();
 	reply.printf("SD card %u may now be removed", card);
-	sdCards[card].IncrementSeq();
+	storageDevices[card]->IncrementSeq();
 # endif
 
 	return GCodeResult::ok;
@@ -924,7 +932,7 @@ bool MassStorage::IsDriveMounted(size_t drive) noexcept
 {
 	return drive < GetNumVolumes()
 #if HAS_MASS_STORAGE
-		&& sdCards[drive].IsMounted()
+		&& storageDevices[drive]->IsMounted()
 #endif
 		;
 }
@@ -969,7 +977,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	sd0.GetStats(stats);
 
 	// Show the longest SD card write time
-	platform.MessageF(mtype, "SD card longest read time %.1fms, write time %.1fms, max retries %u\n",
+	platform.MessageF(mtype, "SD card 0 longest read time %.1fms, write time %.1fms, max retries %u\n",
 								(double)stats.maxReadTime, (double)stats.maxWriteTime, static_cast<unsigned int>(stats.maxRetryCount));
 
 	sd0.ResetStats();
@@ -1041,18 +1049,18 @@ MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo
 		return InfoResult::badSlot;
 	}
 
-	SdCard& card = sdCards[slot];
+	StorageDevice* card = storageDevices[slot];
 
-	if (!card.IsMounted())
+	if (!card->IsMounted())
 	{
 		return InfoResult::noCard;
 	}
 
-	returnedInfo.cardCapacity = card.GetCapacity();
-	returnedInfo.partitionSize = card.GetPartitionSize();
-	returnedInfo.freeSpace = card.GetFreeSpace();
-	returnedInfo.clSize = card.GetClusterSize();
-	returnedInfo.speed = card.GetInterfaceSpeed();
+	returnedInfo.cardCapacity = card->GetCapacity();
+	returnedInfo.partitionSize = card->GetPartitionSize();
+	returnedInfo.freeSpace = card->GetFreeSpace();
+	returnedInfo.clSize = card->GetClusterSize();
+	returnedInfo.speed = card->GetInterfaceSpeed();
 
 	return InfoResult::ok;
 }
@@ -1066,7 +1074,7 @@ Mutex& MassStorage::GetFsMutex() noexcept
 
 const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 {
-	return &sdCards[vol];
+	return storageDevices[vol];
 }
 
 # endif
@@ -1084,14 +1092,14 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		sdCards[vol].GetMutex().Take();
+		//storageDevices[vol].GetMutex().Take();
 		return 1;
 	}
 
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		sdCards[vol].GetMutex().Release();
+		//storageDevices[vol].GetMutex().Release();
 	}
 
 	// Delete a sync object
