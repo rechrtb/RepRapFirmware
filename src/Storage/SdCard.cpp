@@ -70,7 +70,7 @@ constexpr ObjectModelTableEntry SdCard::objectModelTable[] =
 	{ "mounted",			OBJECT_MODEL_FUNC(self->isMounted),														ObjectModelEntryFlags::none },
 	{ "openFiles",			OBJECT_MODEL_FUNC_IF(self->isMounted, MassStorage::AnyFileOpen(&(self->fileSystem))),	ObjectModelEntryFlags::none },
 	{ "partitionSize",		OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetPartitionSize()),						        ObjectModelEntryFlags::none },
-	{ "path",				OBJECT_MODEL_FUNC(self->GetPathName()),										    	ObjectModelEntryFlags::verbose },
+	{ "path",				OBJECT_MODEL_FUNC(self->path),										    	ObjectModelEntryFlags::verbose },
 	{ "speed",				OBJECT_MODEL_FUNC_IF(self->isMounted, (int32_t)self->GetInterfaceSpeed()),					        	ObjectModelEntryFlags::none },
 };
 
@@ -135,10 +135,7 @@ SdCard::SdCard(const char* id, uint8_t volume)
 {
     id = id;
     volume = volume;
-    mounting = isMounted = false;
-    seq = 0;
-    cdPin = SdCardDetectPins[volume];
-    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+    path[0] += volume;
 }
 
 bool SdCard::Useable() noexcept
@@ -155,10 +152,17 @@ bool SdCard::Useable() noexcept
 void SdCard::Init() noexcept
 {
     Clear();
-    volMutex.Create("0");
-	// sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);		// initialize SD MMC stack
-}
+    mounting = isMounted = false;
+    seq = 0;
+    cdPin = SdCardDetectPins[volume];
+    cardState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+    volMutex.Create(id);
 
+    if (num == 0) // Initialize SD MMC stack on main SD
+    {
+        sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+    }
+}
 
 GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
 {
@@ -192,7 +196,6 @@ GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSucc
     }
 
     // Mount the file systems
-    const char path[3] = { static_cast<char>('0' + volume), ':', 0 };
     const FRESULT mounted = f_mount(&fileSystem, path, 1);
     if (mounted == FR_NO_FILESYSTEM)
     {
@@ -332,7 +335,6 @@ unsigned int SdCard::Unmount() noexcept
 	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock2(volMutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
-	const char path[3] = { (char)('0' + volume), ':', 0 };
 	f_mount(nullptr, path, 0);
 	Clear();
 	sd_mmc_unmount(volume);

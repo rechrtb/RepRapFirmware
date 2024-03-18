@@ -57,6 +57,10 @@ public:
 
     void IncrementSeq() noexcept { ++seq; }
 
+    const char* GetPathName() noexcept { return path; }
+
+    Mutex& GetMutex() { return volMutex; }
+
 protected:
 	DECLARE_OBJECT_MODEL
 
@@ -64,10 +68,7 @@ private:
     const char *id;
     uint8_t volume;
 
-
-    const char* GetPathName() const { return pathName; }
-
-    const char *pathName;
+    char path[3] = "0:";
 
 	FATFS fileSystem;
 	uint32_t mountStartTime;
@@ -84,4 +85,6 @@ private:
 	uint32_t cdChangedTime;
 	Pin cdPin;
 	DetectState cardState;
+
+
 };

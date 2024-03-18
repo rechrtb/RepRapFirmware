@@ -114,6 +114,7 @@ GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply
 
 # endif
 
+
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
 {
@@ -1070,5 +1071,35 @@ const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 
 # endif
 #endif
+
+// Functions called by FatFS to acquire/release mutual exclusion
+extern "C"
+{
+	// Create a sync object. We already created it so just need to return success.
+	int ff_mutex_create (int vol) noexcept
+	{
+		return 1;
+	}
+
+	// Lock sync object
+	int ff_mutex_take (int vol) noexcept
+	{
+		sdCards[vol].GetMutex().Take();
+		return 1;
+	}
+
+	// Unlock sync object
+	void ff_mutex_give (int vol) noexcept
+	{
+		sdCards[vol].GetMutex().Release();
+	}
+
+	// Delete a sync object
+	void ff_mutex_delete (int vol) noexcept
+	{
+		// nothing to do, we never delete the mutex
+	}
+}
+
 
 // End
