@@ -43,6 +43,4 @@ public:
 private:
 	uint32_t cdChangedTime;
 	Pin cdPin;
-
-    void Clear() noexcept;
 };

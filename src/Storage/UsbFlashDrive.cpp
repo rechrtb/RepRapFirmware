@@ -17,7 +17,7 @@ uint32_t UsbFlashDrive::GetInterfaceSpeed() const
 
 void UsbFlashDrive::Init() noexcept
 {
-
+	memset(&fileSystem, 0, sizeof(fileSystem));
 }
 
 void UsbFlashDrive::Spin() noexcept

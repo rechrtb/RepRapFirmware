@@ -18,11 +18,6 @@
 #include <Libraries/sd_mmc/conf_sd_mmc.h>
 
 
-# if SAME70
-alignas(4) static __nocache uint8_t sectorBuffers[NumSdCards][512];
-#endif
-
-
 // Check that the correct number of SD cards is configured in the library
 static_assert(SD_MMC_MEM_CNT == NumSdCards);
 
@@ -112,8 +107,7 @@ bool SdCard::Useable() noexcept
 
 void SdCard::Init() noexcept
 {
-    Clear();
-
+	memset(&fileSystem, 0, sizeof(fileSystem));
     mounting = isMounted = false;
     seqNum = 0;
     cdPin = SdCardDetectPins[volume];
@@ -273,15 +267,6 @@ void SdCard::Spin() noexcept
     }
 }
 
-void SdCard::Clear() noexcept
-{
-	memset(&fileSystem, 0, sizeof(fileSystem));
-#if SAME70
-	fileSystem.win = sectorBuffers[volume];
-	memset(sectorBuffers[volume], 0, sizeof(sectorBuffers[volume]));
-#endif
-}
-
 void SdCard::GetStats(Stats& stats) noexcept
 {
     stats = this->stats;
@@ -298,7 +283,7 @@ unsigned int SdCard::Unmount() noexcept
 	MutexLocker lock2(volMutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
 	f_mount(nullptr, path, 0);
-	Clear();
+	memset(&fileSystem, 0, sizeof(fileSystem));
 	sd_mmc_unmount(volume);
 	isMounted = false;
 	reprap.VolumesUpdated();

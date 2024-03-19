@@ -37,7 +37,6 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageDevice)
 
 #endif
 
-
 uint64_t StorageDevice::GetFreeSpace() const
 {
     return fileSystem.free_clst * GetClusterSize();
@@ -59,21 +58,3 @@ StorageDevice::StorageDevice(const char* id, uint8_t volume)
     volume = volume;
     path[0] += volume;
 }
-
-// if (!mounting)
-// {
-//     if (isMounted)
-//     {
-//         // if (AnyFileOpen(&inf.fileSystem))
-//         // {
-//         //     // Don't re-mount the card if any files are open on it
-//         //     reply.copy("SD card has open file(s)");
-//         //     return GCodeResult::error;
-//         // }
-//         // (void)InternalUnmount(card);
-//     }
-
-//     mountStartTime = millis();
-//     mounting = true;
-//     delay(2);
-// }

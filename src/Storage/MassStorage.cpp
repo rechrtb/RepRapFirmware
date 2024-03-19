@@ -1086,6 +1086,10 @@ const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 // Functions called by FatFS to acquire/release mutual exclusion
 extern "C"
 {
+# if SAME70
+	alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
+#endif
+
 	// Create a sync object. We already created it so just need to return success.
 	int ff_mutex_create (int vol) noexcept
 	{
@@ -1113,6 +1117,10 @@ extern "C"
 
 	DSTATUS disk_initialize(BYTE drv) noexcept
 	{
+#if SAME70
+		storageDevices[drv]->GetFS()->win = sectorBuffers[drv];
+		memset(sectorBuffers[drv], 0, sizeof(sectorBuffers[drv]));
+#endif
 		return storageDevices[drv]->DiskInitialize();
 	}
 
