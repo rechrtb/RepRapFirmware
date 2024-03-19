@@ -32,7 +32,7 @@ public:
     virtual unsigned int Unmount() noexcept = 0;
     virtual void Spin() noexcept = 0;
 
-    virtual void Init() noexcept = 0;
+    virtual void Init() noexcept;
 
     FATFS* GetFS() noexcept { return &fileSystem; }
     int GetSequenceNum() noexcept { return seqNum; }

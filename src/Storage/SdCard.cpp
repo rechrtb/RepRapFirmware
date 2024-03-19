@@ -107,13 +107,9 @@ bool SdCard::Useable() noexcept
 
 void SdCard::Init() noexcept
 {
-	memset(&fileSystem, 0, sizeof(fileSystem));
-    mounting = isMounted = false;
-    seqNum = 0;
+	StorageDevice::Init();
+	detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
     cdPin = SdCardDetectPins[volume];
-    detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
-    volMutex.Create(id);
-
     if (volume == 0) // Initialize SD MMC stack on main SD
     {
         sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);

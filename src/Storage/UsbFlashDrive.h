@@ -13,7 +13,6 @@ public:
     GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept override;
     unsigned int Unmount() noexcept override;
 
-    void Init() noexcept override;
     void Spin() noexcept override;
 
     uint64_t GetCapacity() const override;
