@@ -51,7 +51,6 @@ void StorageDevice::Init() noexcept
 	memset(&fileSystem, 0, sizeof(fileSystem));
 	mounting = isMounted = false;
 	seqNum = 0;
-	detectState = DetectState::notPresent;
 	volMutex.Create(id);
 }
 
@@ -62,7 +61,7 @@ uint64_t StorageDevice::GetClusterSize() const
 
 StorageDevice::StorageDevice(const char *id, uint8_t volume)
 {
-	id = id;
-	volume = volume;
+	this->id = id;
+	this->volume = volume;
 	path[0] += volume;
 }

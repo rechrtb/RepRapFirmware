@@ -18,13 +18,6 @@ public:
         uint32_t maxRetryCount;
     };
 
-    enum class DetectState : uint8_t
-    {
-        notPresent = 0,
-        inserting,
-        present,
-        removing
-    };
 
     StorageDevice(const char *id, uint8_t volume);
 
@@ -42,7 +35,7 @@ public:
     virtual bool Useable() noexcept { return true; }
     bool IsMounted() noexcept { return isMounted; }
 
-    bool IsPresent() noexcept { return detectState == DetectState::present; }
+    virtual bool IsPresent() noexcept  = 0;
 
     virtual uint64_t GetCapacity() const = 0;
     virtual uint64_t GetFreeSpace() const;
@@ -67,7 +60,6 @@ protected:
 	bool mounting;
 	bool isMounted;
 	uint32_t mountStartTime;
-	DetectState detectState;
 	uint16_t seqNum;
 
     Stats stats;

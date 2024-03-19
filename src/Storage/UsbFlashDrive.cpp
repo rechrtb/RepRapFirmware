@@ -1,9 +1,15 @@
 
-#if SUPPORT_USB_DRIVE
-#include <Libraries/usbh_msc/usbh_msc.h>
-#endif
+#include <cstdint>
+
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
+
+#include <tusb.h>
+#include <class/msc/msc_host.h>
 
 #include "UsbFlashDrive.h"
+
+// #include <SEGGER_SYSVIEW_FreeRTOS.h>
 
 uint64_t UsbFlashDrive::GetCapacity() const
 {
@@ -17,11 +23,30 @@ uint32_t UsbFlashDrive::GetInterfaceSpeed() const
 
 void UsbFlashDrive::Spin() noexcept
 {
+
 }
 
 GCodeResult UsbFlashDrive::Mount(size_t num, const StringRef &reply, bool reportSuccess) noexcept
 {
-	return GCodeResult::error;
+
+    // // Mount the file systems
+    // const FRESULT mounted = f_mount(&fileSystem, path, 1);
+    // if (mounted == FR_NO_FILESYSTEM)
+    // {
+    //     reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
+    //     return GCodeResult::error;
+    // }
+    // if (mounted != FR_OK)
+    // {
+    //     reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
+    //     return GCodeResult::error;
+    // }
+	// if (f_mount(, path, 1) != FR_OK )
+	// {
+
+	// }
+
+	return GCodeResult::ok;
 }
 
 unsigned int UsbFlashDrive::Unmount() noexcept
@@ -29,9 +54,16 @@ unsigned int UsbFlashDrive::Unmount() noexcept
 	return 0;
 }
 
-#include "tusb.h"
 
-static volatile bool _disk_busy[CFG_TUH_DEVICE_MAX];
+void UsbFlashDrive::Init() noexcept
+{
+	StorageDevice::Init();
+	address = 0;
+	usbDrives[volume % NumSdCards] = this;
+}
+
+static volatile bool _disk_busy[NumUsbDrives];
+static volatile bool _present[NumUsbDrives];
 
 static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
 {
@@ -112,39 +144,46 @@ DRESULT UsbFlashDrive::DiskIoctl(BYTE cmd, void *buff)
 	return RES_OK;
 }
 
-#include <cstdint>
-
-#include <tusb.h>
-#include <class/msc/msc_host.h>
-#include <Platform/Platform.h>
-#include <Platform/RepRap.h>
-
-// #include <SEGGER_SYSVIEW_FreeRTOS.h>
-
-static int present = false;
-static scsi_inquiry_resp_t inquiry_resp;
-
-bool usbDrivePresent()
+/*static*/ void UsbFlashDrive::UsbInserted(uint8_t address)
 {
-	return present;
+	// present = true;
+	// uint8_t const lun = 0;
+	// tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
+
+	for (UsbFlashDrive* drive: usbDrives)
+	{
+		// Find a device with no address
+		if (!drive->IsPresent())
+		{
+			drive->address = address;
+		}
+	}
 }
 
-bool inquiry_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
+/*static*/ void UsbFlashDrive::UsbRemoved(uint8_t address)
 {
-	reprap.GetPlatform().MessageF(UsbMessage, "%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
-	present = true;
-	// traceEND();
-	return true;
+	// present = true;
+	// uint8_t const lun = 0;
+	// tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
+
+	for (UsbFlashDrive* drive: usbDrives)
+	{
+		if (drive->address == address)
+		{
+			drive->address = 0;
+		}
+	}
 }
 
-extern "C" void tuh_msc_mount_cb(uint8_t dev_addr)
+extern "C" void tuh_msc_mount_cb(uint8_t address)
 {
-	present = true;
-	uint8_t const lun = 0;
-	tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb, 0);
+	UsbFlashDrive::UsbInserted(address);
 }
 
-extern "C" void tuh_msc_umount_cb(uint8_t dev_addr)
+extern "C" void tuh_msc_umount_cb(uint8_t address)
 {
-	present = false;
+	UsbFlashDrive::UsbRemoved(address);
 }
+
+
+/*static*/ UsbFlashDrive* UsbFlashDrive::usbDrives[NumUsbDrives];

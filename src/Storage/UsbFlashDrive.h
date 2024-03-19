@@ -18,12 +18,21 @@ public:
     uint64_t GetCapacity() const override;
     uint32_t GetInterfaceSpeed() const override;
 
+    void Init() noexcept override;
+
     DRESULT DiskInitialize() override;
     DRESULT DiskStatus() override;
     DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) override;
     DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) override;
     DRESULT DiskIoctl(BYTE ctrl, void *buff) override;
 
+
+    bool IsPresent() noexcept override { return address; }
+
+    static void UsbInserted(uint8_t address);
+    static void UsbRemoved(uint8_t address);
 private:
+    static UsbFlashDrive* usbDrives[NumUsbDrives];
+    uint8_t address;
 };
 

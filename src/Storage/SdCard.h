@@ -14,6 +14,13 @@ public:
 		ok = 2
 	};
 
+    enum class DetectState : uint8_t
+    {
+        notPresent = 0,
+        inserting,
+        present,
+        removing
+    };
 
     SdCard(const char *id, uint8_t volume) : StorageDevice(id, volume) {}
 
@@ -24,7 +31,7 @@ public:
     unsigned int Unmount() noexcept override;
 
     GCodeResult SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept;
-
+    bool IsPresent() noexcept override { return detectState == DetectState::present; }
 
     uint64_t GetCapacity() const override;
     uint32_t GetInterfaceSpeed() const override;
@@ -42,5 +49,6 @@ public:
 
 private:
 	uint32_t cdChangedTime;
+	DetectState detectState;
 	Pin cdPin;
 };
