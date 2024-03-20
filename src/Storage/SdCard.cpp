@@ -96,12 +96,12 @@ static const char* TranslateCardType(card_type_t ct) noexcept
 
 bool SdCard::Useable() noexcept
 {
-#if DUET3_MB6HC
-    if (volume == 1)
-    {
-        return sd1Ports[0].IsValid();
-    }
-#endif
+// #if DUET3_MB6HC
+//     if (volume == 1)
+//     {
+//         return sd1Ports[0].IsValid();
+//     }
+// #endif
     return true;
 }
 
