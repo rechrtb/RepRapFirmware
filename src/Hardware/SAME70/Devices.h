@@ -21,6 +21,7 @@ extern AsyncSerial serialWiFi;
 #define SUPPORT_USB		1		// needed by SerialCDC.h
 #include "SerialCDC.h"
 
+extern bool usbHost;
 extern SerialCDC serialUSB;
 
 void DeviceInit() noexcept;

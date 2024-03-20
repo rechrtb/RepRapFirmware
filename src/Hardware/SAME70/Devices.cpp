@@ -102,6 +102,11 @@ static Task<UsbDeviceTaskStackWords> usbDeviceTask;
 
 #endif
 
+#if defined(SERIAL_MAIN_DEVICE)
+bool usbHost = false;
+#else
+bool usbHost = true;
+#endif
 SerialCDC serialUSB;
 
 // Device initialisation
@@ -127,12 +132,8 @@ void DeviceInit() noexcept
 	// traceSTART();
 
 #if CORE_USES_TINYUSB
-#if defined(SERIAL_MAIN_DEVICE)
-	CoreUsbInit(NvicPriorityUSB, false);
-#else
-	CoreUsbInit(NvicPriorityUSB, true);
-#endif
-	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", nullptr, TaskPriority::UsbPriority);
+	CoreUsbInit(NvicPriorityUSB);
+	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", &usbHost, TaskPriority::UsbPriority);
 #endif
 }
 
