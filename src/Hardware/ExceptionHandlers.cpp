@@ -49,12 +49,10 @@
 	{
 		if (initialReason != SoftwareResetReason::user)
 		{
-#if defined(SERIAL_MAIN_DEVICE)
 			if (SERIAL_MAIN_DEVICE.canWrite() == 0)
 			{
 				fullReason |= (uint16_t)SoftwareResetReason::inUsbOutput;	// if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
 			}
-#endif
 
 #if HAS_AUX_DEVICES
 			if (SERIAL_AUX_DEVICE.canWrite() == 0
