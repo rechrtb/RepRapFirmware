@@ -313,6 +313,9 @@ public:
 	void SetGateWay(IPAddress gw) noexcept;
 	IPAddress GateWay() const noexcept;
 	void SetBaudRate(size_t chan, uint32_t br) noexcept;
+#if SUPPORT_USB_DRIVE
+	bool SetUsbHostMode(bool host) noexcept;
+#endif
 	uint32_t GetBaudRate(size_t chan) const noexcept;
 	void SetCommsProperties(size_t chan, uint32_t cp) noexcept;
 	uint32_t GetCommsProperties(size_t chan) const noexcept;

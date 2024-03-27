@@ -3818,6 +3818,20 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 	}
 }
 
+#if SUPPORT_USB_DRIVE
+bool Platform::SetUsbHostMode(bool host) noexcept
+{
+	if (host && digitalRead(UsbVBusPin)) // don't set to host mode if already powered from a host
+	{
+		return false;
+	}
+
+	SERIAL_MAIN_DEVICE.setHostMode(host);
+	digitalWrite(UsbPowerSwitchPin, host);
+	return true;
+}
+#endif
+
 uint32_t Platform::GetBaudRate(size_t chan) const noexcept
 {
 	return (chan < NumSerialChannels) ? baudRates[chan] : 0;

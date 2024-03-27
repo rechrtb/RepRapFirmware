@@ -3733,74 +3733,99 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			case 575: // Set communications parameters
 				{
 					const size_t chan = gb.GetLimitedUIValue('P', NumSerialChannels);
-					GCodeBuffer * const gbp = (chan == 0) ? UsbGCode() : (chan == 1) ? AuxGCode() : Aux2GCode();
+					bool mode = false;
 					bool seen = false;
-					if (gb.Seen('B'))
+#if SUPPORT_USB_DRIVE
+					// If H=1, USB main device is configured as host, so other arguments
+					// don't mean anything.
+					if (chan == 0 && gb.TryGetBValue('H', mode, seen) && mode)
 					{
-						platform.SetBaudRate(chan, gb.GetUIValue());
-						seen = true;
-					}
-
-					if (gb.Seen('S'))
-					{
-						const uint32_t val = gb.GetUIValue();
-						platform.SetCommsProperties(chan, val);
-						if (gbp != nullptr)
+						if (!platform.SetUsbHostMode(true))
 						{
-							gbp->SetCommsProperties(val);
-#if HAS_AUX_DEVICES
-							if (chan != 0)
-							{
-								const bool rawMode = (val & 2u) != 0;
-								platform.SetAuxRaw(chan - 1, rawMode);
-								if (rawMode && !platform.IsAuxEnabled(chan - 1))			// if enabling aux for the first time and in raw mode, set Marlin compatibility
-								{
-									gbp->LatestMachineState().compatibility = Compatibility::Marlin;
-								}
-							}
-#endif
+							reply.printf("Unable to set to host mode");
+							result = GCodeResult::error;
 						}
-						seen = true;
 					}
-
-					if (seen)
+#endif
+					else
 					{
-#if HAS_AUX_DEVICES
-						if (chan != 0 && !platform.IsAuxEnabled(chan - 1))
+#if SUPPORT_USB_DRIVE
+						// If H=0, USB main device is configured as device so process other arguments
+						// normally. In the case where 'H' parameter is not specified, perform
+						// configuration normally.
+						if (seen)
 						{
-							platform.EnableAux(chan - 1);
+							platform.SetUsbHostMode(false);
+						}
+#endif
+
+						GCodeBuffer * const gbp = (chan == 0) ? UsbGCode() : (chan == 1) ? AuxGCode() : Aux2GCode();
+						if (gb.Seen('B'))
+						{
+							platform.SetBaudRate(chan, gb.GetUIValue());
+							seen = true;
+						}
+
+						if (gb.Seen('S'))
+						{
+							const uint32_t val = gb.GetUIValue();
+							platform.SetCommsProperties(chan, val);
+							if (gbp != nullptr)
+							{
+								gbp->SetCommsProperties(val);
+#if HAS_AUX_DEVICES
+								if (chan != 0)
+								{
+									const bool rawMode = (val & 2u) != 0;
+									platform.SetAuxRaw(chan - 1, rawMode);
+									if (rawMode && !platform.IsAuxEnabled(chan - 1))			// if enabling aux for the first time and in raw mode, set Marlin compatibility
+									{
+										gbp->LatestMachineState().compatibility = Compatibility::Marlin;
+									}
+								}
+#endif
+							}
+							seen = true;
+						}
+
+						if (seen)
+						{
+#if HAS_AUX_DEVICES
+							if (chan != 0 && !platform.IsAuxEnabled(chan - 1))
+							{
+								platform.EnableAux(chan - 1);
+							}
+							else
+							{
+								platform.ResetChannel(chan);
+							}
+						}
+						else if (chan != 0 && !platform.IsAuxEnabled(chan - 1))
+						{
+							reply.printf("Channel %u is disabled", chan);
+#endif
 						}
 						else
 						{
-							platform.ResetChannel(chan);
-						}
-					}
-					else if (chan != 0 && !platform.IsAuxEnabled(chan - 1))
-					{
-						reply.printf("Channel %u is disabled", chan);
-#endif
-					}
-					else
-					{
-						const uint32_t cp = platform.GetCommsProperties(chan);
-						reply.printf("Channel %d: baud rate %" PRIu32 ", %s%s", chan, platform.GetBaudRate(chan),
-										(chan != 0 && platform.IsAuxRaw(chan - 1)) ? "raw mode, " : "",
-										(cp & 4) ? "requires CRC"
-											: (cp & 1) ? "requires checksum or CRC"
-												: "does not require checksum or CRC"
-									);
-#if defined(SERIAL_MAIN_DEVICE)
-						if (chan == 0 && SERIAL_MAIN_DEVICE.IsConnected())
-						{
-							reply.cat(", connected");
-						} else
-#endif
+							const uint32_t cp = platform.GetCommsProperties(chan);
+							reply.printf("Channel %d: baud rate %" PRIu32 ", %s%s", chan, platform.GetBaudRate(chan),
+											(chan != 0 && platform.IsAuxRaw(chan - 1)) ? "raw mode, " : "",
+											(cp & 4) ? "requires CRC"
+												: (cp & 1) ? "requires checksum or CRC"
+													: "does not require checksum or CRC"
+										);
+
+							if (chan == 0 && SERIAL_MAIN_DEVICE.IsConnected())
+							{
+								reply.cat(", connected");
+							}
 #if HAS_AUX_DEVICES
-						if (chan != 0 && platform.IsAuxRaw(chan - 1))
-						{
-							reply.cat(", raw mode");
-						}
+							else if (chan != 0 && platform.IsAuxRaw(chan - 1))
+							{
+								reply.cat(", raw mode");
+							}
 #endif
+						}
 					}
 				}
 				break;
