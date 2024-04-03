@@ -45,6 +45,8 @@
 #include <Storage/CRC32.h>
 #include <Accelerometers/Accelerometers.h>
 
+#include <TinyUsbInterface.h>
+
 #if SAM4E || SAM4S || SAME70
 # include <AnalogIn.h>
 using LegacyAnalogIn::AdcBits;
@@ -545,11 +547,7 @@ void Platform::Init() noexcept
 #if SAME5x && !CORE_USES_TINYUSB
     SERIAL_MAIN_DEVICE.Start();
 #else
-#if SUPPORT_USB_DRIVE
-    SERIAL_MAIN_DEVICE.Start(UsbVBusPin, UsbPowerSwitchPin);
-#else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
-#endif
 #endif
 
 #if HAS_AUX_DEVICES
@@ -3825,7 +3823,7 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 #if SUPPORT_USB_DRIVE
 bool Platform::SetUsbHostMode(bool hostMode, const StringRef& reply) noexcept
 {
-	return SERIAL_MAIN_DEVICE.setHostMode(hostMode, reply);
+	return CoreUsbSetHostMode(hostMode, reply);
 }
 #endif
 
@@ -3854,13 +3852,9 @@ void Platform::ResetChannel(size_t chan) noexcept
 	{
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x && !CORE_USES_TINYUSB
-        SERIAL_MAIN_DEVICE.Start();
-#else
-#if SUPPORT_USB_DRIVE
-		SERIAL_MAIN_DEVICE.Start(UsbVBusPin, UsbPowerSwitchPin);
+		SERIAL_MAIN_DEVICE.Start();
 #else
 		SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
-#endif
 #endif
 	} else
 #if HAS_AUX_DEVICES

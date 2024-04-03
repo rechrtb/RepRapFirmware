@@ -102,11 +102,7 @@ static Task<UsbDeviceTaskStackWords> usbDeviceTask;
 
 #endif
 
-#if SUPPORT_USB_DRIVE
-DualRoleSerialCDC serialUSB;
-#else
 SerialCDC serialUSB;
-#endif
 
 // Device initialisation
 void DeviceInit() noexcept
@@ -131,7 +127,7 @@ void DeviceInit() noexcept
 	// traceSTART();
 
 #if CORE_USES_TINYUSB
-	CoreUsbInit(NvicPriorityUSB);
+	CoreUsbInit(NvicPriorityUSB, UsbVBusPin, UsbPowerSwitchPin, UsbModePin, UsbDetectPin);
 	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", nullptr, TaskPriority::UsbPriority);
 #endif
 }
