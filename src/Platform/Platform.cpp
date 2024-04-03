@@ -545,7 +545,11 @@ void Platform::Init() noexcept
 #if SAME5x && !CORE_USES_TINYUSB
     SERIAL_MAIN_DEVICE.Start();
 #else
+#if SUPPORT_USB_DRIVE
+    SERIAL_MAIN_DEVICE.Start(UsbVBusPin, UsbPowerSwitchPin);
+#else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
+#endif
 #endif
 
 #if HAS_AUX_DEVICES
@@ -3819,16 +3823,9 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 }
 
 #if SUPPORT_USB_DRIVE
-bool Platform::SetUsbHostMode(bool host) noexcept
+bool Platform::SetUsbHostMode(bool hostMode, const StringRef& reply) noexcept
 {
-	if (host && digitalRead(UsbVBusPin)) // don't set to host mode if already powered from a host
-	{
-		return false;
-	}
-
-	SERIAL_MAIN_DEVICE.setHostMode(host);
-	digitalWrite(UsbPowerSwitchPin, host);
-	return true;
+	return SERIAL_MAIN_DEVICE.setHostMode(hostMode, reply);
 }
 #endif
 
@@ -3859,7 +3856,11 @@ void Platform::ResetChannel(size_t chan) noexcept
 #if SAME5x && !CORE_USES_TINYUSB
         SERIAL_MAIN_DEVICE.Start();
 #else
-        SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
+#if SUPPORT_USB_DRIVE
+		SERIAL_MAIN_DEVICE.Start(UsbVBusPin, UsbPowerSwitchPin);
+#else
+		SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
+#endif
 #endif
 	} else
 #if HAS_AUX_DEVICES

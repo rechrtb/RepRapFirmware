@@ -3733,32 +3733,20 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			case 575: // Set communications parameters
 				{
 					const size_t chan = gb.GetLimitedUIValue('P', NumSerialChannels);
-					bool mode = false;
+					bool hostMode = false;
 					bool seen = false;
 #if SUPPORT_USB_DRIVE
-					// If H=1, USB main device is configured as host, so other arguments
-					// don't mean anything.
-					if (chan == 0 && gb.TryGetBValue('H', mode, seen) && mode)
+					if (chan == 0 && gb.TryGetBValue('H', hostMode, seen)) // switch modes first
 					{
-						if (!platform.SetUsbHostMode(true))
+						if (!platform.SetUsbHostMode(hostMode, reply))
 						{
-							reply.printf("Unable to set to host mode");
+							reply.printf("Unable to set to %s mode", hostMode ? "host" : "device");
 							result = GCodeResult::error;
 						}
 					}
 #endif
-					else
+					if (result == GCodeResult::ok && !hostMode) // switched to device mode with no error, handle other device mode args
 					{
-#if SUPPORT_USB_DRIVE
-						// If H=0, USB main device is configured as device so process other arguments
-						// normally. In the case where 'H' parameter is not specified, perform
-						// configuration normally.
-						if (seen)
-						{
-							platform.SetUsbHostMode(false);
-						}
-#endif
-
 						GCodeBuffer * const gbp = (chan == 0) ? UsbGCode() : (chan == 1) ? AuxGCode() : Aux2GCode();
 						if (gb.Seen('B'))
 						{
