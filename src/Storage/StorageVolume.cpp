@@ -15,13 +15,13 @@ constexpr ObjectModelTableEntry StorageVolume::objectModelTable[] =
 	{
 		// Within each group, these entries must be in alphabetical order
 		// 0. volumes[] root
-		{"capacity", OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetCapacity()), ObjectModelEntryFlags::none},
-		{"freeSpace", OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetFreeSpace()), ObjectModelEntryFlags::none},
-		{"mounted", OBJECT_MODEL_FUNC(self->isMounted), ObjectModelEntryFlags::none},
-		{"openFiles", OBJECT_MODEL_FUNC_IF(self->isMounted, MassStorage::AnyFileOpen(&(self->fileSystem))), ObjectModelEntryFlags::none},
-		{"partitionSize", OBJECT_MODEL_FUNC_IF(self->isMounted, self->GetPartitionSize()), ObjectModelEntryFlags::none},
+		{"capacity", OBJECT_MODEL_FUNC_IF(self->IsMounted(), self->GetCapacity()), ObjectModelEntryFlags::none},
+		{"freeSpace", OBJECT_MODEL_FUNC_IF(self->IsMounted(), self->GetFreeSpace()), ObjectModelEntryFlags::none},
+		{"mounted", OBJECT_MODEL_FUNC(self->IsMounted()), ObjectModelEntryFlags::none},
+		{"openFiles", OBJECT_MODEL_FUNC_IF(self->IsMounted(), MassStorage::AnyFileOpen(&(self->fileSystem))), ObjectModelEntryFlags::none},
+		{"partitionSize", OBJECT_MODEL_FUNC_IF(self->IsMounted(), self->GetPartitionSize()), ObjectModelEntryFlags::none},
 		{"path", OBJECT_MODEL_FUNC(self->path), ObjectModelEntryFlags::verbose},
-		{"speed", OBJECT_MODEL_FUNC_IF(self->isMounted, (int32_t)self->GetInterfaceSpeed()), ObjectModelEntryFlags::none},
+		{"speed", OBJECT_MODEL_FUNC_IF(self->IsMounted(), (int32_t)self->GetInterfaceSpeed()), ObjectModelEntryFlags::none},
 };
 
 // TODO Add storages here in the format
@@ -44,8 +44,8 @@ void StorageVolume::Clear()
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
 #if SAME70
-	fileSystem.win = sectorBuffers[volume];
-	memset(sectorBuffers[volume], 0, sizeof(sectorBuffers[volume]));
+	fileSystem.win = sectorBuffers[num];
+	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
 #endif
 }
 
@@ -67,9 +67,8 @@ uint64_t StorageVolume::GetPartitionSize() const
 void StorageVolume::Init() noexcept
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
-	mounting = isMounted = false;
 	seqNum = 0;
-	volMutex.Create(id);
+	mutex.Create(id);
 }
 
 uint64_t StorageVolume::GetClusterSize() const
@@ -77,9 +76,9 @@ uint64_t StorageVolume::GetClusterSize() const
 	return (fileSystem.csize) * 512;
 }
 
-StorageVolume::StorageVolume(const char *id, uint8_t volume)
+StorageVolume::StorageVolume(const char *id, uint8_t num)
 {
 	this->id = id;
-	this->volume = volume;
-	path[0] += volume;
+	this->num = num;
+	path[0] += num;
 }

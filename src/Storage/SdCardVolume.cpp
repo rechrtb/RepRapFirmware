@@ -95,7 +95,7 @@ static const char* TranslateCardType(card_type_t ct) noexcept
 bool SdCardVolume::Useable() noexcept
 {
 // #if DUET3_MB6HC
-//     if (volume == 1)
+//     if (num == 1)
 //     {
 //         return sd1Ports[0].IsValid();
 //     }
@@ -106,18 +106,19 @@ bool SdCardVolume::Useable() noexcept
 void SdCardVolume::Init() noexcept
 {
 	StorageVolume::Init();
+	mounting = isMounted = false;
 	detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
-	cdPin = SdCardDetectPins[volume];
-	if (volume == 0) // Initialize SD MMC stack on main SD
+	cdPin = SdCardDetectPins[num];
+	if (num == 0) // Initialize SD MMC stack on main SD
 	{
 		sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 	}
 }
 
-GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
+GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
-	MutexLocker lock(volMutex);
+	MutexLocker lock(mutex);
 
 	if (!mounting)
 	{
@@ -149,7 +150,7 @@ GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool repo
 		return GCodeResult::notFinished;						// wait for debounce to finish
 	}
 
-	const sd_mmc_err_t err = sd_mmc_check(volume);
+	const sd_mmc_err_t err = sd_mmc_check(num);
 	if (err != SD_MMC_OK && millis() - mountStartTime < 5000)
 	{
 		delay(2);
@@ -159,7 +160,7 @@ GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool repo
 	mounting = false;
 	if (err != SD_MMC_OK)
 	{
-		reply.printf("Cannot initialise SD card %u: %s", volume, TranslateCardError(err));
+		reply.printf("Cannot initialise SD card %u: %s", num, TranslateCardError(err));
 		return GCodeResult::error;
 	}
 
@@ -167,12 +168,12 @@ GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool repo
 	const FRESULT mounted = f_mount(&fileSystem, path, 1);
 	if (mounted == FR_NO_FILESYSTEM)
 	{
-		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
+		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", num);
 		return GCodeResult::error;
 	}
 	if (mounted != FR_OK)
 	{
-		reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
+		reply.printf("Cannot mount SD card %u: code %d", num, mounted);
 		return GCodeResult::error;
 	}
 
@@ -180,7 +181,7 @@ GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool repo
 	reprap.VolumesUpdated();
 	if (reportSuccess)
 	{
-		float capacity = ((float)sd_mmc_get_capacity(volume) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
+		float capacity = ((float)sd_mmc_get_capacity(num) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
 		const char* capUnits;
 		if (capacity >= 1000.0)
 		{
@@ -191,7 +192,7 @@ GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool repo
 		{
 			capUnits = "Mb";
 		}
-		reply.printf("%s card mounted in volume %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(volume)), volume, (double)capacity, capUnits);
+		reply.printf("%s card mounted in num %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
 	}
 
 	return GCodeResult::ok;
@@ -247,7 +248,7 @@ void SdCardVolume::Spin() noexcept
 						const unsigned int numFiles = InternalUnmount();
 						if (numFiles != 0)
 						{
-							reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", volume, numFiles);
+							reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", num, numFiles);
 						}
 					}
 				}
@@ -290,7 +291,7 @@ void SdCardVolume::ResetStats() noexcept
 }
 
 
-GCodeResult SdCardVolume::Unmount(size_t card, const StringRef& reply) noexcept
+GCodeResult SdCardVolume::Unmount(const StringRef& reply) noexcept
 {
 	if (MassStorage::AnyFileOpen(&fileSystem))
 	{
@@ -300,7 +301,7 @@ GCodeResult SdCardVolume::Unmount(size_t card, const StringRef& reply) noexcept
 	}
 
 	(void)InternalUnmount();
-	reply.printf("SD card %u may now be removed", card);
+	reply.printf("SD card %u may now be removed", num);
 	++seqNum;
 
 	return GCodeResult::ok;
@@ -310,11 +311,11 @@ GCodeResult SdCardVolume::Unmount(size_t card, const StringRef& reply) noexcept
 unsigned int SdCardVolume::InternalUnmount() noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
-	MutexLocker lock2(volMutex);
+	MutexLocker lock2(mutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
 	f_mount(nullptr, path, 0);
 	Clear();
-	sd_mmc_unmount(volume);
+	sd_mmc_unmount(num);
 	isMounted = false;
 	reprap.VolumesUpdated();
 	return invalidated;
@@ -322,18 +323,18 @@ unsigned int SdCardVolume::InternalUnmount() noexcept
 
 uint64_t SdCardVolume::GetCapacity() const
 {
-	return sd_mmc_get_capacity(volume) * 1024;
+	return sd_mmc_get_capacity(num) * 1024;
 }
 
 uint32_t SdCardVolume::GetInterfaceSpeed() const
 {
-	return sd_mmc_get_interface_speed(volume);
+	return sd_mmc_get_interface_speed(num);
 }
 
 
 DRESULT SdCardVolume::DiskInitialize()
 {
-	if (volume > MAX_LUN) {
+	if (num > MAX_LUN) {
 		/* At least one of the LUN should be defined */
 		return static_cast<DRESULT>(STA_NOINIT);
 	}
@@ -342,7 +343,7 @@ DRESULT SdCardVolume::DiskInitialize()
 
 	/* Check LUN ready (USB disk report CTRL_BUSY then CTRL_GOOD) */
 	for (int i = 0; i < 2; i ++) {
-		mem_status = mem_test_unit_ready(volume);
+		mem_status = mem_test_unit_ready(num);
 		if (CTRL_BUSY != mem_status) {
 			break;
 		}
@@ -352,7 +353,7 @@ DRESULT SdCardVolume::DiskInitialize()
 	}
 
 	/* Check Write Protection Status */
-	if (mem_wr_protect(volume)) {
+	if (mem_wr_protect(num)) {
 		return static_cast<DRESULT>(STA_PROTECT);
 	}
 
@@ -362,7 +363,7 @@ DRESULT SdCardVolume::DiskInitialize()
 
 DRESULT SdCardVolume::DiskStatus()
 {
-	switch (mem_test_unit_ready(volume)) {
+	switch (mem_test_unit_ready(num)) {
 	case CTRL_GOOD:
 		return RES_OK;
 	case CTRL_NO_PRESENT:
@@ -376,10 +377,10 @@ DRESULT SdCardVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 {
 	if (reprap.Debug(Module::Storage))
 	{
-		debugPrintf("Read %u %u %lu\n", volume, count, sector);
+		debugPrintf("Read %u %u %lu\n", num, count, sector);
 	}
 
-	const uint8_t uc_sector_size = mem_sector_size(volume);
+	const uint8_t uc_sector_size = mem_sector_size(num);
 	if (uc_sector_size == 0)
 	{
 		return RES_ERROR;
@@ -387,7 +388,7 @@ DRESULT SdCardVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 
 	/* Check valid address */
 	uint32_t ul_last_sector_num;
-	mem_read_capacity(volume, &ul_last_sector_num);
+	mem_read_capacity(num, &ul_last_sector_num);
 	if ((sector + count * uc_sector_size) > (ul_last_sector_num + 1) * uc_sector_size)
 	{
 		return RES_PARERR;
@@ -399,7 +400,7 @@ DRESULT SdCardVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 	for (;;)
 	{
 		uint32_t time = StepTimer::GetTimerTicks();
-		const Ctrl_status ret = memory_2_ram(volume, sector, buff, count);
+		const Ctrl_status ret = memory_2_ram(num, sector, buff, count);
 		time = StepTimer::GetTimerTicks() - time;
 		if (time > stats.maxReadTime)
 		{
@@ -437,10 +438,10 @@ DRESULT SdCardVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 {
 	if (reprap.Debug(Module::Storage))
 	{
-		debugPrintf("Write %u %u %lu\n", volume, count, sector);
+		debugPrintf("Write %u %u %lu\n", num, count, sector);
 	}
 
-	const uint8_t uc_sector_size = mem_sector_size(volume);
+	const uint8_t uc_sector_size = mem_sector_size(num);
 
 	if (uc_sector_size == 0)
 	{
@@ -449,7 +450,7 @@ DRESULT SdCardVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 
 	// Check valid address
 	uint32_t ul_last_sector_num;
-	mem_read_capacity(volume, &ul_last_sector_num);
+	mem_read_capacity(num, &ul_last_sector_num);
 	if ((sector + count * uc_sector_size) > (ul_last_sector_num + 1) * uc_sector_size)
 	{
 		return RES_PARERR;
@@ -462,7 +463,7 @@ DRESULT SdCardVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 	for (;;)
 	{
 		uint32_t time = StepTimer::GetTimerTicks();
-		const Ctrl_status ret = ram_2_memory(volume, sector, buff, count);
+		const Ctrl_status ret = ram_2_memory(num, sector, buff, count);
 		time = StepTimer::GetTimerTicks() - time;
 		if (time > stats.maxWriteTime)
 		{
@@ -512,7 +513,7 @@ DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff)
 		uint32_t ul_last_sector_num;
 
 		/* Check valid address */
-		mem_read_capacity(volume, &ul_last_sector_num);
+		mem_read_capacity(num, &ul_last_sector_num);
 
 		*(DWORD *)buff = ul_last_sector_num + 1;
 
@@ -523,7 +524,7 @@ DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff)
 	/* Get sectors on the disk (WORD) */
 	case GET_SECTOR_SIZE:
 	{
-		uint8_t uc_sector_size = mem_sector_size(volume);
+		uint8_t uc_sector_size = mem_sector_size(num);
 
 		if ((uc_sector_size != SECTOR_SIZE_512) &&
 				(uc_sector_size != SECTOR_SIZE_1024) &&
@@ -542,7 +543,7 @@ DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff)
 	/* Make sure that data has been written */
 	case CTRL_SYNC:
 		{
-			if (mem_test_unit_ready(volume) == CTRL_GOOD) {
+			if (mem_test_unit_ready(num) == CTRL_GOOD) {
 				res = RES_OK;
 			} else {
 				res = RES_NOTRDY;

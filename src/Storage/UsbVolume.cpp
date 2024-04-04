@@ -9,7 +9,7 @@
 
 #include "UsbVolume.h"
 
-// #include <SEGGER_SYSVIEW_FreeRTOS.h>
+static volatile bool _disk_busy[NumUsbDrives];
 
 uint64_t UsbVolume::GetCapacity() const
 {
@@ -30,26 +30,16 @@ void UsbVolume::Spin() noexcept
 	if (state == State::removed)
 	{
 		// TODO: Unmount
-
 		address = 0;
 		state = State::free;
 	}
 }
 
-GCodeResult UsbVolume::Mount(size_t num, const StringRef &reply, bool reportSuccess) noexcept
+GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
 {
-	// Re-mount handler
-
-	/*
-	if (!CoreUsbIsHostMode())
+	if (IsDetected())
 	{
-		reply.copy("USB is not in host mode.");
-		return GCodeResult::error;
-	}*/
-
-	if (!IsPresent())
-	{
-		reply.copy("No USB flash drive present");
+		reply.copy("No USB storage detected");
 		return GCodeResult::error;
 	}
 
@@ -63,32 +53,31 @@ GCodeResult UsbVolume::Mount(size_t num, const StringRef &reply, bool reportSucc
 	const FRESULT mounted = f_mount(&fileSystem, path, 1);
 	if (mounted == FR_NO_FILESYSTEM)
 	{
-		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
+		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", num);
 		return GCodeResult::error;
 	}
 	if (mounted != FR_OK)
 	{
-		reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
+		reply.printf("Cannot mount SD card %u: code %d", num, mounted);
 		return GCodeResult::error;
 	}
 
 	state = State::mounted;
 
-	isMounted = true;
 	return GCodeResult::ok;
 }
 
-GCodeResult UsbVolume::Unmount(size_t card, const StringRef& reply) noexcept
+GCodeResult UsbVolume::Unmount(const StringRef& reply) noexcept
 {
 	if (MassStorage::AnyFileOpen(&fileSystem))
 	{
 		// Don't unmount the card if any files are open on it
-		reply.copy("SD card has open file(s)");
+		reply.copy("USB storage has open file(s)");
 		return GCodeResult::error;
 	}
 
 	(void)InternalUnmount();
-	reply.printf("SD card %u may now be removed", card);
+	reply.printf("USB storage %u may now be removed", num);
 	++seqNum;
 
 	return GCodeResult::ok;
@@ -97,26 +86,22 @@ GCodeResult UsbVolume::Unmount(size_t card, const StringRef& reply) noexcept
 unsigned int UsbVolume::InternalUnmount() noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
-	MutexLocker lock2(volMutex);
+	MutexLocker lock2(mutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
 	f_mount(nullptr, path, 0);
 	Clear();
-	//sd_mmc_unmount(volume);
-	isMounted = false;
+	//sd_mmc_unmount(num);
 	reprap.VolumesUpdated();
 	return invalidated;
 }
-
-
 
 void UsbVolume::Init() noexcept
 {
 	StorageVolume::Init();
 	address = 0;
-	usbDrives[volume % NumSdCards] = this;
+	usbDrives[num % NumSdCards] = this;
 }
 
-static volatile bool _disk_busy[NumUsbDrives];
 
 static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
 {
@@ -141,36 +126,36 @@ DRESULT UsbVolume::DiskInitialize()
 
 DRESULT UsbVolume::DiskStatus()
 {
-	uint8_t dev_addr = (volume % NumSdCards) + 1;
+	uint8_t dev_addr = (num % NumSdCards) + 1;
 	return static_cast<DRESULT>(tuh_msc_mounted(dev_addr) ? 0 : STA_NODISK);
 }
 
 DRESULT UsbVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 {
-	uint8_t const dev_addr = (volume % NumSdCards) + 1;
+	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
 
-	_disk_busy[volume % NumSdCards] = true;
+	_disk_busy[num % NumSdCards] = true;
 	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
-	wait_for_disk_io(volume % NumSdCards);
+	wait_for_disk_io(num % NumSdCards);
 
 	return RES_OK;
 }
 
 DRESULT UsbVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 {
-	uint8_t const dev_addr = (volume % NumSdCards) + 1;
+	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
 
-	_disk_busy[volume % NumSdCards] = true;
+	_disk_busy[num % NumSdCards] = true;
 	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
-	wait_for_disk_io(volume % NumSdCards);
+	wait_for_disk_io(num % NumSdCards);
 	return RES_OK;
 }
 
 DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff)
 {
-	uint8_t const dev_addr = (volume % NumSdCards) + 1;
+	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
 	switch (cmd)
 	{

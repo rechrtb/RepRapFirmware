@@ -22,16 +22,15 @@ public:
         removing
     };
 
-    SdCardVolume(const char *id, uint8_t volume) : StorageVolume(id, volume) {}
+    SdCardVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
 
     void Init() noexcept override;
 
     void Spin() noexcept override;
-    GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept override;
-    GCodeResult Unmount(size_t card, const StringRef& reply) noexcept override;
+    GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
+    GCodeResult Unmount(const StringRef& reply) noexcept override;
 
     GCodeResult SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept;
-    bool IsPresent() noexcept override { return detectState == DetectState::present; }
 
     uint64_t GetCapacity() const override;
     uint32_t GetInterfaceSpeed() const override;
@@ -40,6 +39,9 @@ public:
     void GetStats(Stats& stats) noexcept;
     void ResetStats() noexcept;
 
+    bool IsMounted() const noexcept override { return isMounted; }
+    bool IsDetected() const noexcept override { return detectState == DetectState::present; }
+
     DRESULT DiskInitialize() override;
     DRESULT DiskStatus() override;
     DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) override;
@@ -47,6 +49,10 @@ public:
     DRESULT DiskIoctl(BYTE ctrl, void *buff) override;
 
 private:
+	bool mounting;
+	bool isMounted;
+	uint32_t mountStartTime;
+
 	uint32_t cdChangedTime;
 	DetectState detectState;
 	Pin cdPin;

@@ -8,10 +8,10 @@
 class UsbVolume : public StorageVolume
 {
 public:
-    UsbVolume(const char *id, uint8_t volume) : StorageVolume(id, volume) {}
+    UsbVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
 
-    GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept override;
-    GCodeResult Unmount(size_t card, const StringRef& reply) noexcept override;
+    GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
+    GCodeResult Unmount(const StringRef& reply) noexcept override;
 
     void Spin() noexcept override;
 
@@ -26,11 +26,12 @@ public:
     DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) override;
     DRESULT DiskIoctl(BYTE ctrl, void *buff) override;
 
-
-    bool IsPresent() noexcept override { return address; }
+    bool IsMounted() const noexcept override { return state == State::mounted; }
+    bool IsDetected() const noexcept override { return address; }
 
     static void UsbInserted(uint8_t address);
     static void UsbRemoved(uint8_t address);
+
 private:
     static UsbVolume* usbDrives[NumUsbDrives];
     uint8_t address;
@@ -50,6 +51,5 @@ private:
     bool AcceptDevice(uint8_t address);
     void RemoveDevice();
     unsigned int InternalUnmount() noexcept;
-
 };
 

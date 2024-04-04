@@ -881,7 +881,7 @@ unsigned int MassStorage::InvalidateFiles(const FATFS *fs) noexcept
 
 bool MassStorage::IsCardDetected(size_t card) noexcept
 {
-	return storageVolumes[card]->IsPresent();
+	return storageVolumes[card]->IsDetected();
 }
 
 #endif
@@ -899,7 +899,7 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 		return GCodeResult::error;
 	}
 
-	return storageVolumes[card]->Mount(card, reply, reportSuccess);
+	return storageVolumes[card]->Mount(reply, reportSuccess);
 }
 
 // Unmount the specified SD card, returning true if done, false if needs to be called again.
@@ -958,9 +958,9 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 #  if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
 	platform.MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n",
-								(sd0.IsPresent() ? "detected" : "not detected"), static_cast<double>(sd0.GetInterfaceSpeed() * 0.000001f));
+								(IsCardDetected(0) ? "detected" : "not detected"), static_cast<double>(sd0.GetInterfaceSpeed() * 0.000001f));
 #  else
-	platform.MessageF(mtype, "SD card 0 %s\n", (sd0.IsPresent() ? "detected" : "not detected"));
+	platform.MessageF(mtype, "SD card 0 %s\n", (IsCardDetected(0) ? "detected" : "not detected"));
 #  endif
 
 	SdCardVolume::Stats stats;
