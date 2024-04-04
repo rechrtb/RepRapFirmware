@@ -13,18 +13,16 @@
 
 uint64_t UsbFlashDrive::GetCapacity() const
 {
-  // Get capacity of device
-//   uint32_t const block_count = tuh_msc_get_block_count(address, cbw->lun);
-//   uint32_t const block_size = tuh_msc_get_block_size(address, cbw->lun);
-//   return block_count / ((1024*1024)/block_size);
-	return 0;
+	// Get capacity of device
+	uint32_t const block_count = tuh_msc_get_block_count(address, lun);
+	uint32_t const block_size = tuh_msc_get_block_size(address, lun);
+	return (block_count * block_size) / (1024);
 }
 
 uint32_t UsbFlashDrive::GetInterfaceSpeed() const
 {
-	// tusb_speed_t speed = tuh_speed_get(address);
-	// speed == TUSB_SPEED_HIGH ? 480000000 : 12000000;
-	return 0;
+	tusb_speed_t speed = tuh_speed_get(address);
+	return (speed == TUSB_SPEED_HIGH ? 480000000 : 12000000) / 8;
 }
 
 void UsbFlashDrive::Spin() noexcept

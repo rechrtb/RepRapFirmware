@@ -34,5 +34,6 @@ public:
 private:
     static UsbFlashDrive* usbDrives[NumUsbDrives];
     uint8_t address;
+    uint8_t lun { 0 }; // support only one for now
 };
 

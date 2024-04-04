@@ -38,7 +38,12 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageDevice)
 
 uint64_t StorageDevice::GetFreeSpace() const
 {
-	return fileSystem.free_clst * GetClusterSize();
+	uint64_t res = fileSystem.free_clst * GetClusterSize();
+	if (res < GetPartitionSize())
+	{
+		return res;
+	}
+	return 0; // free_clst is not valid, full FAT scan might not be worth it (such as on rare FAT16/FAT12 drives)
 }
 
 uint64_t StorageDevice::GetPartitionSize() const
