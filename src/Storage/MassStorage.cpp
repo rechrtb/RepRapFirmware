@@ -4,10 +4,8 @@
 #include <ObjectModel/ObjectModel.h>
 
 #if HAS_MASS_STORAGE
-
 // Check that the LFN configuration in FatFS is sufficient
 static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
-
 #endif
 
 #if HAS_SBC_INTERFACE
@@ -25,7 +23,7 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 #include "UsbVolume.h"
 
 // A note on using mutexes:
-// Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
+// Each storage volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
 // The FatFS subsystem locks and releases the appropriate volume mutex when it is called.
 // Any function that needs to acquire both the file table mutex and a volume mutex MUST take the file table mutex first, to avoid deadlocks.
 // Any function that needs to acquire both the find buffer mutex and a volume mutex MUST take the find buffer mutex first, to avoid deadlocks.
@@ -40,10 +38,9 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
 # endif
 
-static SdCardVolume sdVolumes[NumsdVolumes] = { SdCardVolume("SDO", 0),  SdCardVolume("SD1", 1) };
-static UsbVolume usbVolumes[NumusbVolumes] = {UsbVolume("USB0", 2)};
-
-static StorageVolume* storageVolumes[] = {&sdVolumes[0], &sdVolumes[1], &usbVolumes[0]};
+static SdCardVolume sdVolumes[NumSdCards] = { SdCardVolume("SDO", 0),  SdCardVolume("SD1", 1) };
+static UsbVolume usbVolumes[NumUsbDrives] = { UsbVolume("USB0", 2) };
+static StorageVolume* storageVolumes[] = { &sdVolumes[0], &sdVolumes[1], &usbVolumes[0] };
 
 static DIR findDir;
 #endif

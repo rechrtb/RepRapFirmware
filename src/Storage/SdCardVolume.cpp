@@ -4,7 +4,6 @@
 #include <ObjectModel/ObjectModel.h>
 #include <Movement/StepTimer.h>
 
-
 #include "SdCardVolume.h"
 #include "MassStorage.h"
 
@@ -16,7 +15,6 @@
 #include <Libraries/sd_mmc/conf_sd_mmc.h>
 #include <Libraries/sd_mmc/ctrl_access.h>
 #include <Libraries/sd_mmc/conf_sd_mmc.h>
-
 
 // Check that the correct number of SD cards is configured in the library
 static_assert(SD_MMC_MEM_CNT == NumSdCards);
