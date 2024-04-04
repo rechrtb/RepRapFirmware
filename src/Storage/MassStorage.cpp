@@ -1060,13 +1060,12 @@ Mutex& MassStorage::GetFsMutex() noexcept
 }
 
 # if SUPPORT_OBJECT_MODEL
-
 const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 {
 	return storageVolumes[vol];
 }
-
 # endif
+
 #endif
 
 // Functions called by FatFS to acquire/release mutual exclusion
@@ -1117,7 +1116,6 @@ extern "C"
 	{
 		return storageVolumes[drv]->DiskWrite(buff, sector, count);
 	}
-
 	#endif /* _READONLY */
 
 	DRESULT disk_ioctl(BYTE drv, BYTE ctrl, void *buff) noexcept
@@ -1125,6 +1123,5 @@ extern "C"
 		return storageVolumes[drv]->DiskIoctl(ctrl, buff);
 	}
 }
-
 
 // End

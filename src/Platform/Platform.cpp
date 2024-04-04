@@ -1015,6 +1015,7 @@ bool Platform::FlushMessages() noexcept
 		}
 	}
 #endif
+
 	// Write non-blocking data to the USB line
 	bool usbHasMore = !usbOutput.IsEmpty();				// test first to see if we can avoid getting the mutex
 	if (usbHasMore)
@@ -1051,6 +1052,7 @@ bool Platform::FlushMessages() noexcept
 		}
 		usbHasMore = !usbOutput.IsEmpty();
 	}
+
 	return auxHasMore || usbHasMore;
 }
 
@@ -1723,7 +1725,7 @@ void Platform::InitialiseInterrupts() noexcept
 #endif
 }
 
-#if CORE_USES_TINYUSB //debug
+#if CORE_USES_TINYUSB	//debug
 extern uint32_t numUsbInterrupts;
 #endif
 
@@ -3852,13 +3854,13 @@ void Platform::ResetChannel(size_t chan) noexcept
 	{
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x && !CORE_USES_TINYUSB
-		SERIAL_MAIN_DEVICE.Start();
+        SERIAL_MAIN_DEVICE.Start();
 #else
-		SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
+        SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
 #endif
-	} else
+	}
 #if HAS_AUX_DEVICES
-	if (chan < NumSerialChannels)
+	else if (chan < NumSerialChannels)
 	{
 		auxDevices[chan - 1].Disable();
 		auxDevices[chan - 1].Enable(baudRates[chan]);

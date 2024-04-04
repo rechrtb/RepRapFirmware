@@ -16,8 +16,6 @@
 # include <Platform/TaskPriorities.h>
 #endif
 
-// #include <SEGGER_SYSVIEW_FreeRTOS.h>
-
 AsyncSerial serialUart1(UART2, UART2_IRQn, ID_UART2, 512, 512,
 					[](AsyncSerial*) noexcept
 					{
@@ -123,9 +121,6 @@ void DeviceInit() noexcept
 # endif
 #endif
 
-	//SEGGER_SYSVIEW_DisableEvents(SYSVIEW_EVTMASK_ALL_TASKS);
-	// traceSTART();
-
 #if CORE_USES_TINYUSB
 	CoreUsbInit(NvicPriorityUSB, UsbVBusPin, UsbPowerSwitchPin, UsbModePin, UsbDetectPin);
 	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", nullptr, TaskPriority::UsbPriority);
@@ -139,6 +134,7 @@ void StopAnalogTask() noexcept
 void StopUsbTask() noexcept
 {
 #if CORE_USES_TINYUSB
+	CoreUsbStop();
 	usbDeviceTask.TerminateAndUnlink();
 #endif
 }

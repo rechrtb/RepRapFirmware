@@ -16,7 +16,7 @@
 #include <hal_usb_device.h>
 #include <peripheral_clk_config.h>
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 # include <TinyUsbInterface.h>
 #endif
 
@@ -99,7 +99,7 @@ void SERIAL1_ISR3() noexcept
 
 #endif
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 
 constexpr size_t UsbDeviceTaskStackWords = 200;
 static Task<UsbDeviceTaskStackWords> usbDeviceTask;
@@ -177,7 +177,7 @@ void DeviceInit() noexcept
 	AnalogOut::Init();
 	analogInTask.Create(AnalogIn::TaskLoop, "AIN", nullptr, TaskPriority::AinPriority);
 
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 	CoreUsbInit(NvicPriorityUSB);
 	usbDeviceTask.Create(CoreUsbDeviceTask, "USBD", nullptr, TaskPriority::UsbPriority);
 #else
@@ -193,7 +193,7 @@ void StopAnalogTask() noexcept
 
 void StopUsbTask() noexcept
 {
-#if CORE_USES_TINYUSB && defined(SERIAL_MAIN_DEVICE)
+#if CORE_USES_TINYUSB
 	usbDeviceTask.TerminateAndUnlink();
 #endif
 }

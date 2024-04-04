@@ -22,6 +22,7 @@ extern AsyncSerial serialWiFi;
 #define SUPPORT_USB_DRIVE		1
 
 #include <SerialCDC.h>
+
 extern SerialCDC serialUSB;
 
 void DeviceInit() noexcept;

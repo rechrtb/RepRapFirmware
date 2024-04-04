@@ -58,12 +58,12 @@ namespace MassStorage
 	void CloseAllFiles() noexcept;
 	void Spin() noexcept;
 
-# ifdef DUET3_MB6HC
+# if defined(DUET3_MB6HC) || SUPPORT_USB_DRIVES
 	size_t GetNumVolumes() noexcept;														// The number of SD slots may be 1 or 2 on the 6HC
 # else
 	inline size_t GetNumVolumes() noexcept
 	{
-		return NumSdCards + NumUsbDrive;
+		return NumSdCards;
 	}
 # endif
 #endif
