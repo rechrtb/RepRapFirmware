@@ -7,7 +7,7 @@
 #include "FileStore.h"
 #include "FileInfoParser.h"
 #include <RTOSIface/RTOSIface.h>
-#include "StorageDevice.h"
+#include "StorageVolume.h"
 
 #include <ctime>
 

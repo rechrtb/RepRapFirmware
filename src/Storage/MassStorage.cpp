@@ -21,8 +21,8 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 #include <Libraries/Fatfs/ff.h> // for type definitions
 #include <Libraries/Fatfs/diskio.h>
 
-#include "SdCard.h"
-#include "UsbStorage.h"
+#include "SdCardVolume.h"
+#include "UsbVolume.h"
 
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
@@ -40,10 +40,10 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
 # endif
 
-static SdCard sdCards[NumSdCards] = { SdCard("SDO", 0),  SdCard("SD1", 1) };
-static UsbStorage usbDrives[NumUsbDrives] = {UsbStorage("USB0", 2)};
+static SdCardVolume sdVolumes[NumsdVolumes] = { SdCardVolume("SDO", 0),  SdCardVolume("SD1", 1) };
+static UsbVolume usbVolumes[NumusbVolumes] = {UsbVolume("USB0", 2)};
 
-static StorageDevice* storageDevices[] = {&sdCards[0], &sdCards[1], &usbDrives[0]};
+static StorageVolume* storageVolumes[] = {&sdVolumes[0], &sdVolumes[1], &usbVolumes[0]};
 
 static DIR findDir;
 #endif
@@ -110,7 +110,7 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 size_t MassStorage::GetNumVolumes() noexcept
 {
 	size_t count = 0;
-	for (StorageDevice* device : storageDevices)
+	for (StorageVolume* device : storageVolumes)
 	{
 		count += device->Useable();
 	}
@@ -122,7 +122,7 @@ size_t MassStorage::GetNumVolumes() noexcept
 GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
 	int slot = gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
-	return sdCards[slot].SetCSPin(gb, reply);
+	return sdVolumes[slot].SetCSPin(gb, reply);
 }
 
 # endif
@@ -131,7 +131,7 @@ GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
 {
-	return storageDevices[volume]->GetSequenceNum();
+	return storageVolumes[volume]->GetSequenceNum();
 }
 
 // If 'path' is not the name of a temporary file, update the sequence number of its volume
@@ -145,9 +145,9 @@ static bool VolumeUpdated(const char *path) noexcept
 	   )
 	{
 		const unsigned int volume = (isdigit(path[0]) && path[1] == ':') ? path[0] - '0' : 0;
-		if (volume < ARRAY_SIZE(storageDevices))
+		if (volume < ARRAY_SIZE(storageVolumes))
 		{
-			storageDevices[volume]->IncrementSeq();
+			storageVolumes[volume]->IncrementSeq();
 			return true;
 		}
 	}
@@ -193,7 +193,7 @@ void MassStorage::Init() noexcept
 # endif
 
 # if HAS_MASS_STORAGE
-	for (StorageDevice* device : storageDevices)
+	for (StorageVolume* device : storageVolumes)
 	{
 		device->Init();
 	}
@@ -212,7 +212,7 @@ Mutex& GetFsMutex()
 void MassStorage::Spin() noexcept
 {
 # if HAS_MASS_STORAGE
-	for (StorageDevice* device : storageDevices)
+	for (StorageVolume* device : storageVolumes)
 	{
 		device->Spin();
 	}
@@ -850,7 +850,7 @@ bool MassStorage::CheckDriveMounted(const char* path) noexcept
 	const size_t device = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
 						? path[0] - '0'
 						: 0;
-	return device < GetNumVolumes() && storageDevices[device]->IsMounted();
+	return device < GetNumVolumes() && storageVolumes[device]->IsMounted();
 }
 
 // Return true if any files are open on the file system
@@ -884,7 +884,7 @@ unsigned int MassStorage::InvalidateFiles(const FATFS *fs) noexcept
 
 bool MassStorage::IsCardDetected(size_t card) noexcept
 {
-	return storageDevices[card]->IsPresent();
+	return storageVolumes[card]->IsPresent();
 }
 
 #endif
@@ -902,7 +902,7 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 		return GCodeResult::error;
 	}
 
-	return storageDevices[card]->Mount(card, reply, reportSuccess);
+	return storageVolumes[card]->Mount(card, reply, reportSuccess);
 }
 
 // Unmount the specified SD card, returning true if done, false if needs to be called again.
@@ -925,7 +925,7 @@ bool MassStorage::IsDriveMounted(size_t drive) noexcept
 {
 	return drive < GetNumVolumes()
 #if HAS_MASS_STORAGE
-		&& storageDevices[drive]->IsMounted()
+		&& storageVolumes[drive]->IsMounted()
 #endif
 		;
 }
@@ -957,7 +957,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "=== Storage ===\nFree file entries: %u\n", MassStorage::GetNumFreeFiles());
 
 # if HAS_MASS_STORAGE
-	SdCard &sd0 = sdCards[0];
+	SdCardVolume &sd0 = sdVolumes[0];
 #  if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
 	platform.MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n",
@@ -966,7 +966,7 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "SD card 0 %s\n", (sd0.IsPresent() ? "detected" : "not detected"));
 #  endif
 
-	SdCard::Stats stats;
+	SdCardVolume::Stats stats;
 	sd0.GetStats(stats);
 
 	// Show the longest SD card write time
@@ -1042,7 +1042,7 @@ MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo
 		return InfoResult::badSlot;
 	}
 
-	StorageDevice* card = storageDevices[slot];
+	StorageVolume* card = storageVolumes[slot];
 
 	if (!card->IsMounted())
 	{
@@ -1067,7 +1067,7 @@ Mutex& MassStorage::GetFsMutex() noexcept
 
 const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 {
-	return storageDevices[vol];
+	return storageVolumes[vol];
 }
 
 # endif
@@ -1085,14 +1085,14 @@ extern "C"
 	// Lock sync object
 	int ff_mutex_take (int vol) noexcept
 	{
-		storageDevices[vol]->GetMutex().Take();
+		storageVolumes[vol]->GetMutex().Take();
 		return 1;
 	}
 
 	// Unlock sync object
 	void ff_mutex_give (int vol) noexcept
 	{
-		storageDevices[vol]->GetMutex().Release();
+		storageVolumes[vol]->GetMutex().Release();
 	}
 
 	// Delete a sync object
@@ -1103,30 +1103,30 @@ extern "C"
 
 	DSTATUS disk_initialize(BYTE drv) noexcept
 	{
-		return storageDevices[drv]->DiskInitialize();
+		return storageVolumes[drv]->DiskInitialize();
 	}
 
 	DSTATUS disk_status(BYTE drv) noexcept
 	{
-		return storageDevices[drv]->DiskStatus();
+		return storageVolumes[drv]->DiskStatus();
 	}
 
 	DRESULT disk_read(BYTE drv, BYTE *buff, LBA_t sector, UINT count) noexcept
 	{
-		return storageDevices[drv]->DiskRead(buff, sector, count);
+		return storageVolumes[drv]->DiskRead(buff, sector, count);
 	}
 
 	#if _READONLY == 0
 	DRESULT disk_write(BYTE drv, BYTE const *buff, LBA_t sector, UINT count) noexcept
 	{
-		return storageDevices[drv]->DiskWrite(buff, sector, count);
+		return storageVolumes[drv]->DiskWrite(buff, sector, count);
 	}
 
 	#endif /* _READONLY */
 
 	DRESULT disk_ioctl(BYTE drv, BYTE ctrl, void *buff) noexcept
 	{
-		return storageDevices[drv]->DiskIoctl(ctrl, buff);
+		return storageVolumes[drv]->DiskIoctl(ctrl, buff);
 	}
 }
 

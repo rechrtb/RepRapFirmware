@@ -1,9 +1,9 @@
 #pragma once
 
 #include <ObjectModel/ObjectModel.h>
-#include "StorageDevice.h"
+#include "StorageVolume.h"
 
-class SdCard : public StorageDevice
+class SdCardVolume : public StorageVolume
 {
 public:
 
@@ -22,7 +22,7 @@ public:
         removing
     };
 
-    SdCard(const char *id, uint8_t volume) : StorageDevice(id, volume) {}
+    SdCardVolume(const char *id, uint8_t volume) : StorageVolume(id, volume) {}
 
     void Init() noexcept override;
 

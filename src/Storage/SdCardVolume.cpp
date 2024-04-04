@@ -5,7 +5,7 @@
 #include <Movement/StepTimer.h>
 
 
-#include "SdCard.h"
+#include "SdCardVolume.h"
 #include "MassStorage.h"
 
 # if HAS_MASS_STORAGE
@@ -94,7 +94,7 @@ static const char* TranslateCardType(card_type_t ct) noexcept
 	}
 }
 
-bool SdCard::Useable() noexcept
+bool SdCardVolume::Useable() noexcept
 {
 // #if DUET3_MB6HC
 //     if (volume == 1)
@@ -105,9 +105,9 @@ bool SdCard::Useable() noexcept
 	return true;
 }
 
-void SdCard::Init() noexcept
+void SdCardVolume::Init() noexcept
 {
-	StorageDevice::Init();
+	StorageVolume::Init();
 	detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
 	cdPin = SdCardDetectPins[volume];
 	if (volume == 0) // Initialize SD MMC stack on main SD
@@ -116,7 +116,7 @@ void SdCard::Init() noexcept
 	}
 }
 
-GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
+GCodeResult SdCardVolume::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock(volMutex);
@@ -200,7 +200,7 @@ GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSucc
 }
 
 
-GCodeResult SdCard::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
+GCodeResult SdCardVolume::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
 	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
 	if (gb.Seen('C'))
@@ -225,7 +225,7 @@ GCodeResult SdCard::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
 	return GCodeResult::ok;
 }
 
-void SdCard::Spin() noexcept
+void SdCardVolume::Spin() noexcept
 {
 	if (cdPin != NoPin)
 	{
@@ -281,18 +281,18 @@ void SdCard::Spin() noexcept
 	}
 }
 
-void SdCard::GetStats(Stats& stats) noexcept
+void SdCardVolume::GetStats(Stats& stats) noexcept
 {
 	stats = this->stats;
 }
 
-void SdCard::ResetStats() noexcept
+void SdCardVolume::ResetStats() noexcept
 {
 	memset(&stats, 0, sizeof(stats));
 }
 
 
-GCodeResult SdCard::Unmount(size_t card, const StringRef& reply) noexcept
+GCodeResult SdCardVolume::Unmount(size_t card, const StringRef& reply) noexcept
 {
 	if (MassStorage::AnyFileOpen(&fileSystem))
 	{
@@ -309,7 +309,7 @@ GCodeResult SdCard::Unmount(size_t card, const StringRef& reply) noexcept
 }
 
 
-unsigned int SdCard::InternalUnmount() noexcept
+unsigned int SdCardVolume::InternalUnmount() noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock2(volMutex);
@@ -322,18 +322,18 @@ unsigned int SdCard::InternalUnmount() noexcept
 	return invalidated;
 }
 
-uint64_t SdCard::GetCapacity() const
+uint64_t SdCardVolume::GetCapacity() const
 {
 	return sd_mmc_get_capacity(volume) * 1024;
 }
 
-uint32_t SdCard::GetInterfaceSpeed() const
+uint32_t SdCardVolume::GetInterfaceSpeed() const
 {
 	return sd_mmc_get_interface_speed(volume);
 }
 
 
-DRESULT SdCard::DiskInitialize()
+DRESULT SdCardVolume::DiskInitialize()
 {
 	if (volume > MAX_LUN) {
 		/* At least one of the LUN should be defined */
@@ -362,7 +362,7 @@ DRESULT SdCard::DiskInitialize()
 	return RES_OK;
 }
 
-DRESULT SdCard::DiskStatus()
+DRESULT SdCardVolume::DiskStatus()
 {
 	switch (mem_test_unit_ready(volume)) {
 	case CTRL_GOOD:
@@ -374,7 +374,7 @@ DRESULT SdCard::DiskStatus()
 	}
 }
 
-DRESULT SdCard::DiskRead(BYTE *buff, LBA_t sector, UINT count)
+DRESULT SdCardVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 {
 	if (reprap.Debug(Module::Storage))
 	{
@@ -435,7 +435,7 @@ DRESULT SdCard::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 	return RES_OK;
 }
 
-DRESULT SdCard::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
+DRESULT SdCardVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 {
 	if (reprap.Debug(Module::Storage))
 	{
@@ -498,7 +498,7 @@ DRESULT SdCard::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 	return RES_OK;
 }
 
-DRESULT SdCard::DiskIoctl(BYTE ctrl, void *buff)
+DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff)
 {
 	DRESULT res = RES_PARERR;
 

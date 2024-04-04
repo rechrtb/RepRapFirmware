@@ -5,9 +5,9 @@
 #include <ObjectModel/ObjectModel.h>
 #include <Libraries/Fatfs/diskio.h>
 
-#include "StorageDevice.h"
+#include "StorageVolume.h"
 
-class StorageDevice INHERIT_OBJECT_MODEL
+class StorageVolume INHERIT_OBJECT_MODEL
 {
 
 public:
@@ -18,7 +18,7 @@ public:
         uint32_t maxRetryCount;
     };
 
-    StorageDevice(const char *id, uint8_t volume);
+    StorageVolume(const char *id, uint8_t volume);
 
     virtual GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept = 0;
     virtual GCodeResult Unmount(size_t card, const StringRef& reply) noexcept = 0;

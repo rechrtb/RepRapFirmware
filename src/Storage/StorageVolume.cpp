@@ -1,4 +1,4 @@
-#include "StorageDevice.h"
+#include "StorageVolume.h"
 #include "MassStorage.h"
 
 #if SUPPORT_OBJECT_MODEL
@@ -8,10 +8,10 @@
 // Otherwise the table will be allocate in RAM instead of flash, which wastes too much RAM.
 
 // Macro to build a standard lambda function that includes the necessary type conversions
-#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(StorageDevice, __VA_ARGS__)
-#define OBJECT_MODEL_FUNC_IF(_condition, ...) OBJECT_MODEL_FUNC_IF_BODY(StorageDevice, _condition, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(StorageVolume, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC_IF(_condition, ...) OBJECT_MODEL_FUNC_IF_BODY(StorageVolume, _condition, __VA_ARGS__)
 
-constexpr ObjectModelTableEntry StorageDevice::objectModelTable[] =
+constexpr ObjectModelTableEntry StorageVolume::objectModelTable[] =
 	{
 		// Within each group, these entries must be in alphabetical order
 		// 0. volumes[] root
@@ -30,9 +30,9 @@ constexpr ObjectModelTableEntry StorageDevice::objectModelTable[] =
 	path = null
 */
 
-constexpr uint8_t StorageDevice::objectModelTableDescriptor[] = {1, 7};
+constexpr uint8_t StorageVolume::objectModelTableDescriptor[] = {1, 7};
 
-DEFINE_GET_OBJECT_MODEL_TABLE(StorageDevice)
+DEFINE_GET_OBJECT_MODEL_TABLE(StorageVolume)
 
 #endif
 
@@ -40,7 +40,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageDevice)
 alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
 #endif
 
-void StorageDevice::Clear()
+void StorageVolume::Clear()
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
 #if SAME70
@@ -49,7 +49,7 @@ void StorageDevice::Clear()
 #endif
 }
 
-uint64_t StorageDevice::GetFreeSpace() const
+uint64_t StorageVolume::GetFreeSpace() const
 {
 	uint64_t res = fileSystem.free_clst * GetClusterSize();
 	if (res < GetPartitionSize())
@@ -59,12 +59,12 @@ uint64_t StorageDevice::GetFreeSpace() const
 	return 0; // free_clst is not valid, full FAT scan might not be worth it (such as on rare FAT16/FAT12 drives)
 }
 
-uint64_t StorageDevice::GetPartitionSize() const
+uint64_t StorageVolume::GetPartitionSize() const
 {
 	return (fileSystem.n_fatent - 2) * GetClusterSize();
 }
 
-void StorageDevice::Init() noexcept
+void StorageVolume::Init() noexcept
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
 	mounting = isMounted = false;
@@ -72,12 +72,12 @@ void StorageDevice::Init() noexcept
 	volMutex.Create(id);
 }
 
-uint64_t StorageDevice::GetClusterSize() const
+uint64_t StorageVolume::GetClusterSize() const
 {
 	return (fileSystem.csize) * 512;
 }
 
-StorageDevice::StorageDevice(const char *id, uint8_t volume)
+StorageVolume::StorageVolume(const char *id, uint8_t volume)
 {
 	this->id = id;
 	this->volume = volume;
