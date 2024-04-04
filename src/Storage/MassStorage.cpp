@@ -144,7 +144,7 @@ static bool VolumeUpdated(const char *path) noexcept
 		const unsigned int volume = (isdigit(path[0]) && path[1] == ':') ? path[0] - '0' : 0;
 		if (volume < ARRAY_SIZE(storageVolumes))
 		{
-			storageVolumes[volume]->IncrementSeq();
+			storageVolumes[volume]->IncrementSeqNum();
 			return true;
 		}
 	}
@@ -963,14 +963,13 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "SD card 0 %s\n", (IsCardDetected(0) ? "detected" : "not detected"));
 #  endif
 
-	SdCardVolume::Stats stats;
-	sd0.GetStats(stats);
+	SdCardVolume::Stats stats = SdCardVolume::GetStats();
 
 	// Show the longest SD card write time
-	platform.MessageF(mtype, "SD card 0 longest read time %.1fms, write time %.1fms, max retries %u\n",
+	platform.MessageF(mtype, "SD card longest read time %.1fms, write time %.1fms, max retries %u\n",
 								(double)stats.maxReadTime, (double)stats.maxWriteTime, static_cast<unsigned int>(stats.maxRetryCount));
 
-	sd0.ResetStats();
+	SdCardVolume::ResetStats();
 # endif
 }
 

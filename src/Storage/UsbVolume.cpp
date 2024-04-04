@@ -11,18 +11,27 @@
 
 static volatile bool _disk_busy[NumUsbDrives];
 
-uint64_t UsbVolume::GetCapacity() const
+static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
 {
-	// Get capacity of device
-	uint32_t const block_count = tuh_msc_get_block_count(address, lun);
-	uint32_t const block_size = tuh_msc_get_block_size(address, lun);
-	return (block_count * block_size) / (1024);
+	(void)dev_addr;
+	(void)cb_data;
+	_disk_busy[dev_addr - 1] = false;
+	return true;
 }
 
-uint32_t UsbVolume::GetInterfaceSpeed() const
+static void wait_for_disk_io(BYTE pdrv)
 {
-	tusb_speed_t speed = tuh_speed_get(address);
-	return (speed == TUSB_SPEED_HIGH ? 480000000 : 12000000) / 8;
+	while (_disk_busy[pdrv])
+	{
+		delay(SdCardRetryDelay);
+	}
+}
+
+void UsbVolume::Init() noexcept
+{
+	StorageVolume::Init();
+	address = 0;
+	usbDrives[num % NumSdCards] = this;
 }
 
 void UsbVolume::Spin() noexcept
@@ -69,68 +78,56 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 
 GCodeResult UsbVolume::Unmount(const StringRef& reply) noexcept
 {
-	if (MassStorage::AnyFileOpen(&fileSystem))
-	{
-		// Don't unmount the card if any files are open on it
-		reply.copy("USB storage has open file(s)");
-		return GCodeResult::error;
-	}
+	// if (MassStorage::AnyFileOpen(&fileSystem))
+	// {
+	// 	// Don't unmount the card if any files are open on it
+	// 	reply.copy("USB storage has open file(s)");
+	// 	return GCodeResult::error;
+	// }
 
-	(void)InternalUnmount();
-	reply.printf("USB storage %u may now be removed", num);
-	++seqNum;
+	// (void)InternalUnmount();
+	// reply.printf("USB storage %u may now be removed", num);
+	// ++seqNum;
+
+	// MutexLocker lock1(MassStorage::GetFsMutex());
+	// MutexLocker lock2(mutex);
+	// const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
+	// f_mount(nullptr, path, 0);
+	// Clear();
+	// //sd_mmc_unmount(num);
+	// reprap.VolumesUpdated();
+	// return invalidated;
 
 	return GCodeResult::ok;
 }
 
-unsigned int UsbVolume::InternalUnmount() noexcept
+uint64_t UsbVolume::GetCapacity() const noexcept
 {
-	MutexLocker lock1(MassStorage::GetFsMutex());
-	MutexLocker lock2(mutex);
-	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
-	f_mount(nullptr, path, 0);
-	Clear();
-	//sd_mmc_unmount(num);
-	reprap.VolumesUpdated();
-	return invalidated;
+	// Get capacity of device
+	uint32_t const block_count = tuh_msc_get_block_count(address, lun);
+	uint32_t const block_size = tuh_msc_get_block_size(address, lun);
+	return (block_count * block_size) / (1024);
 }
 
-void UsbVolume::Init() noexcept
+uint32_t UsbVolume::GetInterfaceSpeed() const noexcept
 {
-	StorageVolume::Init();
-	address = 0;
-	usbDrives[num % NumSdCards] = this;
+	tusb_speed_t speed = tuh_speed_get(address);
+	return (speed == TUSB_SPEED_HIGH ? 480000000 : 12000000) / 8;
 }
 
 
-static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
-{
-	(void)dev_addr;
-	(void)cb_data;
-	_disk_busy[dev_addr - 1] = false;
-	return true;
-}
-
-static void wait_for_disk_io(BYTE pdrv)
-{
-	while (_disk_busy[pdrv])
-	{
-		delay(SdCardRetryDelay);
-	}
-}
-
-DRESULT UsbVolume::DiskInitialize()
+DRESULT UsbVolume::DiskInitialize() noexcept
 {
 	return RES_OK; // nothing to do
 }
 
-DRESULT UsbVolume::DiskStatus()
+DRESULT UsbVolume::DiskStatus() noexcept
 {
 	uint8_t dev_addr = (num % NumSdCards) + 1;
 	return static_cast<DRESULT>(tuh_msc_mounted(dev_addr) ? 0 : STA_NODISK);
 }
 
-DRESULT UsbVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
+DRESULT UsbVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count) noexcept
 {
 	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
@@ -142,7 +139,7 @@ DRESULT UsbVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count)
 	return RES_OK;
 }
 
-DRESULT UsbVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
+DRESULT UsbVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept
 {
 	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
@@ -153,7 +150,7 @@ DRESULT UsbVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count)
 	return RES_OK;
 }
 
-DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff)
+DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 {
 	uint8_t const dev_addr = (num % NumSdCards) + 1;
 	uint8_t const lun = 0;
@@ -182,7 +179,31 @@ DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff)
 	return RES_OK;
 }
 
-bool UsbVolume::AcceptDevice(uint8_t address)
+/*static*/ void UsbVolume::VolumeInserted(uint8_t address)
+{
+	for (UsbVolume *drive : usbDrives)
+	{
+		// Check if there are free ones that can accept
+		if (drive->AcceptVolume(address))
+		{
+			break;
+		}
+	}
+}
+
+/*static*/ void UsbVolume::VolumeRemoved(uint8_t address)
+{
+
+	for (UsbVolume *drive : usbDrives)
+	{
+		if (drive->address == address)
+		{
+			drive->FreeVolume();
+		}
+	}
+}
+
+bool UsbVolume::AcceptVolume(uint8_t address)
 {
 	if (state == State::free)
 	{
@@ -192,7 +213,7 @@ bool UsbVolume::AcceptDevice(uint8_t address)
 	return false;
 }
 
-void UsbVolume::RemoveDevice()
+void UsbVolume::FreeVolume()
 {
 	if (state == State::inserted)
 	{
@@ -201,42 +222,19 @@ void UsbVolume::RemoveDevice()
 	}
 	else if (state == State::mounted)
 	{
+		// Can't free here, must be unmounted and freed in the spin function.
 		state = State::removed;
-	}
-}
-
-/*static*/ void UsbVolume::UsbInserted(uint8_t address)
-{
-	for (UsbVolume *drive : usbDrives)
-	{
-		// Check if there are free ones that can accept
-		if (drive->AcceptDevice(address))
-		{
-			break;
-		}
-	}
-}
-
-/*static*/ void UsbVolume::UsbRemoved(uint8_t address)
-{
-
-	for (UsbVolume *drive : usbDrives)
-	{
-		if (drive->address == address)
-		{
-			drive->RemoveDevice();
-		}
 	}
 }
 
 extern "C" void tuh_msc_mount_cb(uint8_t address)
 {
-	UsbVolume::UsbInserted(address);
+	UsbVolume::VolumeInserted(address);
 }
 
 extern "C" void tuh_msc_umount_cb(uint8_t address)
 {
-	UsbVolume::UsbRemoved(address);
+	UsbVolume::VolumeRemoved(address);
 }
 
 /*static*/ UsbVolume *UsbVolume::usbDrives[NumUsbDrives];

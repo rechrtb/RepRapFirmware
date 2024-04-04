@@ -10,55 +10,47 @@
 class StorageVolume INHERIT_OBJECT_MODEL
 {
 public:
-	struct Stats
-	{
-		uint32_t maxReadTime;
-		uint32_t maxWriteTime;
-		uint32_t maxRetryCount;
-	};
 
 	StorageVolume(const char *id, uint8_t num);
 
-	virtual GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept = 0;
-	virtual GCodeResult Unmount(const StringRef& reply) noexcept = 0;
-	virtual void Spin() noexcept = 0;
-
 	virtual void Init() noexcept;
 
-	int GetSequenceNum() noexcept { return seqNum; }
-	void IncrementSeq() noexcept { ++seqNum; }
-	const char* GetPathName() noexcept { return path; }
-	Mutex& GetMutex() { return mutex; }
+	virtual void Spin() noexcept = 0;
 
-	virtual bool Useable() noexcept { return true; }
+	virtual GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept = 0;
+	virtual GCodeResult Unmount(const StringRef& reply) noexcept = 0;
+
+	virtual bool Useable() const noexcept { return true; }
 	virtual bool IsMounted() const noexcept = 0;
 	virtual bool IsDetected() const noexcept = 0;
 
-	virtual uint64_t GetCapacity() const = 0;
-	virtual uint64_t GetFreeSpace() const;
-	virtual uint64_t GetPartitionSize() const;
-	virtual uint64_t GetClusterSize() const;
-	virtual uint32_t GetInterfaceSpeed() const = 0;
+	virtual uint64_t GetCapacity() const noexcept = 0;
+	virtual uint64_t GetFreeSpace() const noexcept;
+	virtual uint64_t GetPartitionSize() const noexcept;
+	virtual uint64_t GetClusterSize() const noexcept;
+	virtual uint32_t GetInterfaceSpeed() const noexcept = 0;
 
-	virtual DRESULT DiskInitialize() = 0;
-	virtual DRESULT DiskStatus() = 0;
-	virtual DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) = 0;
-	virtual DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) = 0;
-	virtual DRESULT DiskIoctl(BYTE ctrl, void *buff) = 0;
+	virtual DRESULT DiskInitialize() noexcept = 0;
+	virtual DRESULT DiskStatus() noexcept = 0;
+	virtual DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) noexcept = 0;
+	virtual DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept = 0;
+	virtual DRESULT DiskIoctl(BYTE ctrl, void *buff) noexcept = 0;
+
+	const char* GetPathName() const noexcept { return path; }
+	Mutex& GetMutex() noexcept { return mutex; }
+
+	int GetSequenceNum() const noexcept { return seqNum; }
+	void IncrementSeqNum() noexcept { ++seqNum; }
 
 protected:
 	DECLARE_OBJECT_MODEL
 
+	char path[3] = "0:";
 	const char *id;
 	uint8_t num;
 	Mutex mutex;
-
 	uint16_t seqNum;
-
-	Stats stats;
 	FATFS fileSystem;
-
-	char path[3] = "0:";
 
 	void Clear();
 };
