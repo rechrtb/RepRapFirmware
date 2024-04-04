@@ -28,7 +28,7 @@ public:
 
     void Spin() noexcept override;
     GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept override;
-    unsigned int Unmount() noexcept override;
+    GCodeResult Unmount(size_t card, const StringRef& reply) noexcept override;
 
     GCodeResult SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept;
     bool IsPresent() noexcept override { return detectState == DetectState::present; }
@@ -37,7 +37,6 @@ public:
     uint32_t GetInterfaceSpeed() const override;
 
     bool Useable() noexcept override;
-    FATFS* GetFS() noexcept { return &fileSystem; }
     void GetStats(Stats& stats) noexcept;
     void ResetStats() noexcept;
 
@@ -51,4 +50,6 @@ private:
 	uint32_t cdChangedTime;
 	DetectState detectState;
 	Pin cdPin;
+
+    unsigned int InternalUnmount() noexcept;
 };

@@ -22,7 +22,7 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 #include <Libraries/Fatfs/diskio.h>
 
 #include "SdCard.h"
-#include "UsbFlashDrive.h"
+#include "UsbStorage.h"
 
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
@@ -41,7 +41,7 @@ alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWri
 # endif
 
 static SdCard sdCards[NumSdCards] = { SdCard("SDO", 0),  SdCard("SD1", 1) };
-static UsbFlashDrive usbDrives[NumUsbDrives] = {UsbFlashDrive("USB0", 2)};
+static UsbStorage usbDrives[NumUsbDrives] = {UsbStorage("USB0", 2)};
 
 static StorageDevice* storageDevices[] = {&sdCards[0], &sdCards[1], &usbDrives[0]};
 
@@ -916,17 +916,7 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 	}
 
 # if HAS_MASS_STORAGE
-	if (AnyFileOpen(storageDevices[card]->GetFS()))
-	{
-		// Don't unmount the card if any files are open on it
-		reply.copy("SD card has open file(s)");
-		return GCodeResult::error;
-	}
-
-	storageDevices[card]->Unmount();
-	reply.printf("SD card %u may now be removed", card);
-	storageDevices[card]->IncrementSeq();
-# endif
+#endif
 
 	return GCodeResult::ok;
 }
@@ -1086,10 +1076,6 @@ const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
 // Functions called by FatFS to acquire/release mutual exclusion
 extern "C"
 {
-# if SAME70
-	alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
-#endif
-
 	// Create a sync object. We already created it so just need to return success.
 	int ff_mutex_create (int vol) noexcept
 	{
@@ -1117,10 +1103,6 @@ extern "C"
 
 	DSTATUS disk_initialize(BYTE drv) noexcept
 	{
-#if SAME70
-		storageDevices[drv]->GetFS()->win = sectorBuffers[drv];
-		memset(sectorBuffers[drv], 0, sizeof(sectorBuffers[drv]));
-#endif
 		return storageDevices[drv]->DiskInitialize();
 	}
 

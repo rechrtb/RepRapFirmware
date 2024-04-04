@@ -36,6 +36,19 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageDevice)
 
 #endif
 
+# if SAME70
+alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
+#endif
+
+void StorageDevice::Clear()
+{
+	memset(&fileSystem, 0, sizeof(fileSystem));
+#if SAME70
+	fileSystem.win = sectorBuffers[volume];
+	memset(sectorBuffers[volume], 0, sizeof(sectorBuffers[volume]));
+#endif
+}
+
 uint64_t StorageDevice::GetFreeSpace() const
 {
 	uint64_t res = fileSystem.free_clst * GetClusterSize();

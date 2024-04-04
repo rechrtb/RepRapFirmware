@@ -102,81 +102,99 @@ bool SdCard::Useable() noexcept
 //         return sd1Ports[0].IsValid();
 //     }
 // #endif
-    return true;
+	return true;
 }
 
 void SdCard::Init() noexcept
 {
 	StorageDevice::Init();
 	detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
-    cdPin = SdCardDetectPins[volume];
-    if (volume == 0) // Initialize SD MMC stack on main SD
-    {
-        sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
-    }
+	cdPin = SdCardDetectPins[volume];
+	if (volume == 0) // Initialize SD MMC stack on main SD
+	{
+		sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+	}
 }
 
 GCodeResult SdCard::Mount(size_t volume, const StringRef& reply, bool reportSuccess) noexcept
 {
-    MutexLocker lock1(MassStorage::GetFsMutex());
-    MutexLocker lock(volMutex);
+	MutexLocker lock1(MassStorage::GetFsMutex());
+	MutexLocker lock(volMutex);
 
-    if (detectState == DetectState::notPresent)
-    {
-        reply.copy("No SD card present");
-        mounting = false;
-        return GCodeResult::error;
-    }
+	if (!mounting)
+	{
+		if (isMounted)
+		{
+			if (MassStorage::AnyFileOpen(&fileSystem))
+			{
+				// Don't re-mount the card if any files are open on it
+				reply.copy("SD card has open file(s)");
+				return GCodeResult::error;
+			}
+			(void)InternalUnmount();
+		}
 
-    if (detectState != DetectState::present)
-    {
-        return GCodeResult::notFinished;						// wait for debounce to finish
-    }
+		mountStartTime = millis();
+		mounting = true;
+		delay(2);
+	}
 
-    const sd_mmc_err_t err = sd_mmc_check(volume); // usb_host_support: sd card numbering
-    if (err != SD_MMC_OK && millis() - mountStartTime < 5000)
-    {
-        delay(2);
-        return GCodeResult::notFinished;
-    }
+	if (detectState == DetectState::notPresent)
+	{
+		reply.copy("No SD card present");
+		mounting = false;
+		return GCodeResult::error;
+	}
 
-    mounting = false;
-    if (err != SD_MMC_OK)
-    {
-        reply.printf("Cannot initialise SD card %u: %s", volume, TranslateCardError(err));
-        return GCodeResult::error;
-    }
+	if (detectState != DetectState::present)
+	{
+		return GCodeResult::notFinished;						// wait for debounce to finish
+	}
 
-    // Mount the file systems
-    const FRESULT mounted = f_mount(&fileSystem, path, 1);
-    if (mounted == FR_NO_FILESYSTEM)
-    {
-        reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
-        return GCodeResult::error;
-    }
-    if (mounted != FR_OK)
-    {
-        reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
-        return GCodeResult::error;
-    }
+	const sd_mmc_err_t err = sd_mmc_check(volume);
+	if (err != SD_MMC_OK && millis() - mountStartTime < 5000)
+	{
+		delay(2);
+		return GCodeResult::notFinished;
+	}
 
-    isMounted = true;
-    reprap.VolumesUpdated();
-    if (reportSuccess)
-    {
-        float capacity = ((float)sd_mmc_get_capacity(volume) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
-        const char* capUnits;
-        if (capacity >= 1000.0)
-        {
-            capacity /= 1000;
-            capUnits = "Gb";
-        }
-        else
-        {
-            capUnits = "Mb";
-        }
-        reply.printf("%s card mounted in volume %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(volume)), volume, (double)capacity, capUnits);
-    }
+	mounting = false;
+	if (err != SD_MMC_OK)
+	{
+		reply.printf("Cannot initialise SD card %u: %s", volume, TranslateCardError(err));
+		return GCodeResult::error;
+	}
+
+	// Mount the file systems
+	const FRESULT mounted = f_mount(&fileSystem, path, 1);
+	if (mounted == FR_NO_FILESYSTEM)
+	{
+		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", volume);
+		return GCodeResult::error;
+	}
+	if (mounted != FR_OK)
+	{
+		reply.printf("Cannot mount SD card %u: code %d", volume, mounted);
+		return GCodeResult::error;
+	}
+
+	isMounted = true;
+	reprap.VolumesUpdated();
+	if (reportSuccess)
+	{
+		float capacity = ((float)sd_mmc_get_capacity(volume) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
+		const char* capUnits;
+		if (capacity >= 1000.0)
+		{
+			capacity /= 1000;
+			capUnits = "Gb";
+		}
+		else
+		{
+			capUnits = "Mb";
+		}
+		reply.printf("%s card mounted in volume %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(volume)), volume, (double)capacity, capUnits);
+	}
 
 	return GCodeResult::ok;
 }
@@ -187,109 +205,126 @@ GCodeResult SdCard::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
 	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
 	if (gb.Seen('C'))
 	{
-        const PinAccess accessNeeded[2] = { PinAccess::write1, PinAccess::read };
-        if (IoPort::AssignPorts(gb, reply, PinUsedBy::sdCard, 2, portAddresses, accessNeeded) == 0)
-        {
+		const PinAccess accessNeeded[2] = { PinAccess::write1, PinAccess::read };
+		if (IoPort::AssignPorts(gb, reply, PinUsedBy::sdCard, 2, portAddresses, accessNeeded) == 0)
+		{
 			return GCodeResult::error;
-        }
-        sd_mmc_change_cs_pin(1, sd1Ports[0].GetPin());
-        cdPin = sd1Ports[1].GetPin();
-        if (cdPin == NoPin)
-        {
-            detectState = DetectState::present;
-        }
-    }
-    else
-    {
+		}
+		sd_mmc_change_cs_pin(1, sd1Ports[0].GetPin());
+		cdPin = sd1Ports[1].GetPin();
+		if (cdPin == NoPin)
+		{
+			detectState = DetectState::present;
+		}
+	}
+	else
+	{
 		IoPort::AppendPinNames(reply, 2, portAddresses);
-    }
-    reprap.VolumesUpdated();
-    return GCodeResult::ok;
+	}
+	reprap.VolumesUpdated();
+	return GCodeResult::ok;
 }
 
 void SdCard::Spin() noexcept
 {
-    if (cdPin != NoPin)
-    {
-        if (IoPort::ReadPin(cdPin))
-        {
-            // Pin state says no card present
-            switch (detectState)
-            {
-            case DetectState::inserting:
-            case DetectState::present:
-                detectState = DetectState::removing;
-                cdChangedTime = millis();
-                break;
+	if (cdPin != NoPin)
+	{
+		if (IoPort::ReadPin(cdPin))
+		{
+			// Pin state says no card present
+			switch (detectState)
+			{
+			case DetectState::inserting:
+			case DetectState::present:
+				detectState = DetectState::removing;
+				cdChangedTime = millis();
+				break;
 
-            case DetectState::removing:
-                if (millis() - cdChangedTime > SdCardDetectDebounceMillis)
-                {
-                    detectState = DetectState::notPresent;
-                    if (isMounted)
-                    {
-                        const unsigned int numFiles = Unmount();
-                        if (numFiles != 0)
-                        {
-                            reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", volume, numFiles);
-                        }
-                    }
-                }
-                break;
+			case DetectState::removing:
+				if (millis() - cdChangedTime > SdCardDetectDebounceMillis)
+				{
+					detectState = DetectState::notPresent;
+					if (isMounted)
+					{
+						const unsigned int numFiles = InternalUnmount();
+						if (numFiles != 0)
+						{
+							reprap.GetPlatform().MessageF(ErrorMessage, "SD card %u removed with %u file(s) open on it\n", volume, numFiles);
+						}
+					}
+				}
+				break;
 
-            default:
-                break;
-            }
-        }
-        else
-        {
-            // Pin state says card is present
-            switch (detectState)
-            {
-            case DetectState::removing:
-            case DetectState::notPresent:
-                detectState = DetectState::inserting;
-                cdChangedTime = millis();
-                break;
+			default:
+				break;
+			}
+		}
+		else
+		{
+			// Pin state says card is present
+			switch (detectState)
+			{
+			case DetectState::removing:
+			case DetectState::notPresent:
+				detectState = DetectState::inserting;
+				cdChangedTime = millis();
+				break;
 
-            case DetectState::inserting:
-                detectState = DetectState::present;
-                break;
+			case DetectState::inserting:
+				detectState = DetectState::present;
+				break;
 
-            default:
-                break;
-            }
-        }
-    }
+			default:
+				break;
+			}
+		}
+	}
 }
 
 void SdCard::GetStats(Stats& stats) noexcept
 {
-    stats = this->stats;
+	stats = this->stats;
 }
 
 void SdCard::ResetStats() noexcept
 {
-    memset(&stats, 0, sizeof(stats));
+	memset(&stats, 0, sizeof(stats));
 }
 
-unsigned int SdCard::Unmount() noexcept
+
+GCodeResult SdCard::Unmount(size_t card, const StringRef& reply) noexcept
+{
+	if (MassStorage::AnyFileOpen(&fileSystem))
+	{
+		// Don't unmount the card if any files are open on it
+		reply.copy("SD card has open file(s)");
+		return GCodeResult::error;
+	}
+
+	(void)InternalUnmount();
+	reply.printf("SD card %u may now be removed", card);
+	++seqNum;
+
+	return GCodeResult::ok;
+}
+
+
+unsigned int SdCard::InternalUnmount() noexcept
 {
 	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock2(volMutex);
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
 	f_mount(nullptr, path, 0);
-	memset(&fileSystem, 0, sizeof(fileSystem));
+	Clear();
 	sd_mmc_unmount(volume);
 	isMounted = false;
 	reprap.VolumesUpdated();
-	++seqNum;
 	return invalidated;
 }
 
 uint64_t SdCard::GetCapacity() const
 {
-    return sd_mmc_get_capacity(volume) * 1024;
+	return sd_mmc_get_capacity(volume) * 1024;
 }
 
 uint32_t SdCard::GetInterfaceSpeed() const

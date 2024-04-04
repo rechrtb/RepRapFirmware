@@ -18,16 +18,14 @@ public:
         uint32_t maxRetryCount;
     };
 
-
     StorageDevice(const char *id, uint8_t volume);
 
     virtual GCodeResult Mount(size_t num, const StringRef& reply, bool reportSuccess) noexcept = 0;
-    virtual unsigned int Unmount() noexcept = 0;
+    virtual GCodeResult Unmount(size_t card, const StringRef& reply) noexcept = 0;
     virtual void Spin() noexcept = 0;
 
     virtual void Init() noexcept;
 
-    FATFS* GetFS() noexcept { return &fileSystem; }
     int GetSequenceNum() noexcept { return seqNum; }
     void IncrementSeq() noexcept { ++seqNum; }
     const char* GetPathName() noexcept { return path; }
@@ -66,4 +64,6 @@ protected:
 	FATFS fileSystem;
 
     char path[3] = "0:";
+
+    void Clear();
 };
