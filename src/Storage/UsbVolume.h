@@ -8,7 +8,7 @@
 class UsbVolume : public StorageVolume
 {
 public:
-	UsbVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
+	UsbVolume(const char *id, uint8_t slot) : StorageVolume(id, slot) {}
 
 	void Init() noexcept override;
 
@@ -16,6 +16,7 @@ public:
 
 	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
 
+	bool IsUseable() const noexcept override;
 	bool IsMounted() const noexcept override { return state == State::mounted; }
 	bool IsDetected() const noexcept override { return address; }
 

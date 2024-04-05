@@ -1923,7 +1923,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 #if HAS_MASS_STORAGE
 			MassStorage::SdCardReturnedInfo sdInfo;
-			MassStorage::InfoResult res = MassStorage::GetCardInfo(0, sdInfo);
+			MassStorage::InfoResult res = MassStorage::GetVolumeInfo(0, sdInfo);
 
 			// Check the SD card detect and speed
 			if (res == MassStorage::InfoResult::noCard)

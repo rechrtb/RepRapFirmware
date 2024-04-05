@@ -96,7 +96,7 @@ static FileStore files[MAX_FILES];
 }
 
 #if HAS_EMBEDDED_FILES && defined(DUET3_MB6HC)
-size_t MassStorage::GetNumVolumes() noexcept { return 1; }
+size_t MassStorage::GetNumVolume() noexcept { return 1; }
 #endif
 
 #if HAS_MASS_STORAGE
@@ -104,7 +104,7 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 # ifdef DUET3_MB6HC
 
 // Return the number of volumes, which on the 6HC is normally 1 but can be increased to 2
-size_t MassStorage::GetNumVolumes() noexcept
+size_t MassStorage::GetNumVolumes()
 {
 	size_t count = 0;
 	for (StorageVolume* device : storageVolumes)
@@ -194,7 +194,7 @@ void MassStorage::Init() noexcept
 		device->Init();
 	}
 	SdCardVolume::SdmmcInit();
-	// We no longer mount the SD card here because it may take a long time if it fails
+	// We no longer mount volumes here because it may take a long time if it fails
 # endif
 }
 
@@ -837,10 +837,10 @@ bool MassStorage::SetLastModifiedTime(const char *filePath, time_t time) noexcep
 // Ideally we would try to mount it if it is not, however mounting a drive can take a long time, and the functions that call this are expected to execute quickly.
 bool MassStorage::CheckDriveMounted(const char* path) noexcept
 {
-	const size_t device = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
+	const size_t slot = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
 						? path[0] - '0'
 						: 0;
-	return device < GetNumVolumes() && storageVolumes[device]->IsMounted();
+	return slot < GetNumVolumeSlots() && storageVolumes[slot]->IsUseable() && storageVolumes[slot]->IsMounted();
 }
 
 // Return true if any files are open on the file system
@@ -872,23 +872,23 @@ unsigned int MassStorage::InvalidateFiles(const FATFS *fs) noexcept
 	return invalidated;
 }
 
-bool MassStorage::IsCardDetected(size_t card) noexcept
+bool MassStorage::IsVolumeDetected(size_t slot) noexcept
 {
-	return storageVolumes[card]->IsDetected();
+	return storageVolumes[slot]->IsDetected();
 }
 
 #endif
 
 #if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 
-// Mount the specified SD card, returning true if done, false if needs to be called again.
+// Mount the specified volume on slot, returning true if done, false if needs to be called again.
 // If an error occurs, return true with the error message in 'reply'.
-// This may only be called to mount one card at a time.
-GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportSuccess) noexcept
+// This may only be called to mount one volume at a time.
+GCodeResult MassStorage::Mount(size_t slot, const StringRef& reply, bool reportSuccess) noexcept
 {
-	if (card >= GetNumVolumes())
+	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
 	{
-		reply.copy("SD card number out of range");
+		reply.copy("Volume slot out of range");
 		return GCodeResult::error;
 	}
 
@@ -896,19 +896,19 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 
 # if HAS_MASS_STORAGE
 	MutexLocker lock(fsMutex);
-	res = storageVolumes[card]->Mount(reply, reportSuccess);
+	res = storageVolumes[slot]->Mount(reply, reportSuccess);
 #endif
 
 	return res;
 }
 
-// Unmount the specified SD card, returning true if done, false if needs to be called again.
+// Unmount the volume on specified slot, returning true if done, false if needs to be called again.
 // If an error occurs, return true with the error message in 'reply'.
-GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
+GCodeResult MassStorage::Unmount(size_t slot, const StringRef& reply) noexcept
 {
-	if (card >= GetNumVolumes())
+	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
 	{
-		reply.copy("SD card number out of range");
+		reply.copy("Volume slot out of range");
 		return GCodeResult::error;
 	}
 
@@ -916,17 +916,17 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 
 # if HAS_MASS_STORAGE
 	MutexLocker lock(fsMutex);
-	res = storageVolumes[card]->Unmount(reply);
+	res = storageVolumes[slot]->Unmount(reply);
 #endif
 
 	return res;
 }
 
-bool MassStorage::IsDriveMounted(size_t drive) noexcept
+bool MassStorage::IsDriveMounted(size_t slot) noexcept
 {
-	return drive < GetNumVolumes()
+	return slot < GetNumVolumeSlots() && storageVolumes[slot]->IsUseable()
 #if HAS_MASS_STORAGE
-		&& storageVolumes[drive]->IsMounted()
+		&& storageVolumes[slot]->IsMounted()
 #endif
 		;
 }
@@ -962,9 +962,9 @@ void MassStorage::Diagnostics(MessageType mtype) noexcept
 #  if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
 	platform.MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n",
-								(IsCardDetected(0) ? "detected" : "not detected"), static_cast<double>(sd0.GetInterfaceSpeed() * 0.000001f));
+								(IsVolumeDetected(0) ? "detected" : "not detected"), static_cast<double>(sd0.GetInterfaceSpeed() * 0.000001f));
 #  else
-	platform.MessageF(mtype, "SD card 0 %s\n", (IsCardDetected(0) ? "detected" : "not detected"));
+	platform.MessageF(mtype, "SD card 0 %s\n", (IsVolumeDetected(0) ? "detected" : "not detected"));
 #  endif
 
 	SdCardVolume::Stats stats = SdCardVolume::GetStats();
@@ -1034,34 +1034,49 @@ void MassStorage::RecordSimulationTime(const char *printingFilePath, uint32_t si
 	}
 }
 
-// Get information about the SD card and interface speed
-MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept
+// Get information about the volume and interface speed on the specified slot
+MassStorage::InfoResult MassStorage::GetVolumeInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept
 {
-	if (slot >= GetNumVolumes())
+	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
 	{
 		return InfoResult::badSlot;
 	}
 
-	StorageVolume* card = storageVolumes[slot];
+	StorageVolume* volume = storageVolumes[slot];
 
-	if (!card->IsMounted())
+	if (!volume->IsMounted())
 	{
 		return InfoResult::noCard;
 	}
 
-	returnedInfo.cardCapacity = card->GetCapacity();
-	returnedInfo.partitionSize = card->GetPartitionSize();
-	returnedInfo.freeSpace = card->GetFreeSpace();
-	returnedInfo.clSize = card->GetClusterSize();
-	returnedInfo.speed = card->GetInterfaceSpeed();
+	returnedInfo.cardCapacity = volume->GetCapacity();
+	returnedInfo.partitionSize = volume->GetPartitionSize();
+	returnedInfo.freeSpace = volume->GetFreeSpace();
+	returnedInfo.clSize = volume->GetClusterSize();
+	returnedInfo.speed = volume->GetInterfaceSpeed();
 
 	return InfoResult::ok;
 }
 
 # if SUPPORT_OBJECT_MODEL
-const ObjectModel * MassStorage::GetVolume(size_t vol) noexcept
+const ObjectModel * MassStorage::GetVolume(size_t num) noexcept
 {
-	return storageVolumes[vol];
+	for (size_t slot = 0, n = 0; slot < GetNumVolumeSlots(); slot++)
+	{
+		if (n == num)
+		{
+			return storageVolumes[slot];
+		}
+		else
+		{
+			if (storageVolumes[slot]->IsUseable())
+			{
+				n++;
+			}
+		}
+	}
+
+	return nullptr; // should not happen
 }
 # endif
 

@@ -58,12 +58,22 @@ namespace MassStorage
 	void CloseAllFiles() noexcept;
 	void Spin() noexcept;
 
-# if defined(DUET3_MB6HC) || SUPPORT_USB_DRIVES
-	size_t GetNumVolumes() noexcept;														// The number of SD slots may be 1 or 2 on the 6HC
-# else
-	inline size_t GetNumVolumes() noexcept
+
+	inline size_t GetNumVolumeSlots()
 	{
-		return NumSdCards;
+		size_t res = NumSdCards;
+#if SUPPORT_USB_DRIVE
+		res += NumUsbDrives;
+#endif
+		return res;
+	}
+
+# if defined(DUET3_MB6HC) || SUPPORT_USB_DRIVES
+	size_t GetNumVolumes();														// The number of SD slots may be 1 or 2 on the 6HC
+# else
+	inline size_t GetNumVolumes()
+	{
+		return GetNumVolumeSlots(); // slots and volumes are equal
 	}
 # endif
 #endif
@@ -89,8 +99,8 @@ namespace MassStorage
 	bool FindNext(FileInfo &file_info) noexcept;
 	void AbandonFindNext() noexcept;
 	GCodeResult GetFileInfo(const char *_ecv_array filePath, GCodeFileInfo& info, bool quitEarly) noexcept;
-	GCodeResult Mount(size_t card, const StringRef& reply, bool reportSuccess) noexcept;
-	GCodeResult Unmount(size_t card, const StringRef& reply) noexcept;
+	GCodeResult Mount(size_t slot, const StringRef& reply, bool reportSuccess) noexcept;
+	GCodeResult Unmount(size_t slot, const StringRef& reply) noexcept;
 	void Diagnostics(MessageType mtype) noexcept;
 
 # if SUPPORT_ASYNC_MOVES
@@ -105,7 +115,7 @@ namespace MassStorage
 	time_t GetLastModifiedTime(const char *_ecv_array filePath) noexcept;
 	bool SetLastModifiedTime(const char *_ecv_array file, time_t t) noexcept;
 	bool CheckDriveMounted(const char* path) noexcept;
-	bool IsCardDetected(size_t card) noexcept;
+	bool IsVolumeDetected(size_t slot) noexcept;
 	unsigned int InvalidateFiles(const FATFS *fs) noexcept;									// Invalidate all open files on the specified file system, returning the number of files invalidated
 	bool AnyFileOpen(const FATFS *fs) noexcept;												// Return true if any files are open on the file system
 	Mutex& GetVolumeMutex(size_t vol) noexcept;
@@ -128,14 +138,14 @@ namespace MassStorage
 		uint32_t speed;
 	};
 
-	InfoResult GetCardInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept;
+	InfoResult GetVolumeInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept;
 
 # ifdef DUET3_MB6HC
 	GCodeResult ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Configure additional SD card slots
 # endif
 
 # if SUPPORT_OBJECT_MODEL
-	const ObjectModel *_ecv_from GetVolume(size_t vol) noexcept;
+	const ObjectModel *_ecv_from GetVolume(size_t num) noexcept;
 # endif
 
 #endif

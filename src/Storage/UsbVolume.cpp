@@ -4,6 +4,8 @@
 #include <Platform/Platform.h>
 #include <Platform/RepRap.h>
 
+#include <TinyUsbInterface.h>
+
 #include <tusb.h>
 #include <class/msc/msc_host.h>
 
@@ -34,6 +36,13 @@ void UsbVolume::Spin() noexcept
 	}
 }
 
+bool UsbVolume::IsUseable() const noexcept
+{
+	// return CoreUsbIsHostMode();
+
+	return true;
+}
+
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
 {
 	if (IsDetected())
@@ -52,12 +61,12 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 	const FRESULT mounted = f_mount(&fileSystem, path, 1);
 	if (mounted == FR_NO_FILESYSTEM)
 	{
-		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", num);
+		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", slot);
 		return GCodeResult::error;
 	}
 	if (mounted != FR_OK)
 	{
-		reply.printf("Cannot mount SD card %u: code %d", num, mounted);
+		reply.printf("Cannot mount SD card %u: code %d", slot, mounted);
 		return GCodeResult::error;
 	}
 

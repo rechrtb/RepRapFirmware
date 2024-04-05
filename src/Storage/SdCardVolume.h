@@ -21,7 +21,7 @@ public:
 		ok = 2
 	};
 
-	SdCardVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
+	SdCardVolume(const char *id, uint8_t slot) : StorageVolume(id, slot) {}
 
 	void Init() noexcept override;
 

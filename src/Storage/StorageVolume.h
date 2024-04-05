@@ -11,7 +11,7 @@ class StorageVolume INHERIT_OBJECT_MODEL
 {
 public:
 
-	StorageVolume(const char *id, uint8_t num);
+	StorageVolume(const char *name, uint8_t slot);
 
 	virtual void Init() noexcept;
 
@@ -20,7 +20,7 @@ public:
 	virtual GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept = 0;
 	virtual GCodeResult Unmount(const StringRef& reply) noexcept;
 
-	virtual bool IsUseable() const noexcept { return true; }
+	virtual bool IsUseable() const noexcept = 0;
 	virtual bool IsMounted() const noexcept = 0;
 	virtual bool IsDetected() const noexcept = 0;
 
@@ -47,7 +47,7 @@ protected:
 
 	char path[3] = "0:";
 	const char *id;
-	uint8_t num;
+	uint8_t slot;
 	Mutex mutex;
 	uint16_t seqNum;
 	FATFS fileSystem;

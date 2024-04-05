@@ -42,11 +42,11 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageVolume)
 alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
 #endif
 
-StorageVolume::StorageVolume(const char *id, uint8_t num)
+StorageVolume::StorageVolume(const char *id, uint8_t slot)
 {
 	this->id = id;
-	this->num = num;
-	path[0] += num;
+	this->slot = slot;
+	path[0] += slot;
 }
 
 uint64_t StorageVolume::GetFreeSpace() const noexcept
@@ -108,7 +108,7 @@ void StorageVolume::Clear()
 {
 	memset(&fileSystem, 0, sizeof(fileSystem));
 #if SAME70
-	fileSystem.win = sectorBuffers[num];
-	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
+	fileSystem.win = sectorBuffers[slot];
+	memset(sectorBuffers[slot], 0, sizeof(sectorBuffers[slot]));
 #endif
 }
