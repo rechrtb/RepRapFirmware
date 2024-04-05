@@ -243,11 +243,11 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 bool SdCardVolume::IsUseable() const noexcept
 {
 #if DUET3_MB6HC
-    if (slot == 1)
-    {
-		// return false;
-        // return sd1Ports[0].IsValid();
-    }
+	if (slot == 1)
+	{
+		// We have another sd slot if the second one has a valid CS pin
+		return (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid());
+	}
 #endif
 	return true;
 }

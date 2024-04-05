@@ -38,9 +38,7 @@ void UsbVolume::Spin() noexcept
 
 bool UsbVolume::IsUseable() const noexcept
 {
-	// return CoreUsbIsHostMode();
-
-	return true;
+	return CoreUsbIsHostMode();
 }
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
