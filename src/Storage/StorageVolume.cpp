@@ -1,3 +1,5 @@
+#include <Platform/RepRap.h>
+
 #include "StorageVolume.h"
 #include "MassStorage.h"
 
@@ -40,13 +42,11 @@ DEFINE_GET_OBJECT_MODEL_TABLE(StorageVolume)
 alignas(4) static __nocache uint8_t sectorBuffers[FF_VOLUMES][FF_MAX_SS];
 #endif
 
-void StorageVolume::Clear()
+StorageVolume::StorageVolume(const char *id, uint8_t num)
 {
-	memset(&fileSystem, 0, sizeof(fileSystem));
-#if SAME70
-	fileSystem.win = sectorBuffers[num];
-	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
-#endif
+	this->id = id;
+	this->num = num;
+	path[0] += num;
 }
 
 uint64_t StorageVolume::GetFreeSpace() const noexcept
@@ -71,14 +71,44 @@ void StorageVolume::Init() noexcept
 	mutex.Create(id);
 }
 
+GCodeResult StorageVolume::Unmount(const StringRef& reply) noexcept
+{
+	if (MassStorage::AnyFileOpen(&fileSystem))
+	{
+		// Don't unmount the card if any files are open on it
+		reply.printf("%s has open file(s)", id);
+		return GCodeResult::error;
+	}
+
+	(void)InternalUnmount();
+
+	reply.printf("%s may now be removed", id);
+	IncrementSeqNum();
+
+	return GCodeResult::ok;
+}
+
+unsigned int StorageVolume::InternalUnmount() noexcept
+{
+	MutexLocker lock(mutex);
+	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
+	f_mount(nullptr, path, 0);
+	Clear();
+	DeviceUnmount();
+	reprap.VolumesUpdated();
+	return invalidated;
+}
+
 uint64_t StorageVolume::GetClusterSize() const noexcept
 {
 	return (fileSystem.csize) * 512;
 }
 
-StorageVolume::StorageVolume(const char *id, uint8_t num)
+void StorageVolume::Clear()
 {
-	this->id = id;
-	this->num = num;
-	path[0] += num;
+	memset(&fileSystem, 0, sizeof(fileSystem));
+#if SAME70
+	fileSystem.win = sectorBuffers[num];
+	memset(sectorBuffers[num], 0, sizeof(sectorBuffers[num]));
+#endif
 }

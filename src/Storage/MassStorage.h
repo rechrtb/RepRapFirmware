@@ -112,8 +112,6 @@ namespace MassStorage
 	void RecordSimulationTime(const char *_ecv_array printingFilePath, uint32_t simSeconds) noexcept;	// Append the simulated printing time to the end of the file
 	uint16_t GetVolumeSeq(unsigned int volume) noexcept;
 
-	Mutex& GetFsMutex() noexcept;
-
 	enum class InfoResult : uint8_t
 	{
 		badSlot = 0,

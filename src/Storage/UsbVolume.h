@@ -15,7 +15,6 @@ public:
 	void Spin() noexcept override;
 
 	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
-	GCodeResult Unmount(const StringRef& reply) noexcept override;
 
 	bool IsMounted() const noexcept override { return state == State::mounted; }
 	bool IsDetected() const noexcept override { return address; }
@@ -51,5 +50,7 @@ private:
 
 	bool AcceptVolume(uint8_t address);
 	void FreeVolume();
+
+	void DeviceUnmount() noexcept override { };
 };
 

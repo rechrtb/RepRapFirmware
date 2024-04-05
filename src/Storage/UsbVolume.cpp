@@ -21,14 +21,14 @@ void UsbVolume::Init() noexcept
 {
 	StorageVolume::Init();
 	address = 0;
-	usbDrives[num % NumSdCards] = this;
+	// usbDrives[] = this;
 }
 
 void UsbVolume::Spin() noexcept
 {
 	if (state == State::removed)
 	{
-		// TODO: Unmount
+		// InternalUnmount();
 		address = 0;
 		state = State::free;
 	}
@@ -36,7 +36,6 @@ void UsbVolume::Spin() noexcept
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
 {
-
 	if (IsDetected())
 	{
 		reply.copy("No USB storage detected");
@@ -63,31 +62,6 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 	}
 
 	state = State::mounted;
-
-	return GCodeResult::ok;
-}
-
-GCodeResult UsbVolume::Unmount(const StringRef& reply) noexcept
-{
-	// if (MassStorage::AnyFileOpen(&fileSystem))
-	// {
-	// 	// Don't unmount the card if any files are open on it
-	// 	reply.copy("USB storage has open file(s)");
-	// 	return GCodeResult::error;
-	// }
-
-	// (void)InternalUnmount();
-	// reply.printf("USB storage %u may now be removed", num);
-	// ++seqNum;
-
-	// MutexLocker lock1(MassStorage::GetFsMutex());
-	// MutexLocker lock2(mutex);
-	// const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
-	// f_mount(nullptr, path, 0);
-	// Clear();
-	// //sd_mmc_unmount(num);
-	// reprap.VolumesUpdated();
-	// return invalidated;
 
 	return GCodeResult::ok;
 }
@@ -186,6 +160,7 @@ bool UsbVolume::AcceptVolume(uint8_t address)
 {
 	if (state == State::free)
 	{
+		state = State::inserted;
 		this->address = address;
 		return true;
 	}
@@ -196,8 +171,8 @@ void UsbVolume::FreeVolume()
 {
 	if (state == State::inserted)
 	{
-		address = 0;
 		state = State::free;
+		address = 0;
 	}
 	else if (state == State::mounted)
 	{

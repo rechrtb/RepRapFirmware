@@ -18,9 +18,9 @@ public:
 	virtual void Spin() noexcept = 0;
 
 	virtual GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept = 0;
-	virtual GCodeResult Unmount(const StringRef& reply) noexcept = 0;
+	virtual GCodeResult Unmount(const StringRef& reply) noexcept;
 
-	virtual bool Useable() const noexcept { return true; }
+	virtual bool IsUseable() const noexcept { return true; }
 	virtual bool IsMounted() const noexcept = 0;
 	virtual bool IsDetected() const noexcept = 0;
 
@@ -53,4 +53,6 @@ protected:
 	FATFS fileSystem;
 
 	void Clear();
+	unsigned int InternalUnmount() noexcept;
+	virtual void DeviceUnmount() noexcept = 0;
 };

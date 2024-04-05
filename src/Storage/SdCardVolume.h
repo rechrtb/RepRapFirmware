@@ -28,11 +28,10 @@ public:
 	void Spin() noexcept override;
 
 	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
-	GCodeResult Unmount(const StringRef& reply) noexcept override;
 
-	bool Useable() const noexcept override;
+	bool IsUseable() const noexcept override;
 	bool IsMounted() const noexcept override { return isMounted; }
-	bool IsDetected() const noexcept override { return detectState == DetectState::present; }
+	bool IsDetected() const noexcept override { return cardState == CardDetectState::present; }
 
 	uint64_t GetCapacity() const noexcept override;
 	uint32_t GetInterfaceSpeed() const noexcept override;
@@ -43,13 +42,15 @@ public:
 	DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept override;
 	DRESULT DiskIoctl(BYTE ctrl, void *buff) noexcept override;
 
-	GCodeResult SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept;
+#ifdef DUET3_MB6HC
+	GCodeResult ConfigurePin(GCodeBuffer& gb, const StringRef& reply) noexcept;
+#endif
 
 	static Stats GetStats() noexcept;
 	static void ResetStats() noexcept;
 
 private:
-	enum class DetectState : uint8_t
+	enum class CardDetectState : uint8_t
 	{
 		notPresent = 0,
 		inserting,
@@ -61,10 +62,10 @@ private:
 	bool isMounted;
 	uint32_t mountStartTime;
 	uint32_t cdChangedTime;
-	DetectState detectState;
+	CardDetectState cardState;
 	Pin cdPin;
 
 	static Stats stats;
 
-	unsigned int InternalUnmount() noexcept;
+	void DeviceUnmount() noexcept override;
 };

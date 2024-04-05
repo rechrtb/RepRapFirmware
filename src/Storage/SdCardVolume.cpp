@@ -95,7 +95,7 @@ void SdCardVolume::Init() noexcept
 {
 	StorageVolume::Init();
 	mounting = isMounted = false;
-	detectState = (cdPin == NoPin) ? DetectState::present : DetectState::notPresent;
+	cardState = (cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
 	cdPin = SdCardDetectPins[num];
 	if (num == 0) // Initialize SD MMC stack on main SD
 	{
@@ -110,18 +110,18 @@ void SdCardVolume::Spin() noexcept
 		if (IoPort::ReadPin(cdPin))
 		{
 			// Pin state says no card present
-			switch (detectState)
+			switch (cardState)
 			{
-			case DetectState::inserting:
-			case DetectState::present:
-				detectState = DetectState::removing;
+			case CardDetectState::inserting:
+			case CardDetectState::present:
+				cardState = CardDetectState::removing;
 				cdChangedTime = millis();
 				break;
 
-			case DetectState::removing:
+			case CardDetectState::removing:
 				if (millis() - cdChangedTime > SdCardDetectDebounceMillis)
 				{
-					detectState = DetectState::notPresent;
+					cardState = CardDetectState::notPresent;
 					if (isMounted)
 					{
 						const unsigned int numFiles = InternalUnmount();
@@ -140,16 +140,16 @@ void SdCardVolume::Spin() noexcept
 		else
 		{
 			// Pin state says card is present
-			switch (detectState)
+			switch (cardState)
 			{
-			case DetectState::removing:
-			case DetectState::notPresent:
-				detectState = DetectState::inserting;
+			case CardDetectState::removing:
+			case CardDetectState::notPresent:
+				cardState = CardDetectState::inserting;
 				cdChangedTime = millis();
 				break;
 
-			case DetectState::inserting:
-				detectState = DetectState::present;
+			case CardDetectState::inserting:
+				cardState = CardDetectState::present;
 				break;
 
 			default:
@@ -161,7 +161,6 @@ void SdCardVolume::Spin() noexcept
 
 GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noexcept
 {
-	MutexLocker lock1(MassStorage::GetFsMutex());
 	MutexLocker lock(mutex);
 
 	if (!mounting)
@@ -182,14 +181,14 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 		delay(2);
 	}
 
-	if (detectState == DetectState::notPresent)
+	if (cardState == CardDetectState::notPresent)
 	{
 		reply.copy("No SD card present");
 		mounting = false;
 		return GCodeResult::error;
 	}
 
-	if (detectState != DetectState::present)
+	if (cardState != CardDetectState::present)
 	{
 		return GCodeResult::notFinished;						// wait for debounce to finish
 	}
@@ -225,7 +224,8 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 	reprap.VolumesUpdated();
 	if (reportSuccess)
 	{
-		float capacity = ((float)sd_mmc_get_capacity(num) * 1024) / 1000000;		// get capacity and convert from Kib to Mbytes
+
+		float capacity = GetCapacity() / 1000000.0f; // get capacity and convert from Kib to Mbytes
 		const char* capUnits;
 		if (capacity >= 1000.0)
 		{
@@ -236,36 +236,22 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 		{
 			capUnits = "Mb";
 		}
-		reply.printf("%s card mounted in num %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
+		reply.printf("%s card mounted in slot %u, capacity %.2f%s", TranslateCardType(sd_mmc_get_type(num)), num, (double)capacity, capUnits);
 	}
+
+	IncrementSeqNum();
 
 	return GCodeResult::ok;
 }
 
-GCodeResult SdCardVolume::Unmount(const StringRef& reply) noexcept
+bool SdCardVolume::IsUseable() const noexcept
 {
-	if (MassStorage::AnyFileOpen(&fileSystem))
-	{
-		// Don't unmount the card if any files are open on it
-		reply.copy("SD card has open file(s)");
-		return GCodeResult::error;
-	}
-
-	(void)InternalUnmount();
-	reply.printf("SD card %u may now be removed", num);
-	++seqNum;
-
-	return GCodeResult::ok;
-}
-
-bool SdCardVolume::Useable() const noexcept
-{
-// #if DUET3_MB6HC
-//     if (num == 1)
-//     {
-//         return sd1Ports[0].IsValid();
-//     }
-// #endif
+#if DUET3_MB6HC
+    if (num == 1)
+    {
+        return sd1Ports[0].IsValid();
+    }
+#endif
 	return true;
 }
 
@@ -506,7 +492,8 @@ DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff) noexcept
 	return res;
 }
 
-GCodeResult SdCardVolume::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noexcept
+#ifdef DUET3_MB6HC
+GCodeResult SdCardVolume::ConfigurePin(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
 	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
 	if (gb.Seen('C'))
@@ -520,16 +507,17 @@ GCodeResult SdCardVolume::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noex
 		cdPin = sd1Ports[1].GetPin();
 		if (cdPin == NoPin)
 		{
-			detectState = DetectState::present;
+			cardState = CardDetectState::present;
 		}
+		reprap.VolumesUpdated();
 	}
 	else
 	{
 		IoPort::AppendPinNames(reply, 2, portAddresses);
 	}
-	reprap.VolumesUpdated();
 	return GCodeResult::ok;
 }
+#endif
 
 /*static*/ SdCardVolume::Stats SdCardVolume::GetStats() noexcept
 {
@@ -547,17 +535,10 @@ GCodeResult SdCardVolume::SetCSPin(GCodeBuffer& gb, const StringRef& reply) noex
 	stats.maxRetryCount = 0;
 }
 
-unsigned int SdCardVolume::InternalUnmount() noexcept
+void SdCardVolume::DeviceUnmount() noexcept
 {
-	MutexLocker lock1(MassStorage::GetFsMutex());
-	MutexLocker lock2(mutex);
-	const unsigned int invalidated = MassStorage::InvalidateFiles(&fileSystem);
-	f_mount(nullptr, path, 0);
-	Clear();
 	sd_mmc_unmount(num);
 	isMounted = false;
-	reprap.VolumesUpdated();
-	return invalidated;
 }
 
 /*static*/ SdCardVolume::Stats SdCardVolume::stats;

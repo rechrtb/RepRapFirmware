@@ -109,7 +109,7 @@ size_t MassStorage::GetNumVolumes() noexcept
 	size_t count = 0;
 	for (StorageVolume* device : storageVolumes)
 	{
-		count += device->Useable();
+		count += device->IsUseable();
 	}
 	return count;
 }
@@ -119,11 +119,10 @@ size_t MassStorage::GetNumVolumes() noexcept
 GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
 	int slot = gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
-	return sdVolumes[slot].SetCSPin(gb, reply);
+	return sdVolumes[slot].ConfigurePin(gb, reply);
 }
 
 # endif
-
 
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
@@ -198,19 +197,12 @@ void MassStorage::Init() noexcept
 # endif
 }
 
-
-#if HAS_MASS_STORAGE || HAS_SBC_INTERFACE || HAS_EMBEDDED_FILES
-Mutex& GetFsMutex()
-{
-	return fsMutex;
-}
-#endif
-
 void MassStorage::Spin() noexcept
 {
 # if HAS_MASS_STORAGE
 	for (StorageVolume* device : storageVolumes)
 	{
+		MutexLocker lock(fsMutex);
 		device->Spin();
 	}
 # endif
@@ -899,7 +891,14 @@ GCodeResult MassStorage::Mount(size_t card, const StringRef& reply, bool reportS
 		return GCodeResult::error;
 	}
 
-	return storageVolumes[card]->Mount(reply, reportSuccess);
+	GCodeResult res = GCodeResult::ok;
+
+# if HAS_MASS_STORAGE
+	MutexLocker lock(fsMutex);
+	res = storageVolumes[card]->Mount(reply, reportSuccess);
+#endif
+
+	return res;
 }
 
 // Unmount the specified SD card, returning true if done, false if needs to be called again.
@@ -912,10 +911,14 @@ GCodeResult MassStorage::Unmount(size_t card, const StringRef& reply) noexcept
 		return GCodeResult::error;
 	}
 
+	GCodeResult res = GCodeResult::ok;
+
 # if HAS_MASS_STORAGE
+	MutexLocker lock(fsMutex);
+	res = storageVolumes[card]->Unmount(reply);
 #endif
 
-	return GCodeResult::ok;
+	return res;
 }
 
 bool MassStorage::IsDriveMounted(size_t drive) noexcept
@@ -1052,11 +1055,6 @@ MassStorage::InfoResult MassStorage::GetCardInfo(size_t slot, SdCardReturnedInfo
 	returnedInfo.speed = card->GetInterfaceSpeed();
 
 	return InfoResult::ok;
-}
-
-Mutex& MassStorage::GetFsMutex() noexcept
-{
-	return fsMutex;
 }
 
 # if SUPPORT_OBJECT_MODEL
