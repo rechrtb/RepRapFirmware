@@ -9,22 +9,12 @@
 
 #include "UsbVolume.h"
 
-static volatile bool _disk_busy[NumUsbDrives];
-
-static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const *cb_data)
+static bool disk_io_complete(uint8_t address, tuh_msc_complete_data_t const *cb_data)
 {
-	(void)dev_addr;
-	(void)cb_data;
-	_disk_busy[dev_addr - 1] = false;
+	(void) address;
+	BinarySemaphore ioDone = *reinterpret_cast<BinarySemaphore*>(cb_data->user_arg);
+	ioDone.Give();
 	return true;
-}
-
-static void wait_for_disk_io(BYTE pdrv)
-{
-	while (_disk_busy[pdrv])
-	{
-		delay(SdCardRetryDelay);
-	}
 }
 
 void UsbVolume::Init() noexcept
@@ -46,6 +36,7 @@ void UsbVolume::Spin() noexcept
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
 {
+
 	if (IsDetected())
 	{
 		reply.copy("No USB storage detected");
@@ -123,37 +114,25 @@ DRESULT UsbVolume::DiskInitialize() noexcept
 
 DRESULT UsbVolume::DiskStatus() noexcept
 {
-	uint8_t dev_addr = (num % NumSdCards) + 1;
-	return static_cast<DRESULT>(tuh_msc_mounted(dev_addr) ? 0 : STA_NODISK);
+	return static_cast<DRESULT>(tuh_msc_mounted(address) ? 0 : STA_NODISK);
 }
 
 DRESULT UsbVolume::DiskRead(BYTE *buff, LBA_t sector, UINT count) noexcept
 {
-	uint8_t const dev_addr = (num % NumSdCards) + 1;
-	uint8_t const lun = 0;
-
-	_disk_busy[num % NumSdCards] = true;
-	tuh_msc_read10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
-	wait_for_disk_io(num % NumSdCards);
-
+	tuh_msc_read10(address, lun, buff, sector, (uint16_t)count, disk_io_complete, reinterpret_cast<uintptr_t>(&ioDone));
+	ioDone.Take();
 	return RES_OK;
 }
 
 DRESULT UsbVolume::DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept
 {
-	uint8_t const dev_addr = (num % NumSdCards) + 1;
-	uint8_t const lun = 0;
-
-	_disk_busy[num % NumSdCards] = true;
-	tuh_msc_write10(dev_addr, lun, buff, sector, (uint16_t)count, disk_io_complete, 0);
-	wait_for_disk_io(num % NumSdCards);
+	tuh_msc_write10(address, lun, buff, sector, (uint16_t)count, disk_io_complete, reinterpret_cast<uintptr_t>(&ioDone));
+	ioDone.Take();
 	return RES_OK;
 }
 
 DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 {
-	uint8_t const dev_addr = (num % NumSdCards) + 1;
-	uint8_t const lun = 0;
 	switch (cmd)
 	{
 	case CTRL_SYNC:
@@ -161,11 +140,11 @@ DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 		return RES_OK;
 
 	case GET_SECTOR_COUNT:
-		*((DWORD *)buff) = (WORD)tuh_msc_get_block_count(dev_addr, lun);
+		*((DWORD *)buff) = (WORD)tuh_msc_get_block_count(address, lun);
 		return RES_OK;
 
 	case GET_SECTOR_SIZE:
-		*((WORD *)buff) = (WORD)tuh_msc_get_block_size(dev_addr, lun);
+		*((WORD *)buff) = (WORD)tuh_msc_get_block_size(address, lun);
 		return RES_OK;
 
 	case GET_BLOCK_SIZE:

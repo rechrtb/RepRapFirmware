@@ -8,47 +8,48 @@
 class UsbVolume : public StorageVolume
 {
 public:
-    UsbVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
+	UsbVolume(const char *id, uint8_t num) : StorageVolume(id, num) {}
 
-    void Init() noexcept override;
+	void Init() noexcept override;
 
-    void Spin() noexcept override;
+	void Spin() noexcept override;
 
-    GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
-    GCodeResult Unmount(const StringRef& reply) noexcept override;
+	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
+	GCodeResult Unmount(const StringRef& reply) noexcept override;
 
-    bool IsMounted() const noexcept override { return state == State::mounted; }
-    bool IsDetected() const noexcept override { return address; }
+	bool IsMounted() const noexcept override { return state == State::mounted; }
+	bool IsDetected() const noexcept override { return address; }
 
-    uint64_t GetCapacity() const noexcept override;
-    uint32_t GetInterfaceSpeed() const noexcept override;
+	uint64_t GetCapacity() const noexcept override;
+	uint32_t GetInterfaceSpeed() const noexcept override;
 
-    DRESULT DiskInitialize() noexcept override;
-    DRESULT DiskStatus() noexcept override;
-    DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) noexcept override;
-    DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept override;
-    DRESULT DiskIoctl(BYTE ctrl, void *buff) noexcept override;
+	DRESULT DiskInitialize() noexcept override;
+	DRESULT DiskStatus() noexcept override;
+	DRESULT DiskRead(BYTE *buff, LBA_t sector, UINT count) noexcept override;
+	DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept override;
+	DRESULT DiskIoctl(BYTE ctrl, void *buff) noexcept override;
 
-    static void VolumeInserted(uint8_t address);
-    static void VolumeRemoved(uint8_t address);
+	static void VolumeInserted(uint8_t address);
+	static void VolumeRemoved(uint8_t address);
 
 private:
-    enum class State : uint8_t
-    {
-        free,
-        inserted,
-        mounting,
-        mounted,
-        removed
-    };
+	enum class State : uint8_t
+	{
+		free,
+		inserted,
+		mounting,
+		mounted,
+		removed
+	};
 
-    uint8_t address;
-    uint8_t lun;
-    State state;
+	uint8_t address;
+	uint8_t lun;
+	State state;
+	BinarySemaphore ioDone;
 
-    static UsbVolume* usbDrives[NumUsbDrives];
+	static UsbVolume* usbDrives[NumUsbDrives];
 
-    bool AcceptVolume(uint8_t address);
-    void FreeVolume();
+	bool AcceptVolume(uint8_t address);
+	void FreeVolume();
 };
 
