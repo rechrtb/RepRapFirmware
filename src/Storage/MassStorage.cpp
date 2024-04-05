@@ -193,6 +193,7 @@ void MassStorage::Init() noexcept
 	{
 		device->Init();
 	}
+	SdCardVolume::SdmmcInit();
 	// We no longer mount the SD card here because it may take a long time if it fails
 # endif
 }

@@ -49,6 +49,8 @@ public:
 	static Stats GetStats() noexcept;
 	static void ResetStats() noexcept;
 
+	static void SdmmcInit() noexcept;
+
 private:
 	enum class CardDetectState : uint8_t
 	{

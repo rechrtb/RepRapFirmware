@@ -97,10 +97,6 @@ void SdCardVolume::Init() noexcept
 	mounting = isMounted = false;
 	cardState = (cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
 	cdPin = SdCardDetectPins[num];
-	if (num == 0) // Initialize SD MMC stack on main SD
-	{
-		sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
-	}
 }
 
 void SdCardVolume::Spin() noexcept
@@ -518,6 +514,12 @@ GCodeResult SdCardVolume::ConfigurePin(GCodeBuffer& gb, const StringRef& reply) 
 	return GCodeResult::ok;
 }
 #endif
+
+
+/*static*/ void SdCardVolume::SdmmcInit() noexcept
+{
+	sd_mmc_init(SdWriteProtectPins, SdSpiCSPins); // initialize SD MMC stack
+}
 
 /*static*/ SdCardVolume::Stats SdCardVolume::GetStats() noexcept
 {
