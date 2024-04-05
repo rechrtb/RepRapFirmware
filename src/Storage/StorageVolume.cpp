@@ -66,7 +66,7 @@ uint64_t StorageVolume::GetPartitionSize() const noexcept
 
 void StorageVolume::Init() noexcept
 {
-	memset(&fileSystem, 0, sizeof(fileSystem));
+	Clear();
 	seqNum = 0;
 	mutex.Create(id);
 }
