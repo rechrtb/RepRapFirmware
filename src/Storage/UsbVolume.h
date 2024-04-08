@@ -18,7 +18,7 @@ public:
 
 	bool IsUseable() const noexcept override;
 	bool IsMounted() const noexcept override { return state == State::mounted; }
-	bool IsDetected() const noexcept override { return address; }
+	bool IsDetected() const noexcept override { return state == State::inserted; }
 
 	uint64_t GetCapacity() const noexcept override;
 	uint32_t GetInterfaceSpeed() const noexcept override;

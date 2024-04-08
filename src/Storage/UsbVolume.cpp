@@ -14,8 +14,8 @@
 static bool disk_io_complete(uint8_t address, tuh_msc_complete_data_t const *cb_data)
 {
 	(void) address;
-	BinarySemaphore ioDone = *reinterpret_cast<BinarySemaphore*>(cb_data->user_arg);
-	ioDone.Give();
+	BinarySemaphore *ioDone = reinterpret_cast<BinarySemaphore*>(cb_data->user_arg);
+	ioDone->Give();
 	return true;
 }
 
@@ -23,7 +23,14 @@ void UsbVolume::Init() noexcept
 {
 	StorageVolume::Init();
 	address = 0;
-	// usbDrives[] = this;
+
+	for (size_t i = 0; i < NumUsbDrives; i++)
+	{
+		if (usbDrives[i] == nullptr)
+		{
+			usbDrives[i] = this;
+		}
+	}
 }
 
 void UsbVolume::Spin() noexcept
@@ -43,7 +50,7 @@ bool UsbVolume::IsUseable() const noexcept
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept
 {
-	if (IsDetected())
+	if (!IsDetected())
 	{
 		reply.copy("No USB storage detected");
 		return GCodeResult::error;
@@ -153,7 +160,6 @@ DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 
 /*static*/ void UsbVolume::VolumeRemoved(uint8_t address)
 {
-
 	for (UsbVolume *drive : usbDrives)
 	{
 		if (drive->address == address)
