@@ -29,6 +29,7 @@ void UsbVolume::Init() noexcept
 		if (usbDrives[i] == nullptr)
 		{
 			usbDrives[i] = this;
+			break;
 		}
 	}
 }
@@ -45,7 +46,7 @@ void UsbVolume::Spin() noexcept
 
 bool UsbVolume::IsUseable() const noexcept
 {
-	return CoreUsbIsHostMode();
+	return CoreUsbIsHostMode() && state != State::free;
 }
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept

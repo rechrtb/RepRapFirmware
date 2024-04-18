@@ -201,7 +201,7 @@ constexpr IRQn SdhcIRQn = HSMCI_IRQn;
 
 #if SUPPORT_USB_DRIVE
 // USB Drives
-constexpr size_t NumUsbDrives = 1;
+constexpr size_t NumUsbDrives = 2;
 #endif
 
 // DotStar LED control

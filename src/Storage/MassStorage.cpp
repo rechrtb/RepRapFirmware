@@ -39,8 +39,8 @@ alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWri
 # endif
 
 static SdCardVolume sdVolumes[NumSdCards] = { SdCardVolume("SDO", 0),  SdCardVolume("SD1", 1) };
-static UsbVolume usbVolumes[NumUsbDrives] = { UsbVolume("USB0", 2) };
-static StorageVolume* storageVolumes[] = { &sdVolumes[0], &sdVolumes[1], &usbVolumes[0] };
+static UsbVolume usbVolumes[NumUsbDrives] = { UsbVolume("USB0", 2), UsbVolume("USB1", 3) };
+static StorageVolume* storageVolumes[] = { &sdVolumes[0], &sdVolumes[1], &usbVolumes[0], &usbVolumes[1] };
 
 static DIR findDir;
 #endif
