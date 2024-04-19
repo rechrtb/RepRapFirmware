@@ -29,7 +29,7 @@ public:
 
 	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
 
-	bool IsUseable() const noexcept override;
+	bool IsUseable(const StringRef& reply) const noexcept override;
 	bool IsMounted() const noexcept override { return isMounted; }
 	bool IsDetected() const noexcept override { return cardState == CardDetectState::present; }
 

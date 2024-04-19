@@ -44,9 +44,17 @@ void UsbVolume::Spin() noexcept
 	}
 }
 
-bool UsbVolume::IsUseable() const noexcept
+bool UsbVolume::IsUseable(const StringRef& reply) const noexcept
 {
-	return CoreUsbIsHostMode() && state != State::free;
+	if (!CoreUsbIsHostMode())
+	{
+		if (&reply != &StorageVolume::noReply)
+		{
+			reply.copy("USB not in host mode");
+		}
+		return false;
+	}
+	return true;
 }
 
 GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcept

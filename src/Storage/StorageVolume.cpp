@@ -112,3 +112,5 @@ void StorageVolume::Clear()
 	memset(sectorBuffers[slot], 0, sizeof(sectorBuffers[slot]));
 #endif
 }
+
+/*static*/ const StringRef StorageVolume::noReply = StringRef(nullptr, 0);

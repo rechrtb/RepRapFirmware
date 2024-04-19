@@ -240,13 +240,17 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 	return GCodeResult::ok;
 }
 
-bool SdCardVolume::IsUseable() const noexcept
+bool SdCardVolume::IsUseable(const StringRef& reply) const noexcept
 {
 #if DUET3_MB6HC
-	if (slot == 1)
+	// We have another sd slot if the second one has a valid CS pin
+	if (slot == 1 && (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid()))
 	{
-		// We have another sd slot if the second one has a valid CS pin
-		return (reprap.GetPlatform().GetBoardType() >= BoardType::Duet3_6HC_v102 || sd1Ports[0].IsValid());
+		if (&reply != &StorageVolume::noReply)
+		{
+			reply.copy("SD card slot 1 not configured for accepting SD card");
+		}
+		return false;
 	}
 #endif
 	return true;

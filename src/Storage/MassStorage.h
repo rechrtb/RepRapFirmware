@@ -58,24 +58,14 @@ namespace MassStorage
 	void CloseAllFiles() noexcept;
 	void Spin() noexcept;
 
-
-	inline size_t GetNumVolumeSlots()
+	inline size_t GetNumVolumes() noexcept
 	{
-		size_t res = NumSdCards;
+		return NumSdCards
 #if SUPPORT_USB_DRIVE
-		res += NumUsbDrives;
+		+ NumUsbDrives
 #endif
-		return res;
+		;
 	}
-
-# if defined(DUET3_MB6HC) || SUPPORT_USB_DRIVES
-	size_t GetNumVolumes();														// The number of SD slots may be 1 or 2 on the 6HC
-# else
-	inline size_t GetNumVolumes()
-	{
-		return GetNumVolumeSlots(); // slots and volumes are equal
-	}
-# endif
 #endif
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE
@@ -145,7 +135,7 @@ namespace MassStorage
 # endif
 
 # if SUPPORT_OBJECT_MODEL
-	const ObjectModel *_ecv_from GetVolume(size_t num) noexcept;
+	const ObjectModel *_ecv_from GetVolume(size_t slot) noexcept;
 # endif
 
 #endif

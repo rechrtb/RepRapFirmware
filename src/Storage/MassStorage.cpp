@@ -98,23 +98,12 @@ static FileStore files[MAX_FILES];
 }
 
 #if HAS_EMBEDDED_FILES && defined(DUET3_MB6HC)
-size_t MassStorage::GetNumVolume() noexcept { return 1; }
+size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 #endif
 
 #if HAS_MASS_STORAGE
 
 # ifdef DUET3_MB6HC
-
-// Return the number of volumes, which on the 6HC is normally 1 but can be increased to 2
-size_t MassStorage::GetNumVolumes()
-{
-	size_t count = 0;
-	for (StorageVolume* device : storageVolumes)
-	{
-		count += device->IsUseable();
-	}
-	return count;
-}
 
 // Configure additional SD card slots
 // The card detect pin may be NoPin if the SD card slot doesn't support card detect
@@ -842,7 +831,7 @@ bool MassStorage::CheckDriveMounted(const char* path) noexcept
 	const size_t slot = (strlen(path) >= 2 && path[1] == ':' && isDigit(path[0]))
 						? path[0] - '0'
 						: 0;
-	return slot < GetNumVolumeSlots() && storageVolumes[slot]->IsUseable() && storageVolumes[slot]->IsMounted();
+	return slot < GetNumVolumes() && storageVolumes[slot]->IsUseable() && storageVolumes[slot]->IsMounted();
 }
 
 // Return true if any files are open on the file system
@@ -888,9 +877,14 @@ bool MassStorage::IsVolumeDetected(size_t slot) noexcept
 // This may only be called to mount one volume at a time.
 GCodeResult MassStorage::Mount(size_t slot, const StringRef& reply, bool reportSuccess) noexcept
 {
-	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
+	if (slot >= GetNumVolumes())
 	{
 		reply.copy("Volume slot out of range");
+		return GCodeResult::error;
+	}
+
+	if (!storageVolumes[slot]->IsUseable(reply))
+	{
 		return GCodeResult::error;
 	}
 
@@ -908,9 +902,14 @@ GCodeResult MassStorage::Mount(size_t slot, const StringRef& reply, bool reportS
 // If an error occurs, return true with the error message in 'reply'.
 GCodeResult MassStorage::Unmount(size_t slot, const StringRef& reply) noexcept
 {
-	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
+	if (slot >= GetNumVolumes())
 	{
 		reply.copy("Volume slot out of range");
+		return GCodeResult::error;
+	}
+
+	if (!storageVolumes[slot]->IsUseable(reply))
+	{
 		return GCodeResult::error;
 	}
 
@@ -926,7 +925,7 @@ GCodeResult MassStorage::Unmount(size_t slot, const StringRef& reply) noexcept
 
 bool MassStorage::IsDriveMounted(size_t slot) noexcept
 {
-	return slot < GetNumVolumeSlots() && storageVolumes[slot]->IsUseable()
+	return slot < GetNumVolumes() && storageVolumes[slot]->IsUseable()
 #if HAS_MASS_STORAGE
 		&& storageVolumes[slot]->IsMounted()
 #endif
@@ -1039,7 +1038,7 @@ void MassStorage::RecordSimulationTime(const char *printingFilePath, uint32_t si
 // Get information about the volume and interface speed on the specified slot
 MassStorage::InfoResult MassStorage::GetVolumeInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept
 {
-	if (slot >= GetNumVolumeSlots() &&  storageVolumes[slot]->IsUseable())
+	if (slot >= GetNumVolumes() && storageVolumes[slot]->IsUseable())
 	{
 		return InfoResult::badSlot;
 	}
@@ -1061,24 +1060,9 @@ MassStorage::InfoResult MassStorage::GetVolumeInfo(size_t slot, SdCardReturnedIn
 }
 
 # if SUPPORT_OBJECT_MODEL
-const ObjectModel * MassStorage::GetVolume(size_t num) noexcept
+const ObjectModel * MassStorage::GetVolume(size_t slot) noexcept
 {
-	for (size_t slot = 0, n = 0; slot < GetNumVolumeSlots(); slot++)
-	{
-		if (n == num)
-		{
-			return storageVolumes[slot];
-		}
-		else
-		{
-			if (storageVolumes[slot]->IsUseable())
-			{
-				n++;
-			}
-		}
-	}
-
-	return nullptr; // should not happen
+	return storageVolumes[slot];
 }
 # endif
 

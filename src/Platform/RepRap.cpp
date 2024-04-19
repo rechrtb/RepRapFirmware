@@ -1469,7 +1469,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 #if HAS_MASS_STORAGE
 		// Total and mounted volumes
 		size_t mountedVolumes = 0;
-		for (size_t i = 0; i < MassStorage::GetNumVolumeSlots(); i++) // iterate through slots when counting mounted volumes
+		for (size_t i = 0; i < MassStorage::GetNumVolumes(); i++) // iterate through slots when counting mounted volumes
 		{
 			if (MassStorage::IsDriveMounted(i))
 			{

@@ -2,10 +2,9 @@
 
 #include <stdint.h>
 
+#include <General/StringRef.h>
 #include <ObjectModel/ObjectModel.h>
 #include <Libraries/Fatfs/diskio.h>
-
-#include "StorageVolume.h"
 
 class StorageVolume INHERIT_OBJECT_MODEL
 {
@@ -20,7 +19,7 @@ public:
 	virtual GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept = 0;
 	virtual GCodeResult Unmount(const StringRef& reply) noexcept;
 
-	virtual bool IsUseable() const noexcept = 0;
+	virtual bool IsUseable(const StringRef& reply = noReply) const noexcept = 0;
 	virtual bool IsMounted() const noexcept = 0;
 	virtual bool IsDetected() const noexcept = 0;
 
@@ -51,6 +50,8 @@ protected:
 	Mutex mutex;
 	uint16_t seqNum;
 	FATFS fileSystem;
+
+	const static StringRef noReply;
 
 	void Clear();
 	unsigned int InternalUnmount() noexcept;
