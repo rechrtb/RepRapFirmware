@@ -95,7 +95,7 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 	{
 		float capacity = GetCapacity() / 1000000.0f; // get capacity and convert from Kib to Mbytes
 		const char* capUnits = capacity >= 1000.0 ? "Gb" : "Mb";
-		reply.printf("%s mounted, capacity %.2f%s", id, (double)capacity >= 1000.0 ? capacity / 1000 : capacity, capUnits);
+		reply.printf("%s mounted, capacity %.2f%s", id, static_cast<double>(capacity >= 1000.0 ? capacity / 1000 : capacity), capUnits);
 	}
 	IncrementSeqNum();
 
@@ -105,9 +105,9 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 uint64_t UsbVolume::GetCapacity() const noexcept
 {
 	// Get capacity of device
-	uint32_t const block_count = tuh_msc_get_block_count(address, lun);
-	uint32_t const block_size = tuh_msc_get_block_size(address, lun);
-	return (block_count * block_size) / (1024);
+	uint64_t const block_count = tuh_msc_get_block_count(address, lun);
+	uint64_t const block_size = tuh_msc_get_block_size(address, lun);
+	return block_count * block_size;
 }
 
 uint32_t UsbVolume::GetInterfaceSpeed() const noexcept
