@@ -22,6 +22,8 @@ static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 #include "SdCardVolume.h"
 #include "UsbVolume.h"
 
+static_assert(FF_VOLUMES >= NumSdCards + NumUsbDrives);
+
 // A note on using mutexes:
 // Each storage volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
 // The FatFS subsystem locks and releases the appropriate volume mutex when it is called.
