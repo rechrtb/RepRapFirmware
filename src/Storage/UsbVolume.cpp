@@ -38,7 +38,7 @@ void UsbVolume::Spin() noexcept
 {
 	if (state == State::removed)
 	{
-		// InternalUnmount();
+		InternalUnmount();
 		address = 0;
 		state = State::free;
 	}
@@ -145,6 +145,11 @@ DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 	}
 
 	return RES_OK;
+}
+
+void UsbVolume::DeviceUnmount() noexcept
+{
+	state = State::inserted;
 }
 
 /*static*/ void UsbVolume::VolumeInserted(uint8_t address)

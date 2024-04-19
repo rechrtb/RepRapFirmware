@@ -37,7 +37,6 @@ private:
 	{
 		free,
 		inserted,
-		mounting,
 		mounted,
 		removed
 	};
@@ -52,6 +51,6 @@ private:
 	bool AcceptVolume(uint8_t address);
 	void FreeVolume();
 
-	void DeviceUnmount() noexcept override { };
+	void DeviceUnmount() noexcept override;
 };
 
