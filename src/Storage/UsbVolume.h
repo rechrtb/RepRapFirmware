@@ -17,8 +17,16 @@ public:
 	GCodeResult Mount(const StringRef& reply, bool reportSuccess) noexcept override;
 
 	bool IsUseable(const StringRef& reply) const noexcept override;
-	bool IsMounted() const noexcept override { return state == State::mounted; }
-	bool IsDetected() const noexcept override { return state == State::inserted; }
+	bool IsMounted() const noexcept override
+	{
+		return (static_cast<uint8_t>(state) &
+			(static_cast<uint8_t>(State::mounted) | static_cast<uint8_t>(State::removed)));
+	}
+	bool IsDetected() const noexcept override
+	{
+		return (static_cast<uint8_t>(state) &
+			(static_cast<uint8_t>(State::inserted) | static_cast<uint8_t>(State::mounted)));
+	}
 
 	uint64_t GetCapacity() const noexcept override;
 	uint32_t GetInterfaceSpeed() const noexcept override;
@@ -35,10 +43,10 @@ public:
 private:
 	enum class State : uint8_t
 	{
-		free,
-		inserted,
-		mounted,
-		removed
+		free = 0x00,
+		inserted = 0x01,
+		mounted = 0x02,
+		removed = 0x04
 	};
 
 	uint8_t address;
