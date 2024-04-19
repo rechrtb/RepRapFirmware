@@ -51,14 +51,16 @@ private:
 
 	uint8_t address;
 	uint8_t lun;
-	State state;
 	BinarySemaphore ioDone;
+
+	// The state is read and/or modified in two tasks: UsbTask during tinyUSB device insertion/removal callbacks,
+	// and MainTask, during GCode mounting/unmounting commands.
+	State state;
 
 	static UsbVolume* usbDrives[NumUsbDrives];
 
-	bool AcceptVolume(uint8_t address);
-	void FreeVolume();
-
 	void DeviceUnmount() noexcept override;
-};
 
+	bool Accept(uint8_t address);
+	void Free();
+};

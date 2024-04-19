@@ -50,7 +50,7 @@ bool UsbVolume::IsUseable(const StringRef& reply) const noexcept
 	{
 		if (&reply != &StorageVolume::noReply)
 		{
-			reply.copy("USB not in host mode");
+			reply.copy("USB not configured as host");
 		}
 		return false;
 	}
@@ -67,24 +67,37 @@ GCodeResult UsbVolume::Mount(const StringRef &reply, bool reportSuccess) noexcep
 
 	if (IsMounted())
 	{
-		reply.copy("USB already mounted"); // TODO: properly handle already mounted
-		return GCodeResult::error;
+		if (MassStorage::AnyFileOpen(&fileSystem))
+		{
+			// Don't re-mount the card if any files are open on it
+			reply.printf("%s has open file(s)", id);
+			return GCodeResult::error;
+		}
+		(void)InternalUnmount();
 	}
 
 	// Mount the file systems
-	const FRESULT mounted = f_mount(&fileSystem, path, 1);
-	if (mounted == FR_NO_FILESYSTEM)
+	const FRESULT res = f_mount(&fileSystem, path, 1);
+	if (res == FR_NO_FILESYSTEM)
 	{
-		reply.printf("Cannot mount SD card %u: no FAT filesystem found on card (EXFAT is not supported)", slot);
+		reply.printf("Cannot mount %s: no FAT filesystem found on card (EXFAT is not supported)", id);
 		return GCodeResult::error;
 	}
-	if (mounted != FR_OK)
+	if (res != FR_OK)
 	{
-		reply.printf("Cannot mount SD card %u: code %d", slot, mounted);
+		reply.printf("Cannot mount %s: code %d", id, res);
 		return GCodeResult::error;
 	}
-
 	state = State::mounted;
+
+	reprap.VolumesUpdated();
+	if (reportSuccess)
+	{
+		float capacity = GetCapacity() / 1000000.0f; // get capacity and convert from Kib to Mbytes
+		const char* capUnits = capacity >= 1000.0 ? "Gb" : "Mb";
+		reply.printf("%s mounted, capacity %.2f%s", id, (double)capacity >= 1000.0 ? capacity / 1000 : capacity, capUnits);
+	}
+	IncrementSeqNum();
 
 	return GCodeResult::ok;
 }
@@ -102,7 +115,6 @@ uint32_t UsbVolume::GetInterfaceSpeed() const noexcept
 	tusb_speed_t speed = tuh_speed_get(address);
 	return (speed == TUSB_SPEED_HIGH ? 480000000 : 12000000) / 8;
 }
-
 
 DRESULT UsbVolume::DiskInitialize() noexcept
 {
@@ -157,7 +169,42 @@ DRESULT UsbVolume::DiskIoctl(BYTE cmd, void *buff) noexcept
 
 void UsbVolume::DeviceUnmount() noexcept
 {
-	state = State::inserted;
+	switch (state)
+	{
+	case State::removed:
+		state = State::free;
+		break;
+	case State::mounted:
+		state = State::inserted;
+	default:
+		break;
+	}
+}
+
+bool UsbVolume::Accept(uint8_t address)
+{
+	if (state == State::free)
+	{
+		state = State::inserted;
+		this->address = address;
+		return true;
+	}
+	return false;
+}
+
+void UsbVolume::Free()
+{
+	switch (state)
+	{
+	case State::inserted:
+		state = State::free; // immediately set free
+		address = 0;
+		break;
+	case State::mounted:
+		state = State::removed; // perform actual freeing in spin function
+	default:
+		break;
+	}
 }
 
 /*static*/ void UsbVolume::VolumeInserted(uint8_t address)
@@ -165,7 +212,7 @@ void UsbVolume::DeviceUnmount() noexcept
 	for (UsbVolume *drive : usbDrives)
 	{
 		// Check if there are free ones that can accept
-		if (drive->AcceptVolume(address))
+		if (drive->Accept(address))
 		{
 			break;
 		}
@@ -178,33 +225,8 @@ void UsbVolume::DeviceUnmount() noexcept
 	{
 		if (drive->address == address)
 		{
-			drive->FreeVolume();
+			drive->Free();
 		}
-	}
-}
-
-bool UsbVolume::AcceptVolume(uint8_t address)
-{
-	if (state == State::free)
-	{
-		state = State::inserted;
-		this->address = address;
-		return true;
-	}
-	return false;
-}
-
-void UsbVolume::FreeVolume()
-{
-	if (state == State::inserted)
-	{
-		state = State::free;
-		address = 0;
-	}
-	else if (state == State::mounted)
-	{
-		// Can't free here, must be unmounted and freed in the spin function.
-		state = State::removed;
 	}
 }
 

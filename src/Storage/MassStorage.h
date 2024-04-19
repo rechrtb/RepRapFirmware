@@ -130,16 +130,11 @@ namespace MassStorage
 
 	InfoResult GetVolumeInfo(size_t slot, SdCardReturnedInfo& returnedInfo) noexcept;
 
-# ifdef DUET3_MB6HC
-	GCodeResult ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Configure additional SD card slots
-# endif
-
 # if SUPPORT_OBJECT_MODEL
 	const ObjectModel *_ecv_from GetVolume(size_t slot) noexcept;
 # endif
 
 #endif
-
 }
 
 

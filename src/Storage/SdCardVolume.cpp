@@ -229,7 +229,6 @@ GCodeResult SdCardVolume::Mount(const StringRef& reply, bool reportSuccess) noex
 	reprap.VolumesUpdated();
 	if (reportSuccess)
 	{
-
 		float capacity = GetCapacity() / 1000000.0f; // get capacity and convert from Kib to Mbytes
 		const char* capUnits;
 		if (capacity >= 1000.0)
