@@ -102,19 +102,6 @@ size_t MassStorage::GetNumVolumes() noexcept { return 1; }
 #endif
 
 #if HAS_MASS_STORAGE
-
-# ifdef DUET3_MB6HC
-
-// Configure additional SD card slots
-// The card detect pin may be NoPin if the SD card slot doesn't support card detect
-GCodeResult MassStorage::ConfigureSdCard(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
-{
-	int slot = gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
-	return sdVolumes[slot].ConfigurePin(gb, reply);
-}
-
-# endif
-
 // Sequence number management
 uint16_t MassStorage::GetVolumeSeq(unsigned int volume) noexcept
 {

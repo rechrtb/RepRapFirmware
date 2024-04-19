@@ -97,6 +97,15 @@ void SdCardVolume::Init() noexcept
 	mounting = isMounted = false;
 	cardState = (cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
 	cdPin = SdCardDetectPins[slot];
+
+	for (size_t i = 0; i < NumSdCards; i++)
+	{
+		if (sdCards[i] == nullptr)
+		{
+			sdCards[i] = this;
+			break;
+		}
+	}
 }
 
 void SdCardVolume::Spin() noexcept
@@ -494,8 +503,11 @@ DRESULT SdCardVolume::DiskIoctl(BYTE ctrl, void *buff) noexcept
 }
 
 #ifdef DUET3_MB6HC
-GCodeResult SdCardVolume::ConfigurePin(GCodeBuffer& gb, const StringRef& reply) noexcept
+/*static*/ GCodeResult SdCardVolume::Configure(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
+	int num = gb.GetLimitedUIValue('D', 1, 2);		// only slot 1 may be configured
+	SdCardVolume *sd = sdCards[num];
+
 	IoPort * const portAddresses[2] = { &sd1Ports[0], &sd1Ports[1] };
 	if (gb.Seen('C'))
 	{
@@ -505,10 +517,10 @@ GCodeResult SdCardVolume::ConfigurePin(GCodeBuffer& gb, const StringRef& reply) 
 			return GCodeResult::error;
 		}
 		sd_mmc_change_cs_pin(1, sd1Ports[0].GetPin());
-		cdPin = sd1Ports[1].GetPin();
-		if (cdPin == NoPin)
+		sd->cdPin = sd1Ports[1].GetPin();
+		if (sd->cdPin == NoPin)
 		{
-			cardState = CardDetectState::present;
+			sd->cardState = CardDetectState::present;
 		}
 		reprap.VolumesUpdated();
 	}
@@ -519,7 +531,6 @@ GCodeResult SdCardVolume::ConfigurePin(GCodeBuffer& gb, const StringRef& reply) 
 	return GCodeResult::ok;
 }
 #endif
-
 
 /*static*/ void SdCardVolume::SdmmcInit() noexcept
 {
@@ -549,5 +560,6 @@ void SdCardVolume::DeviceUnmount() noexcept
 }
 
 /*static*/ SdCardVolume::Stats SdCardVolume::stats;
+/*static*/ SdCardVolume *SdCardVolume::sdCards[NumSdCards];
 
 # endif

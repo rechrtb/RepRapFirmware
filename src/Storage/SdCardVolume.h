@@ -42,9 +42,11 @@ public:
 	DRESULT DiskWrite(BYTE const *buff, LBA_t sector, UINT count) noexcept override;
 	DRESULT DiskIoctl(BYTE ctrl, void *buff) noexcept override;
 
-#ifdef DUET3_MB6HC
-	GCodeResult ConfigurePin(GCodeBuffer& gb, const StringRef& reply) noexcept;
-#endif
+# ifdef DUET3_MB6HC
+	// Configure additional SD card slots
+	// The card detect pin may be NoPin if the SD card slot doesn't support card detect
+	static GCodeResult Configure(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+# endif
 
 	static Stats GetStats() noexcept;
 	static void ResetStats() noexcept;
@@ -59,6 +61,8 @@ private:
 		present,
 		removing
 	};
+
+	static SdCardVolume* sdCards[NumSdCards];
 
 	bool mounting;
 	bool isMounted;

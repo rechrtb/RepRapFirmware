@@ -43,6 +43,7 @@
 #include <Hardware/I2C.h>
 #include <Hardware/NonVolatileMemory.h>
 #include <Storage/CRC32.h>
+#include <Storage/SdCardVolume.h>
 #include <Accelerometers/Accelerometers.h>
 
 #include <TinyUsbInterface.h>
@@ -4634,7 +4635,7 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply) THR
 			return GCodeResult::error;
 		}
 # endif
-		return MassStorage::ConfigureSdCard(gb, reply);
+		return SdCardVolume::Configure(gb, reply);
 #endif
 
 	default:
