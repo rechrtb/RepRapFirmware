@@ -3744,6 +3744,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							result = GCodeResult::error;
 						}
 					}
+#else
+					reply.printf("USB host mode unsupported");
+					result = GCodeResult::error;
 #endif
 					if (result == GCodeResult::ok && !hostMode) // switched to device mode with no error, handle other device mode args
 					{
