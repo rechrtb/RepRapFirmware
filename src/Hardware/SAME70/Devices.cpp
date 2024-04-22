@@ -122,7 +122,11 @@ void DeviceInit() noexcept
 #endif
 
 #if CORE_USES_TINYUSB
+#if CFG_TUH_ENABLED
 	CoreUsbInit(NvicPriorityUSB, UsbVBusPin, UsbPowerSwitchPin, UsbModePin, UsbDetectPin);
+#else
+	CoreUsbInit(NvicPriorityUSB);
+#endif
 	usbDeviceTask.Create(CoreUsbDeviceTask, "USBHD", nullptr, TaskPriority::UsbPriority);
 #endif
 }

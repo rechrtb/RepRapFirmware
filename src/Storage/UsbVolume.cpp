@@ -6,6 +6,10 @@
 
 #include <TinyUsbInterface.h>
 
+#if SUPPORT_USB_DRIVE
+
+static_assert(CFG_TUH_ENABLED, "Support for USB volumes require tinyUSB host support.");
+
 #include <tusb.h>
 #include <class/msc/msc_host.h>
 
@@ -241,3 +245,5 @@ extern "C" void tuh_msc_umount_cb(uint8_t address)
 }
 
 /*static*/ UsbVolume *UsbVolume::usbDrives[NumUsbDrives];
+
+#endif // SUPPORT_USB_DRIVE

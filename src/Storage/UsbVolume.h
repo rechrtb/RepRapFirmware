@@ -5,6 +5,8 @@
 #include <ObjectModel/ObjectModel.h>
 #include "StorageVolume.h"
 
+#if SUPPORT_USB_DRIVE
+
 class UsbVolume : public StorageVolume
 {
 public:
@@ -64,3 +66,5 @@ private:
 	bool Accept(uint8_t address);
 	void Free();
 };
+
+#endif // SUPPORT_USB_DRIVE
