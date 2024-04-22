@@ -8,7 +8,8 @@
 
 #if SUPPORT_USB_DRIVE
 
-static_assert(CFG_TUH_ENABLED, "Support for USB volumes require tinyUSB host support.");
+static_assert(CORE_USES_TINYUSB && CFG_TUH_ENABLED, "USB drive support needs tinyUSB host stack"); // implementation only on tinyUSB with host support
+#if CORE_USES_TINYUSB && CFG_TUH_ENABLED
 
 #include <tusb.h>
 #include <class/msc/msc_host.h>
@@ -246,4 +247,5 @@ extern "C" void tuh_msc_umount_cb(uint8_t address)
 
 /*static*/ UsbVolume *UsbVolume::usbDrives[NumUsbDrives];
 
+#endif // CORE_USES_TINYUSB && CFG_TUH_ENABLED
 #endif // SUPPORT_USB_DRIVE

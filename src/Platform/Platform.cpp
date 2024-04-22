@@ -3826,7 +3826,12 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 #if SUPPORT_USB_DRIVE
 bool Platform::SetUsbHostMode(bool hostMode, const StringRef& reply) noexcept
 {
+#if CORE_USES_TINYUSB && CFG_TUH_ENABLED
 	return CoreUsbSetHostMode(hostMode, reply);
+#else
+	reply.copy("Host mode not supported by USB stack");
+	return false; // unimplemented if not using tinyUSB
+#endif
 }
 #endif
 
