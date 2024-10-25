@@ -304,7 +304,8 @@ TemperatureError AdcSensorADS131A02Chan0::TakeReading() noexcept
 									: readingAtMin[i] + ldexpf((float)thisReading, -31) * (readingAtMax[i] - readingAtMin[i]);
 		}
 
-		if ((status & (0xFF00 | ADS131Status::f_check | ADS131Status::f_drdy | ADS131Status::f_resync | ADS131Status::f_wdt | ADS131Status::f_opc)) != 0x2200)
+		// We ignore f_drdy status reports because they just mean that another reading became available and was discarded while we were fetching the previous one
+		if ((status & (0xFF00 | ADS131Status::f_check | ADS131Status::f_resync | ADS131Status::f_wdt | ADS131Status::f_opc)) != 0x2200)
 		{
 			//debugPrintf("STAT1=%04x\n", status);
 			ret = TemperatureError::badResponse;					// wrong register returned, or one of the other status bits set
