@@ -122,7 +122,8 @@ private:
 	struct InitTableEntry
 	{
 		ADS131Register regNum;
-		uint8_t val;
+		uint8_t valUnipolar;
+		uint8_t valBipolar;
 	};
 
 	static const InitTableEntry initTable[];

@@ -48,7 +48,7 @@ constexpr uint8_t A_SYS_CFG_val =  (1u << 7)			// negative charge pump enable
 								 | (1u << 6)			// high resolution mode
 								 | (1u << 5)			// reserved bit 5, always write 1
 								 | (0u << 4)			// Vref =2.442V
-								 | (0u << 3)			// enable internal reference
+								 | (1u << 3)			// enable internal reference
 								 | (0u << 0);			// fault detection threshold
 
 constexpr uint8_t D_SYS_CFG_val =  (0u << 7)			// WDT disable
@@ -60,12 +60,12 @@ constexpr uint8_t D_SYS_CFG_val =  (0u << 7)			// WDT disable
 
 constexpr uint8_t CLK1_val = 	   (0u << 7)			// use crystal as clock source
 								 | (0u << 4)			// reserved bits 4..6, write 0
-								 | (4u << 1)			// clock divider 8
+								 | (4u << 1)			// clock divider 8 (default, only use din sync master mode)
 								 | (0u << 0);			// reserved bit 0, write 0
 
-constexpr uint8_t CLK2_val =	   (4u << 5)			// fmod = fclk/8 (default)
+constexpr uint8_t CLK2_val =	   (2u << 5)			// fmod = fclk/4 (4.096MHz sampling clock)
 								 | (0u << 4)			// reserved bit 4, write 0
-								 | (6u << 0);			// oversampling ratio, fdata = fmod/400 (default)
+								 | (1u << 0);			// oversampling ratio, fdata = fmod/2048 = 2KHz
 
 constexpr uint8_t  ADC_ENA_val =   (0u << 4)			// reserved bits 4..7, write 0
 #if FOUR_CHANNELS
@@ -74,22 +74,23 @@ constexpr uint8_t  ADC_ENA_val =   (0u << 4)			// reserved bits 4..7, write 0
 								 | (3u << 0);			// enable channels 0 and 1
 #endif
 
-constexpr uint8_t ADC_GAIN_VAL = 0u;					// gain is 2^ADC_GAIN_VAL, max 2^4
+constexpr uint8_t ADC_GAIN_VAL_U = 0u;					// unipolar gain is 1 (gain is 2^ADC_GAIN_VAL, max 2^4)
+constexpr uint8_t ADC_GAIN_VAL_B = 1u;					// bipolar gain is 2 (gain is 2^ADC_GAIN_VAL, max 2^4)
 
 // Table of initialisation data written to ADS131 registers
 const AdcSensorADS131A02Chan0::InitTableEntry AdcSensorADS131A02Chan0::initTable[] =
 {
-	{ ADS131Register::A_SYS_CFG,	A_SYS_CFG_val	},
-	{ ADS131Register::D_SYS_CFG,	D_SYS_CFG_val	},
-	{ ADS131Register::CLK1,			CLK1_val		},
-	{ ADS131Register::CLK2,			CLK2_val		},
-	{ ADS131Register::ADC_ENA,		ADC_ENA_val		},
-	{ ADS131Register::ADC1_GAIN,	ADC_GAIN_VAL	},
-	{ ADS131Register::ADC2_GAIN,	ADC_GAIN_VAL	},
+	{ ADS131Register::A_SYS_CFG,	A_SYS_CFG_val,	A_SYS_CFG_val	},
+	{ ADS131Register::D_SYS_CFG,	D_SYS_CFG_val,	D_SYS_CFG_val	},
+	{ ADS131Register::CLK1,			CLK1_val,		CLK1_val		},
+	{ ADS131Register::CLK2,			CLK2_val,		CLK2_val		},
+	{ ADS131Register::ADC1_GAIN,	ADC_GAIN_VAL_U,	ADC_GAIN_VAL_B	},
+	{ ADS131Register::ADC2_GAIN,	ADC_GAIN_VAL_U,	ADC_GAIN_VAL_B	},
 #if FOUR_CHANNELS
-	{ ADS131Register::ADC3_GAIN,	ADC_GAIN_VAL	},
-	{ ADS131Register::ADC4_GAIN,	ADC_GAIN_VAL	},
+	{ ADS131Register::ADC3_GAIN,	ADC_GAIN_VAL_U,	ADC_GAIN_VAL_B	},
+	{ ADS131Register::ADC4_GAIN,	ADC_GAIN_VAL_U,	ADC_GAIN_VAL_B	},
 #endif
+	{ ADS131Register::ADC_ENA,		ADC_ENA_val,	ADC_ENA_val		},
 };
 
 // Sensor type descriptors
@@ -265,7 +266,7 @@ TemperatureError AdcSensorADS131A02Chan0::TryInitAdc() noexcept
 		{
 			for (const InitTableEntry& x : initTable)
 			{
-				ret = DoTransaction(ADS131Command::wreg, x.regNum, x.val, status, readings, true);
+				ret = DoTransaction(ADS131Command::wreg, x.regNum, ((bipolar) ? x.valBipolar : x.valUnipolar), status, readings, true);
 				if (ret != TemperatureError::ok)
 				{
 					break;
@@ -297,14 +298,15 @@ TemperatureError AdcSensorADS131A02Chan0::TakeReading() noexcept
 	{
 		for (size_t i = 0; i < NumChannels; ++i)
 		{
-			lastReadings[i] = (bipolar) ? (readingAtMin[i] + readingAtMax[i]) * 0.5 + ldexpf((float)(int32_t)readings[i], -32) * (readingAtMax[i] - readingAtMin[i])
-								: (readings[i] <= 0) ? readingAtMin[i]
-									: readingAtMin[i] + ldexpf((float)(int32_t)readings[i], -31) * (readingAtMax[i] - readingAtMin[i]);
+			const int32_t thisReading = (int32_t)readings[i];
+			lastReadings[i] = (bipolar) ? (readingAtMin[i] + readingAtMax[i]) * 0.5 + ldexpf((float)thisReading, -32) * (readingAtMax[i] - readingAtMin[i])
+								: (thisReading <= 0) ? readingAtMin[i]
+									: readingAtMin[i] + ldexpf((float)thisReading, -31) * (readingAtMax[i] - readingAtMin[i]);
 		}
 
 		if ((status & (0xFF00 | ADS131Status::f_check | ADS131Status::f_drdy | ADS131Status::f_resync | ADS131Status::f_wdt | ADS131Status::f_opc)) != 0x2200)
 		{
-			debugPrintf("STAT1=%04x\n", status);
+			//debugPrintf("STAT1=%04x\n", status);
 			ret = TemperatureError::badResponse;					// wrong register returned, or one of the other status bits set
 		}
 		else
@@ -324,7 +326,7 @@ TemperatureError AdcSensorADS131A02Chan0::TakeReading() noexcept
 			}
 			if (statN != 0 || statP != 0 || statS != 0)
 			{
-				debugPrintf("STATN=%04x STATP=%04x STATS=%04x\n", statN, statP, statS);
+				//debugPrintf("STATN=%04x STATP=%04x STATS=%04x\n", statN, statP, statS);
 			}
 		}
 	}
@@ -362,7 +364,7 @@ TemperatureError AdcSensorADS131A02Chan0::DoTransaction(ADS131Command command, A
 		if ((status & mask) != expectedResponse)
 		{
 			rslt = TemperatureError::badResponse;
-			debugPrintf("Expected response %04x got %04x, last command %04x\n", expectedResponse, status, lastCommand);
+			//debugPrintf("Expected response %04x got %04x, last command %04x\n", expectedResponse, status, lastCommand);
 		}
 	}
 
@@ -373,7 +375,7 @@ TemperatureError AdcSensorADS131A02Chan0::DoTransaction(ADS131Command command, A
 
 // Methods of second channel sensor object
 AdcSensorADS131A02Chan1::AdcSensorADS131A02Chan1(unsigned int sensorNum) noexcept
-	: AdditionalOutputSensor(sensorNum, TypeName_chan1, false)
+	: AdditionalOutputSensor(sensorNum, TypeName_chan1, true)
 {
 }
 
