@@ -459,34 +459,6 @@ RepRap::RepRap() noexcept
 	// Don't call constructors for other objects here
 }
 
-#if 0
-
-///DEBUG to catch memory corruption
-const size_t WatchSize = 32768;
-uint32_t *watchBuffer;
-
-static void InitWatchBuffer() noexcept
-{
-	watchBuffer = (uint32_t*)malloc(WatchSize);
-	memset(watchBuffer, 0x5A, WatchSize);
-}
-
-static void CheckWatchBuffer(unsigned int module) noexcept
-{
-	uint32_t *p = watchBuffer, *end = watchBuffer + 32768/sizeof(uint32_t);
-	while (p < end)
-	{
-		if (*p != 0x5A5A5A5A)
-		{
-			debugPrintf("Address %p data %08" PRIx32 " module %u\n", p, *p, module);
-			*p = 0x5A5A5A5A;
-		}
-		++p;
-	}
-}
-
-#endif
-
 void RepRap::Init() noexcept
 {
 	OutputBuffer::Init();
@@ -2806,6 +2778,39 @@ void RepRap::SaveConfigError(const char *filename, unsigned int lineNumber, cons
 		StateUpdated();
 	}
 }
+
+#if SAME5x
+
+void MemoryChecker::Init(const uint32_t *_ecv_array p_start, const uint32_t *_ecv_array p_end) noexcept
+{
+	start = p_start;
+	end = p_end;
+	crc = CRC32::CalcCRC32(p_start, p_end);
+	fault = false;
+}
+
+void MemoryChecker::Check() noexcept
+{
+	if (CRC32::CalcCRC32(start, end) != crc)
+	{
+		fault = true;
+	}
+}
+
+void MemoryChecker::Report(uint32_t tag) noexcept
+{
+	if (fault)
+	{
+		constexpr const char *msg = "mem CRC fail between %08" PRIx32 " and %08" PRIx32 ", tag %08" PRIx32 "\n";
+		if (reprap.Debug(Module::Debug))
+		{
+			debugPrintf(msg, GetStartAddress(), GetEndAddress(), tag);
+		}
+		reprap.LogDebugMessage(msg, GetStartAddress(), GetEndAddress(), tag, 0);
+	}
+}
+
+#endif
 
 #ifndef DUET_NG			// Duet 2 doesn't currently need this feature, so omit it to save memory
 

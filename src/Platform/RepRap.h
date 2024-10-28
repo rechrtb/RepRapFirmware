@@ -371,6 +371,38 @@ template <size_t NumWords> bool MemoryWatcher<NumWords>::Check(unsigned int tag)
 
 #endif
 
+#if SAME5x
+
+// Class to CRC memory to detect memory corruption
+// How to use it:
+// 1. Declare an object of type MemoryChecker
+// 2. Disable interrupts.
+// 3. Call the Init function passing the start and end addresses. The checked addresses must not include MemoryChecker object, the bottom of the current stack, or any buffers that are the target of DMA.
+// 4. Perform the operation that is suspected of corrupting memory.
+// 5. Call the Check function.
+// 6. Enable interrupts.
+// 7. Call the Report function to report a change in the memory, if there was one.
+class MemoryChecker
+{
+public:
+	MemoryChecker() noexcept { }
+	void Init(const uint32_t *_ecv_array p_start, const uint32_t *_ecv_array p_end) noexcept;
+	void Check() noexcept;
+	void Report(uint32_t tag) noexcept;
+
+	uint32_t GetStartAddress() const noexcept { return reinterpret_cast<uint32_t>(start); }
+	uint32_t GetEndAddress() const noexcept { return reinterpret_cast<uint32_t>(end); }
+	bool HasFault() const noexcept { return fault; }
+
+private:
+	const uint32_t *_ecv_array start;
+	const uint32_t *_ecv_array end;
+	uint32_t crc;
+	bool fault;
+};
+
+#endif
+
 #endif
 
 
