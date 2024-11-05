@@ -452,10 +452,11 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	}
 
 	// 7. Calculate the provisional accelerate and decelerate distances and the top speed
-	endSpeed = 0.0;							// until the next move asks us to adjust it
+	endSpeed = 0.0;																// until the next move asks us to adjust it
 
-	if (   prev->state == provisional
-		&& (   move.GetJerkPolicy() != 0
+	// See if we can meld this with the end of the previous one (which must currently have the end speed set to zero)
+	if (   prev->state == provisional											// if previous move has not started yet
+		&& (   move.GetJerkPolicy() != 0										// and melding is allowed
 			|| (   flags.isPrintingMove == prev->flags.isPrintingMove
 				&& flags.xyMoving == prev->flags.xyMoving
 				&& flags.isNonPrintingExtruderMove == prev->flags.isNonPrintingExtruderMove		// this is to prevent extruder-only move being melded with Z-axis moves (issue 990)
@@ -1139,10 +1140,30 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 	params.SetFromDDA(*this);
 	clocksNeeded = params.TotalClocks();
 
+	// Decide when this move should start.
+	// Avoid setting the move start time in the past or with very little time before it starts, because this can lead to us trying to modify a segment that is already executing
 	const uint32_t now = StepTimer::GetMovementTimerTicks();
-	afterPrepare.moveStartTime =  (prev->state == committed && (int32_t)(prev->afterPrepare.moveStartTime + prev->clocksNeeded - now) >= 0)
-									? prev->afterPrepare.moveStartTime + prev->clocksNeeded		// this move follows directly after the previous one
-									: now + MoveTiming::AbsoluteMinimumPreparedTime;			// else this move is the first so start it after a short delay
+	if (prev->state == committed)
+	{
+		const uint32_t prevEndTime = prev->afterPrepare.moveStartTime + prev->clocksNeeded;
+		if ((int32_t)(prevEndTime - now) >= (int32_t)MoveTiming::AbsoluteMinimumPreparedTime)
+		{
+			afterPrepare.moveStartTime = prevEndTime;		// start this move directly after the previous one
+		}
+		else if (startSpeed == 0.0)
+		{
+			afterPrepare.moveStartTime = now + MoveTiming::UsualMinimumPreparedTime;
+		}
+		else
+		{
+			afterPrepare.moveStartTime = now + MoveTiming::AbsoluteMinimumPreparedTime;
+			reprap.GetMove().AddPrepareHiccup();		// move was supposed to follow the previous one directly, so record a hiccup
+		}
+	}
+	else
+	{
+		afterPrepare.moveStartTime = now + MoveTiming::UsualMinimumPreparedTime;
+	}
 
 	if (simMode < SimulationMode::normal)
 	{
