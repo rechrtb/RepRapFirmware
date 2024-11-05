@@ -14,9 +14,9 @@
 #include <General/NamedEnum.h>
 
 NamedEnum(SpindleState, uint8_t, unconfigured, stopped, forward, reverse);
-NamedEnum(SpindleType, uint8_t, standard, fwdrev);
+NamedEnum(SpindleType, uint8_t, enaDir, fwdRev);
 
-const SpindleType DefaultSpindleType(SpindleType::standard);
+const SpindleType DefaultSpindleType(SpindleType::enaDir);
 
 class Spindle INHERIT_OBJECT_MODEL
 {
