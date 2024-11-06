@@ -1959,15 +1959,6 @@ void Move::WakeLaserTask() noexcept
 	}
 }
 
-// Wake up the laser task if there is one (must check!) from an ISR
-void Move::WakeLaserTaskFromISR() noexcept
-{
-	if (laserTask != nullptr)
-	{
-		laserTask->GiveFromISR(NotifyIndices::Laser);
-	}
-}
-
 #if SUPPORT_SCANNING_PROBES
 
 static void ScanningProbeGlobalTimerCallback(CallbackParameter cp) noexcept
@@ -2074,7 +2065,7 @@ void Move::LaserTaskRun() noexcept
 # if SUPPORT_IOBITS
 			// Manage the IOBits
 			uint32_t ticks;
-			while ((ticks = rings[0].ManageIOBits()) != 0)
+			while ((ticks = rings[0].ManageIOBitsAndFeedForward()) != 0)
 			{
 				(void)TaskBase::TakeIndexed(NotifyIndices::Laser, ticks);
 			}
@@ -2942,7 +2933,6 @@ void Move::CheckEndstops(bool executingMove) noexcept
 			if (hitDetails.isZProbe)
 			{
 				reprap.GetGCodes().MoveStoppedByZProbe();
-//				debugPrintf("Notified stopped by probe\n");
 			}
 			else
 			{
@@ -2951,7 +2941,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 				if (axis != NO_AXIS)
 				{
 					DDA *homingDda = dms[axis].homingDda;
-					if (homingDda != nullptr && homingDda->GetState() == DDA::committed && homingDda->IsCheckingEndstops())
+					if (homingDda != nullptr && homingDda->IsCommitted() && homingDda->IsCheckingEndstops())
 					{
 						if (hitDetails.setAxisLow)
 						{
@@ -2987,7 +2977,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 			{
 				// Get the DDA associated with the axis that has triggered
 				DDA *homingDda = dms[hitDetails.axis].homingDda;
-				if (homingDda != nullptr && homingDda->GetState() == DDA::committed && homingDda->IsCheckingEndstops())
+				if (homingDda != nullptr && homingDda->IsCommitted() && homingDda->IsCheckingEndstops())
 				{
 					if (hitDetails.setAxisLow)
 					{

@@ -626,7 +626,6 @@ bool DDA::InitFromRemote(const CanMessageMovementLinearShaped& msg) noexcept
 {
 	afterPrepare.moveStartTime = StepTimer::ConvertToLocalTime(msg.whenToExecute);
 	flags.all = 0;
-	flags.isRemote = true;
 	flags.isPrintingMove = flags.usePressureAdvance = msg.usePressureAdvance;
 	// TODO For now we treat any non-printing move as a non-printing extruder move. Better to pass a flag for it in the CAN message.
 	flags.isNonPrintingExtruderMove = !flags.isPrintingMove;
@@ -1124,7 +1123,7 @@ pre(disableDeltaMapping || drive < MaxAxes)
 // This must not be called with interrupts disabled, because it calls Platform::EnableDrive.
 void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 {
-	flags.wasAccelOnlyMove = IsAccelerationMove();			// save this for the next move to look at
+	flags.doneIoBits = flags.doneFeedForward = false;
 
 #if SUPPORT_LASER
 	if (topSpeed < requestedSpeed && reprap.GetGCodes().GetMachineType() == MachineType::laser)
@@ -1140,7 +1139,7 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 	clocksNeeded = params.TotalClocks();
 
 	const uint32_t now = StepTimer::GetMovementTimerTicks();
-	afterPrepare.moveStartTime =  (prev->state == committed && (int32_t)(prev->afterPrepare.moveStartTime + prev->clocksNeeded - now) >= 0)
+	afterPrepare.moveStartTime =  (prev->IsCommitted() && (int32_t)(prev->afterPrepare.moveStartTime + prev->clocksNeeded - now) >= 0)
 									? prev->afterPrepare.moveStartTime + prev->clocksNeeded		// this move follows directly after the previous one
 									: now + MoveTiming::AbsoluteMinimumPreparedTime;			// else this move is the first so start it after a short delay
 

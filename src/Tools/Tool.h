@@ -145,6 +145,8 @@ public:
 	void HeatersToOff() const noexcept;
 	void HeatersToActiveOrStandby(bool active) const noexcept;
 
+	// Heater feedforward support
+	uint32_t GetFeedForwardAdvanceClocks() const noexcept { return feedForwardAdvanceClocks; }
 	void ApplyFeedForward(float extrusionSpeed) const noexcept;
 	void StopFeedForward() const noexcept;
 
@@ -187,7 +189,8 @@ private:
 	float mix[MaxExtrudersPerTool];
 	float activeTemperatures[MaxHeatersPerTool];
 	float standbyTemperatures[MaxHeatersPerTool];
-	float heaterFeedForward[MaxHeatersPerTool];
+	float heaterFeedForwardPwm[MaxHeatersPerTool];
+	uint32_t feedForwardAdvanceClocks = 0;
 
 	// Firmware retraction settings
 	float retractLength, retractExtra;			// retraction length and extra length to un-retract

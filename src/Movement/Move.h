@@ -489,7 +489,6 @@ public:
 
 	static void CreateLaserTask() noexcept;													// create the laser task if we haven't already
 	static void WakeLaserTask() noexcept;													// wake up the laser task, called at the start of a new move
-	static void WakeLaserTaskFromISR() noexcept;											// wake up the laser task, called at the start of a new move
 
 	static void WakeMoveTaskFromISR() noexcept;
 	static const TaskBase *_ecv_from GetMoveTaskHandle() noexcept { return &moveTask; }

@@ -66,7 +66,7 @@ constexpr ObjectModelArrayTableEntry Tool::objectModelArrayTable[] =
 	{
 		nullptr,					// no lock needed
 		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return ((const Tool*)self)->heaterCount; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(((const Tool*)self)->heaterFeedForward[context.GetLastIndex()], 3); }
+		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(((const Tool*)self)->heaterFeedForwardPwm[context.GetLastIndex()], 3); }
 	},
 	// 4. Heaters
 	{
@@ -255,7 +255,7 @@ uint16_t Tool::numToolsToReport = 0;
 		t->heaters[heater] = heaterNumber;
 		t->activeTemperatures[heater] = ABS_ZERO;
 		t->standbyTemperatures[heater] = ABS_ZERO;
-		t->heaterFeedForward[heater] = 0.0;
+		t->heaterFeedForwardPwm[heater] = 0.0;
 	}
 
 	if (t->filament != nullptr)
@@ -944,7 +944,7 @@ GCodeResult Tool::GetSetFeedForward(GCodeBuffer& gb, const StringRef& reply) THR
 	if (gb.Seen('S'))
 	{
 		size_t numValues = heaterCount;
-		gb.GetFloatArray(heaterFeedForward, numValues, false);
+		gb.GetFloatArray(heaterFeedForwardPwm, numValues, false);
 		ToolUpdated();
 	}
 	else
@@ -952,7 +952,7 @@ GCodeResult Tool::GetSetFeedForward(GCodeBuffer& gb, const StringRef& reply) THR
 		reply.printf("Tool %u heater feedforward:", myNumber);
 		for (size_t i = 0; i < heaterCount; ++i)
 		{
-			reply.catf(" %.3f", (double)heaterFeedForward[i]);
+			reply.catf(" %.3f", (double)heaterFeedForwardPwm[i]);
 		}
 	}
 
@@ -965,7 +965,7 @@ void Tool::ApplyFeedForward(float extrusionSpeed) const noexcept
 	Heat& heat = reprap.GetHeat();
 	for (size_t i = 0; i < heaterCount; ++i)
 	{
-		heat.SetExtrusionFeedForward(heaters[i], extrusionSpeed * heaterFeedForward[i]);
+		heat.SetExtrusionFeedForward(heaters[i], extrusionSpeed * heaterFeedForwardPwm[i]);
 	}
 }
 
