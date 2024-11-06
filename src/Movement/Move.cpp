@@ -583,7 +583,7 @@ void Move::Init() noexcept
 
 	simulationMode = SimulationMode::off;
 	longestGcodeWaitInterval = 0;
-	numHiccups = 0;
+	numInterruptHiccups = numPrepareHiccups = 0;
 	bedLevellingMoveAvailable = false;
 	activeDMs = nullptr;
 	for (uint16_t& ms : microstepping)
@@ -1008,7 +1008,7 @@ void Move::Diagnostics(MessageType mtype) noexcept
 
 	Platform& p = reprap.GetPlatform();
 	p.MessageF(mtype,
-				"=== Move ===\nSegments created %u, maxWait %" PRIu32 "ms, bed comp in use: %s, height map offset %.3f, hiccups added %u"
+				"=== Move ===\nSegments created %u, maxWait %" PRIu32 "ms, bed comp in use: %s, height map offset %.3f, hiccups added %u/%u"
 #if SUPPORT_CAN_EXPANSION
 				" (%.2f/%.2fms)"
 #else
@@ -1019,7 +1019,7 @@ void Move::Diagnostics(MessageType mtype) noexcept
 				", ebfmin %.2f, ebfmax %.2f"
 #endif
 				"\n",
-						MoveSegment::NumCreated(), longestGcodeWaitInterval, scratchString.c_str(), (double)zShift, numHiccups,
+						MoveSegment::NumCreated(), longestGcodeWaitInterval, scratchString.c_str(), (double)zShift, numPrepareHiccups, numInterruptHiccups,
 #if SUPPORT_CAN_EXPANSION
 						(double)ownDelayToReport, (double)totalDelayToReport,
 #else
@@ -1031,7 +1031,7 @@ void Move::Diagnostics(MessageType mtype) noexcept
 #endif
 		);
 	longestGcodeWaitInterval = 0;
-	numHiccups = 0;
+	numInterruptHiccups = numPrepareHiccups = 0;
 #if 1	//debug
 	minExtrusionPending = maxExtrusionPending = 0.0;
 #endif
@@ -1109,8 +1109,8 @@ void Move::AppendDiagnostics(const StringRef& reply) noexcept
 	const float totalDelayToReport = (float)StepTimer::GetMovementDelay() * (1000.0/(float)StepTimer::GetTickRate());
 	const float ownDelayToReport = (float)StepTimer::GetOwnMovementDelay() * (1000.0/(float)StepTimer::GetTickRate());
 
-	reply.lcatf("Hiccups %u (%.2f/%.2fms), segs %u", numHiccups, (double)ownDelayToReport, (double)totalDelayToReport, MoveSegment::NumCreated());
-	numHiccups = 0;
+	reply.lcatf("Hiccups %u (%.2f/%.2fms), segs %u", numInterruptHiccups, (double)ownDelayToReport, (double)totalDelayToReport, MoveSegment::NumCreated());
+	numInterruptHiccups = 0;
 }
 
 #endif
@@ -2826,7 +2826,7 @@ void Move::Interrupt() noexcept
 			if (clocksTaken >= (int32_t)MoveTiming::MaxStepInterruptTime)
 			{
 				// Force a break by updating the move start time.
-				++numHiccups;
+				++numInterruptHiccups;
 #if SUPPORT_CAN_EXPANSION
 				uint32_t hiccupTimeInserted = 0;
 #endif

@@ -483,6 +483,7 @@ public:
 	bool HasMovementError() const noexcept;
 	void ResetAfterError() noexcept;
 	void GenerateMovementErrorDebug() noexcept;
+	void AddPrepareHiccup() noexcept { ++numPrepareHiccups; }
 
 	// We now use the laser task to take readings from scanning Z probes, so we always need it
 	[[noreturn]] void LaserTaskRun() noexcept;
@@ -507,12 +508,12 @@ private:
 		timing			// no moves being executed or in queue, motors are at full current
 	};
 
-enum class StepErrorState : uint8_t
-{
-	noError = 0,	// no error
-	haveError,		// had an error, movement is stopped
-	resetting		// had an error, ready to reset it
-};
+	enum class StepErrorState : uint8_t
+	{
+		noError = 0,	// no error
+		haveError,		// had an error, movement is stopped
+		resetting		// had an error, ready to reset it
+	};
 
 #if SUPPORT_SCANNING_PROBES
 	struct ScanningProbeControl
@@ -651,7 +652,8 @@ enum class StepErrorState : uint8_t
 
 	unsigned int jerkPolicy;							// When we allow jerk
 	unsigned int idleCount;								// The number of times Spin was called and had no new moves to process
-	unsigned int numHiccups;							// The number of hiccups inserted
+	unsigned int numInterruptHiccups;					// The number of hiccups inserted by the ISR
+	unsigned int numPrepareHiccups;						// The number of hiccups inserted when preparing the move
 
 	uint32_t whenLastMoveAdded[NumMovementSystems];		// The time when we last added a move to each DDA ring
 	uint32_t whenIdleTimerStarted;						// The approximate time at which the state last changed, except we don't record timing -> idle
