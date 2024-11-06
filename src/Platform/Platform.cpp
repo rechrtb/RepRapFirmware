@@ -626,9 +626,13 @@ void Platform::Init() noexcept
 	vInMonitorAdcChannel = PinToAdcChannel(PowerMonitorVinDetectPin);
 	pinMode(PowerMonitorVinDetectPin, AIN);
 	AnalogInEnableChannel(vInMonitorAdcChannel, true);
-	currentVin = highestVin = 0;
+	currentVin = 0;
+	highestVin = 0;
 	lowestVin = 9999;
-	numVinUnderVoltageEvents = previousVinUnderVoltageEvents = numVinOverVoltageEvents = previousVinOverVoltageEvents = 0;
+	numVinUnderVoltageEvents = 0;
+	previousVinUnderVoltageEvents = 0;
+	numVinOverVoltageEvents = 0;
+	previousVinOverVoltageEvents = 0;
 #endif
 
 #if HAS_12V_MONITOR
@@ -655,7 +659,8 @@ void Platform::Init() noexcept
 // Reset the min and max recorded voltages to the current values
 void Platform::ResetVoltageMonitors() noexcept
 {
-	lowestVin = highestVin = currentVin;
+	lowestVin = currentVin;
+	highestVin = currentVin;
 
 #if HAS_12V_MONITOR
 	lowestV12 = highestV12 = currentV12;
@@ -2239,25 +2244,6 @@ static inline void ConvertHexToAsciiHex(uint8_t hex, uint8_t asciiHex[2])
 		{
 			asciiHex[i] = h + 0x41 - 0x0A; // ASCII 'A' is 0x41, subtracting 0x0A shifts the value to 'A'
 		}
-	}
-}
-
-static inline void ConvertAsciiHexToHex(uint8_t asciiHex[2], uint8_t &hex)
-{
-	uint8_t hexSplit[2] = {0};
-	for (size_t i = 0; i < 2; i++)
-	{
-		uint8_t ah = asciiHex[i];
-		if (ah >= 0x30 && ah <= 0x39)
-		{
-			hexSplit[i] = ah - 0x30;
-		}
-		else if (ah >= 0x41 && ah <= 0x46)
-		{
-			hexSplit[i] = ah - 0x41 + 0x0A;
-		}
-
-		hex = hexSplit[0] << 4 | (hexSplit[1] & 0x0F);
 	}
 }
 

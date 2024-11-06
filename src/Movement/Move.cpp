@@ -984,11 +984,15 @@ void Move::CancelStepping() noexcept
 
 #endif
 
+#if SUPPORT_PHASE_STEPPING || SUPPORT_CLOSED_LOOP
+
 // Helper function to convert a time period (expressed in StepTimer::Ticks) to a frequency in Hz
 static inline uint32_t TickPeriodToFreq(StepTimer::Ticks tickPeriod) noexcept
 {
 	return StepTimer::GetTickRate()/tickPeriod;
 }
+
+#endif
 
 void Move::Diagnostics(MessageType mtype) noexcept
 {

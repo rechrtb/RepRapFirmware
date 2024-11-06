@@ -131,12 +131,15 @@ Heater::~Heater() noexcept
 
 void Heater::ResetHeater() noexcept
 {
-	lastExtrusionPwmBoost = extrusionTemperatureBoost = lastFanPwm = 0.0;
+	lastExtrusionPwmBoost = 0.0;
+	extrusionTemperatureBoost = 0.0;
+	lastFanPwm = 0.0;
 }
 
 void Heater::SwitchOff() noexcept
 {
-	lastExtrusionPwmBoost = extrusionTemperatureBoost = 0.0;
+	lastExtrusionPwmBoost = 0.0;
+	extrusionTemperatureBoost = 0.0;
 }
 
 void Heater::SetSensorNumber(int sn) noexcept
