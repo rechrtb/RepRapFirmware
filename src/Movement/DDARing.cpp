@@ -756,7 +756,7 @@ uint32_t DDARing::ManageIOBitsAndFeedForward() noexcept
 			// This move is current from the perspective of feedforward
 			if (!cdda->HaveDoneFeedForward())
 			{
-				t->ApplyFeedForward(cdda->GetAverageExtrusionSpeed());
+				t->ApplyExtrusionFeedForward(cdda->GetAverageExtrusionSpeed());
 				lastFeedForwardTool = t;
 				cdda->SetDoneFeedForward();
 			}
@@ -777,7 +777,7 @@ uint32_t DDARing::ManageIOBitsAndFeedForward() noexcept
 
 	if (!doneFeedForward && lastFeedForwardTool != nullptr)
 	{
-		lastFeedForwardTool->StopFeedForward();			// no move with a tool active so cancel the last feedforward we commanded
+		lastFeedForwardTool->StopExtrusionFeedForward();			// no move with a tool active so cancel the last feedforward we commanded
 		lastFeedForwardTool = nullptr;
 	}
 

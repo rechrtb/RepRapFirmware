@@ -147,8 +147,8 @@ public:
 
 	// Heater feedforward support
 	uint32_t GetFeedForwardAdvanceClocks() const noexcept { return feedForwardAdvanceClocks; }
-	void ApplyFeedForward(float extrusionSpeed) const noexcept;
-	void StopFeedForward() const noexcept;
+	void ApplyExtrusionFeedForward(float extrusionSpeed) const noexcept;
+	void StopExtrusionFeedForward() const noexcept;
 
 	void Activate() noexcept;
 	void Standby() noexcept;
@@ -181,7 +181,7 @@ private:
 	static uint16_t activeToolHeaters;
 	static uint16_t numToolsToReport;
 
-	Tool* null next;
+	Tool* _ecv_null next;
 	Filament *_ecv_null filament;
 	int filamentExtruder;
 	const char *_ecv_array _ecv_null name;
@@ -190,6 +190,7 @@ private:
 	float activeTemperatures[MaxHeatersPerTool];
 	float standbyTemperatures[MaxHeatersPerTool];
 	float heaterFeedForwardPwm[MaxHeatersPerTool];
+	float heaterFeedForwardTemp[MaxHeatersPerTool];
 	uint32_t feedForwardAdvanceClocks = 0;
 
 	// Firmware retraction settings

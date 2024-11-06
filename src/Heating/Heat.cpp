@@ -888,25 +888,23 @@ void Heat::SwitchOffAllLocalFromISR() noexcept
 	}
 }
 
-void Heat::FeedForwardAdjustment(unsigned int heater, float fanPwmChange, float extrusionChange) const noexcept
+// Update the heater feedforward because of a change in the print cooling fan PWM
+void Heat::SetFanFeedForwardPwm(unsigned int heater, float fanPwm) const noexcept
 {
 	const auto h = FindHeater(heater);
 	if (h.IsNotNull())
 	{
-		h->FeedForwardAdjustment(fanPwmChange, extrusionChange);
+		h->SetFanFeedForwardPwm(fanPwm);
 	}
 }
 
-// This one is called from an ISR so we must not get a lock
-void Heat::SetExtrusionFeedForward(unsigned int heater, float pwm) const noexcept
+// Update the heater feedforward because of a change in the extrusion rate
+void Heat::SetExtrusionFeedForward(unsigned int heater, float pwmBoost, float tempBoost) const noexcept
 {
-	if (heater < MaxHeaters)
+	const auto h = FindHeater(heater);
+	if (h.IsNotNull())
 	{
-		Heater * const h = heaters[heater];
-		if (h != nullptr)
-		{
-			h->SetExtrusionFeedForward(pwm);
-		}
+		h->SetExtrusionFeedForward(pwmBoost, tempBoost);
 	}
 }
 
@@ -1516,14 +1514,14 @@ GCodeResult Heat::TuningCommand(const CanMessageHeaterTuningCommand& msg, const 
 	return h->TuningCommand(msg, reply);
 }
 
-GCodeResult Heat::FeedForward(const CanMessageHeaterFeedForward& msg, const StringRef& reply) noexcept
+GCodeResult Heat::ApplyFeedForward(const CanMessageHeaterFeedForwardNew& msg, const StringRef& reply) noexcept
 {
 	const auto h = FindHeater(msg.heaterNumber);
 	if (h.IsNull())
 	{
 		return UnknownHeater(msg.heaterNumber, reply);
 	}
-	h->FeedForwardAdjustment(msg.fanPwmAdjustment, msg.extrusionAdjustment);
+	h->ApplyFeedForward(msg, reply);
 	return GCodeResult::ok;
 }
 
