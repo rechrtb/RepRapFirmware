@@ -580,7 +580,7 @@ void LocalHeater::SetFanFeedForwardPwm(float pwm) noexcept
 	}
 }
 
-// Set extrusion feedforward. This is called from an ISR.
+// Set extrusion feedforward
 void LocalHeater::SetExtrusionFeedForward(float pwmBoost, float tempBoost) noexcept
 {
 	if (mode == HeaterMode::stable)
@@ -612,7 +612,7 @@ void LocalHeater::SetExtrusionFeedForward(float pwmBoost, float tempBoost) noexc
  * In practice the transition from no change to the exponential curve is not instant, however this model is a reasonable approximation.
  *
  * Having a process model allows us to preset the I accumulator to a suitable value when switching between heater full on/off and using PID.
- * It will also make it easier to include feedforward terms in future.
+ * It also makes it easier to include feedforward terms.
  *
  * We can calculate the P, I and D parameters from G, td and tc using the modified Cohen-Coon tuning rules, or the Ho et al tuning rules.
  *    Cohen-Coon (modified to use half the original Kc value):

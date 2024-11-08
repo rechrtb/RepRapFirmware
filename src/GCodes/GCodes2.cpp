@@ -2603,64 +2603,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 
 			case 208: // Set/print maximum axis lengths. If there is an S parameter with value 1 then we set the min value, else we set the max value.
-				{
-					bool setMin = (gb.Seen('S') ? (gb.GetIValue() == 1) : false);
-					bool seen = false;
-					Move& move = reprap.GetMove();
-					for (size_t axis = 0; axis < numTotalAxes; axis++)
-					{
-						if (gb.Seen(axisLetters[axis]))
-						{
-							seen = true;
-							float values[2];
-							size_t numValues = 2;
-							gb.GetFloatArray(values, numValues, false);
-							bool ok;
-							if (numValues == 2)
-							{
-								ok = values[1] > values[0];
-								if (ok)
-								{
-									move.SetAxisMinimum(axis, values[0], gb.LatestMachineState().runningM501);
-									move.SetAxisMaximum(axis, values[1], gb.LatestMachineState().runningM501);
-								}
-							}
-							else if (setMin)
-							{
-								ok = move.AxisMaximum(axis) > values[0];
-								if (ok)
-								{
-									move.SetAxisMinimum(axis, values[0], gb.LatestMachineState().runningM501);
-								}
-							}
-							else
-							{
-								ok = values[0] > move.AxisMinimum(axis);
-								if (ok)
-								{
-									move.SetAxisMaximum(axis, values[0], gb.LatestMachineState().runningM501);
-								}
-							}
-
-							if (!ok)
-							{
-								reply.printf("%c axis maximum must be greater than minimum", axisLetters[axis]);
-								result = GCodeResult::error;
-							}
-						}
-					}
-
-					if (!seen)
-					{
-						reply.copy("Axis limits (mm");
-						char sep = ')';
-						for (size_t axis = 0; axis < numTotalAxes; axis++)
-						{
-							reply.catf("%c %c%.1f:%.1f", sep, axisLetters[axis], (double)move.AxisMinimum(axis), (double)move.AxisMaximum(axis));
-							sep = ',';
-						}
-					}
-				}
+				result = reprap.GetMove().ConfigureAxisLimits(gb, reply, axisLetters, numTotalAxes, gb.LatestMachineState().runningM501);
 				break;
 
 			case 220:	// Set/report speed factor override percentage
@@ -3939,23 +3882,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 #if SUPPORT_NONLINEAR_EXTRUSION
 			case 592: // Configure nonlinear extrusion
-				{
-					const unsigned int extruder = gb.GetLimitedUIValue('D', MaxExtruders);
-					bool seen = false;
-					float a = 0.0, b = 0.0, limit = DefaultNonlinearExtrusionLimit;
-					gb.TryGetFValue('A', a, seen);
-					gb.TryGetFValue('B', b, seen);
-					gb.TryGetFValue('L', limit, seen);
-					if (seen)
-					{
-						reprap.GetMove().SetNonlinearExtrusion(extruder, a, b, limit);
-					}
-					else
-					{
-						const NonlinearExtrusion& nl = reprap.GetMove().GetExtrusionCoefficients(extruder);
-						reply.printf("Drive %u nonlinear extrusion coefficients: A=%.3f, B=%.4f, limit=%.2f", extruder, (double)nl.A, (double)nl.B, (double)nl.limit);
-					}
-				}
+				result = reprap.GetMove().ConfigureNonlinearExtrusion(gb, reply);
 				break;
 #endif
 
