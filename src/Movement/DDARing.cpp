@@ -725,6 +725,7 @@ uint32_t DDARing::ManageIOBitsAndFeedForward() noexcept
 	PortControl& pc = reprap.GetPortControl();
 	bool doneIoBits = !pc.IsConfigured();
 	bool doneFeedForward = false;
+	bool setFeedForward = false;
 	uint32_t nextWakeupDelay = StepClockRate;
 
 	SetBasePriority(NvicPriorityStep);
@@ -757,7 +758,8 @@ uint32_t DDARing::ManageIOBitsAndFeedForward() noexcept
 			// This move is current from the perspective of feedforward
 			if (!cdda->HaveDoneFeedForward())
 			{
-				t->ApplyExtrusionFeedForward(cdda->GetAverageExtrusionSpeed());
+				// Don't set feedforward here because we have set a very high base priority and we may need to send CAN messages. Just record that we need to set it.
+				setFeedForward = true;
 				lastFeedForwardTool = t;
 				cdda->SetDoneFeedForward();
 			}
@@ -773,16 +775,21 @@ uint32_t DDARing::ManageIOBitsAndFeedForward() noexcept
 
 	if (!doneIoBits)
 	{
-		pc.UpdatePorts(0);								// no move active so turn off all IOBITS ports
-	}
-
-	if (!doneFeedForward && lastFeedForwardTool != nullptr)
-	{
-		lastFeedForwardTool->StopExtrusionFeedForward();			// no move with a tool active so cancel the last feedforward we commanded
-		lastFeedForwardTool = nullptr;
+		pc.UpdatePorts(0);															// no move active so turn off all IOBITS ports
 	}
 
 	SetBasePriority(0);
+
+	if (setFeedForward)
+	{
+		lastFeedForwardTool->ApplyExtrusionFeedForward(cdda->GetAverageExtrusionSpeed());
+	}
+	else if (!doneFeedForward && lastFeedForwardTool != nullptr)
+	{
+		lastFeedForwardTool->StopExtrusionFeedForward();							// no move with a tool active so cancel the last feedforward we commanded
+		lastFeedForwardTool = nullptr;
+	}
+
 	return (nextWakeupDelay + StepClockRate/1000 - 1)/(StepClockRate/1000);			// convert step clocks to milliseconds, rounding up
 }
 
