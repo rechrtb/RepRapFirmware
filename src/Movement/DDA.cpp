@@ -1124,8 +1124,6 @@ pre(disableDeltaMapping || drive < MaxAxes)
 // This must not be called with interrupts disabled, because it calls Platform::EnableDrive.
 void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 {
-	flags.doneIoBits = flags.doneFeedForward = false;
-
 #if SUPPORT_LASER
 	if (topSpeed < requestedSpeed && reprap.GetGCodes().GetMachineType() == MachineType::laser)
 	{
