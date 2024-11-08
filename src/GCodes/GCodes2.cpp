@@ -3183,8 +3183,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					ms.ResetLaser();
 				}
 
-				Move::CreateLaserTask();
-
 				if (gb.Seen('C'))
 				{
 					if (!platform.AssignLaserPin(gb, reply))
@@ -3208,6 +3206,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 				}
 
+				Move::CreateLaserTask();
 				reprap.StateUpdated();
 				break;
 #endif
@@ -4061,8 +4060,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 #if SUPPORT_IOBITS
 			case 670:
-				Move::CreateLaserTask();
 				result = GetGCodeResultFromError(reprap.GetPortControl().Configure(gb, reply));
+				Move::CreateLaserTask();
 				break;
 #endif
 

@@ -1439,7 +1439,7 @@ extern "C" [[noreturn]] void LaserTaskStart(void * pvParameters) noexcept
 	reprap.GetMove().LaserTaskRun();
 }
 
-// This is called when laser mode is selected or IOBits is enabled or a scanning Z probe is configured
+// This is called when laser mode is selected or IOBits is enabled or a scanning Z probe is configured or extruder heater feedforward is configured
 void Move::CreateLaserTask() noexcept
 {
 	TaskCriticalSectionLocker lock;

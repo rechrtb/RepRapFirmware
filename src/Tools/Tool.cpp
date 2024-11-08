@@ -972,6 +972,7 @@ GCodeResult Tool::GetSetFeedForward(GCodeBuffer& gb, const StringRef& reply) THR
 	if (seen)
 	{
 		ToolUpdated();
+		Move::CreateLaserTask();					// we need the laser task to implement feedforward
 	}
 	else
 	{

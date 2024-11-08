@@ -323,6 +323,7 @@ uint32_t DDARing::Spin(SimulationMode simulationMode, bool signalMoveCompletion,
 				return 0;											// we don't want any delay because we want Spin() to be called again soon to complete this move
 			}
 
+			reprap.GetMove().WakeLaserTask();						// tell the laser task about this move
 			if (signalMoveCompletion || waitingForRingToEmpty || cdda->IsIsolatedMove())
 			{
 				// Wake up the Move task shortly after we expect the current move to finish
