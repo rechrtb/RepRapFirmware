@@ -229,7 +229,7 @@ void ExpansionManager::ProcessAnnouncement(CanMessageBuffer *buf, bool isNewForm
 		}
 
 		// Tell the sending board that we don't need any more announcements from it
-		buf->SetupStatusMessage<CanMessageAcknowledgeAnnounce>(CanInterface::GetCanAddress(), src);
+		buf->SetupRequestMessageNoRid<CanMessageAcknowledgeAnnounce>(CanInterface::GetCanAddress(), src);
 		CanInterface::SendMessageNoReplyNoFree(buf);
 	}
 }
@@ -508,7 +508,7 @@ void ExpansionManager::EmergencyStop() noexcept
 	{
 		if (boards[addr].state == BoardState::running)
 		{
-			buf.SetupStatusMessage<CanMessageEmergencyStop>(CanInterface::GetCanAddress(), addr);
+			buf.SetupRequestMessageNoRid<CanMessageEmergencyStop>(CanInterface::GetCanAddress(), addr);
 			CanInterface::SendMessageNoReplyNoFree(&buf);
 		}
 	}

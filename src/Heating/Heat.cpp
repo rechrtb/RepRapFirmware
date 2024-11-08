@@ -302,7 +302,7 @@ void Heat::Exit() noexcept
 
 void Heat::SendHeatersStatus(CanMessageBuffer& buf) noexcept
 {
-	CanMessageHeatersStatus * const msg = buf.SetupStatusMessage<CanMessageHeatersStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+	CanMessageHeatersStatus * const msg = buf.SetupRequestMessageNoRid<CanMessageHeatersStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 	msg->whichHeaters = 0;
 	unsigned int heatersFound = 0;
 
@@ -457,7 +457,7 @@ void Heat::SendHeatersStatus(CanMessageBuffer& buf) noexcept
 #if SUPPORT_REMOTE_COMMANDS
 				else if (CanInterface::InExpansionMode())
 				{
-					auto msg = buf.SetupStatusMessage<CanMessageHeaterTuningReport>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+					auto msg = buf.SetupRequestMessageNoRid<CanMessageHeaterTuningReport>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 					if (LocalHeater::GetTuningCycleData(*msg))
 					{
 						msg->SetStandardFields(heaterBeingTuned);
@@ -481,7 +481,7 @@ void Heat::SendHeatersStatus(CanMessageBuffer& buf) noexcept
 
 				// Send our fan RPMs
 				{
-					CanMessageFansReport * const msg = buf.SetupStatusMessage<CanMessageFansReport>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+					CanMessageFansReport * const msg = buf.SetupRequestMessageNoRid<CanMessageFansReport>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 					const unsigned int numReported = reprap.GetFansManager().PopulateFansReport(*msg);
 					if (numReported != 0)
 					{
@@ -501,7 +501,7 @@ void Heat::SendHeatersStatus(CanMessageBuffer& buf) noexcept
 
 				// Send a board health message
 				{
-					CanMessageBoardStatus * const boardStatusMsg = buf.SetupStatusMessage<CanMessageBoardStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+					CanMessageBoardStatus * const boardStatusMsg = buf.SetupRequestMessageNoRid<CanMessageBoardStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 					boardStatusMsg->Clear();
 
 					const StepTimer::Ticks movementDelayNeeded = StepTimer::CheckMovementDelayIncreasedNoClear();

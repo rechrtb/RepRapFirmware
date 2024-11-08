@@ -1409,7 +1409,7 @@ GCodeResult Move::EutProcessM915(const CanMessageGeneric& msg, const StringRef& 
 
 void Move::SendDriversStatus(CanMessageBuffer& buf) noexcept
 {
-	CanMessageDriversStatus * const msg = buf.SetupStatusMessage<CanMessageDriversStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+	CanMessageDriversStatus * const msg = buf.SetupRequestMessageNoRid<CanMessageDriversStatus>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 # if HAS_SMART_DRIVERS
 	msg->SetStandardFields(MaxSmartDrivers, false);
 	for (size_t driver = 0; driver < MaxSmartDrivers; ++driver)

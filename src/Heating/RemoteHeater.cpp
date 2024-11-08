@@ -353,7 +353,7 @@ void RemoteHeater::SetExtrusionFeedForward(float pwmBoost, float tempBoost) noex
 void RemoteHeater::UpdateFeedForward() noexcept
 {
 	CanMessageBuffer buf;
-	auto msg = buf.SetupStatusMessage<CanMessageHeaterFeedForwardNew>(CanInterface::GetCanAddress(), boardAddress);
+	auto msg = buf.SetupRequestMessageNoRid<CanMessageHeaterFeedForwardNew>(CanInterface::GetCanAddress(), boardAddress);
 	msg->heaterNumber = GetHeaterNumber();
 	msg->fanPwmFraction = lastFanPwm;
 	msg->extrusionPwmBoost = lastExtrusionPwmBoost;

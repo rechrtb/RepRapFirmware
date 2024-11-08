@@ -415,7 +415,7 @@ void CanInterface::SendAnnounce(CanMessageBuffer *buf) noexcept
 void CanInterface::RaiseEvent(EventType type, uint16_t param, uint8_t device, const char *format, va_list vargs) noexcept
 {
 	CanMessageBuffer buf;
-	auto msg = buf.SetupStatusMessage<CanMessageEvent>(GetCanAddress(), GetCurrentMasterAddress());
+	auto msg = buf.SetupRequestMessageNoRid<CanMessageEvent>(GetCanAddress(), GetCurrentMasterAddress());
 	msg->eventType = type.ToBaseType();;
 	msg->deviceNumber = device;
 	msg->eventParam = param;
@@ -499,7 +499,7 @@ extern "C" [[noreturn]] void CanSenderLoop(void *) noexcept
 		{
 			// In expansion mode this task just send notifications when the states of input handles change
 			CanMessageBuffer buf;
-			auto msg = buf.SetupStatusMessage<CanMessageInputChangedNew>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
+			auto msg = buf.SetupRequestMessageNoRid<CanMessageInputChangedNew>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 			msg->states = 0;
 			msg->numHandles = 0;
 
