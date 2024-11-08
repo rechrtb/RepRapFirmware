@@ -145,6 +145,7 @@ public:
 	int GetMotorCurrent(size_t axisOrExtruder, int code) const noexcept;
 	void SetIdleCurrentFactor(float f) noexcept;
 	float GetIdleCurrentFactor() const noexcept { return idleCurrentFactor; }
+	uint32_t GetIdleTimeout() const noexcept { return idleTimeout; }
 	bool SetDriverMicrostepping(size_t driver, unsigned int microsteps, bool interpolate) noexcept;
 	bool SetDriversMicrostepping(size_t axisOrExtruder, int microsteps, bool interpolate, const StringRef& reply) noexcept;
 	void SetDriverStepTiming(size_t driver, const float microseconds[4]) noexcept;

@@ -4341,10 +4341,18 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 					}
 
-					if (code == 906 && gb.Seen('I'))
+					if (code == 906)
 					{
-						seen = true;
-						move.SetIdleCurrentFactor(gb.GetNonNegativeFValue()/100.0);
+						if (gb.Seen('I'))
+						{
+							seen = true;
+							move.SetIdleCurrentFactor(gb.GetLimitedFValue('I', 0.0, 100.0)/100.0);
+						}
+						if (gb.Seen('T'))
+						{
+							seen = true;
+							move.SetIdleTimeout(gb.GetPositiveFValue());
+						}
 					}
 
 					if (seen)
@@ -4370,7 +4378,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 						if (code == 906)
 						{
-							reply.catf(", idle factor %d%%", (int)(move.GetIdleCurrentFactor() * 100.0));
+							reply.catf(", idle factor %d%%, timeout %.1f sec", (int)(move.GetIdleCurrentFactor() * 100.0), (double)(move.GetIdleTimeout()/1000.0));
 						}
 					}
 				}
