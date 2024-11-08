@@ -422,7 +422,7 @@ void CommandProcessor::ProcessReceivedMessage(CanMessageBuffer *buf) noexcept
 				break;
 
 			case CanMessageType::heaterFeedForwardNew:
-				requestId = buf->msg.heaterFeedForwardNew.requestId;
+				requestId = CanRequestIdNoReplyNeeded;
 				rslt = reprap.GetHeat().ApplyFeedForward(buf->msg.heaterFeedForwardNew, replyRef);
 				break;
 

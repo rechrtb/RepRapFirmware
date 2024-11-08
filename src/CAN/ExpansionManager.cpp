@@ -508,7 +508,7 @@ void ExpansionManager::EmergencyStop() noexcept
 	{
 		if (boards[addr].state == BoardState::running)
 		{
-			buf.SetupRequestMessage<CanMessageEmergencyStop>(0, CanInterface::GetCanAddress(), addr);
+			buf.SetupStatusMessage<CanMessageEmergencyStop>(CanInterface::GetCanAddress(), addr);
 			CanInterface::SendMessageNoReplyNoFree(&buf);
 		}
 	}

@@ -419,7 +419,6 @@ void CanInterface::RaiseEvent(EventType type, uint16_t param, uint8_t device, co
 	msg->eventType = type.ToBaseType();;
 	msg->deviceNumber = device;
 	msg->eventParam = param;
-	msg->zero = 0;
 	SafeVsnprintf(msg->text, ARRAY_SIZE(msg->text), format, vargs);
 	buf.dataLength = msg->GetActualDataLength();
 	CanInterface::SendMessageNoReplyNoFree(&buf);
@@ -502,7 +501,6 @@ extern "C" [[noreturn]] void CanSenderLoop(void *) noexcept
 			CanMessageBuffer buf;
 			auto msg = buf.SetupStatusMessage<CanMessageInputChangedNew>(CanInterface::GetCanAddress(), CanInterface::GetCurrentMasterAddress());
 			msg->states = 0;
-			msg->zero = 0;
 			msg->numHandles = 0;
 
 			const uint32_t timeToWait = InputMonitor::AddStateChanges(msg);
@@ -602,7 +600,6 @@ extern "C" [[noreturn]] void CanClockLoop(void *) noexcept
 		}
 
 		msg->isPrinting = reprap.GetGCodes().IsReallyPrinting();
-		msg->zero = 0;
 
 		// Send the real time just once a second unless we also need to send the movement delay
 		const uint32_t realTime = (uint32_t)reprap.GetPlatform().GetDateTime();
