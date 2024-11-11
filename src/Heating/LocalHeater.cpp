@@ -586,10 +586,9 @@ void LocalHeater::SetExtrusionFeedForward(float pwmBoost, float tempBoost) noexc
 	if (mode == HeaterMode::stable)
 	{
 		const float pwmChange = pwmBoost - lastExtrusionPwmBoost;
-		lastFanPwm = 0.0;
-		const float boost = GetModel().GetPwmCorrectionForFan(GetTargetTemperature() - NormalAmbientTemperature, pwmChange) * FanFeedForwardMultiplier;
+		lastExtrusionPwmBoost = pwmBoost;
 		InterruptCriticalSectionLocker lock;
-		iAccumulator += boost;
+		iAccumulator += pwmChange;
 	}
 	extrusionTemperatureBoost = tempBoost;
 }
