@@ -2439,7 +2439,7 @@
 									<listOptionValue builtIn="false" value="DUET3_MB6HC"/>
 									<listOptionValue builtIn="false" value="MQTTC_PAL_FILE=&quot;Networking/MQTT/mqtt_pal.h&quot;"/>
 									<listOptionValue builtIn="false" value="_XOPEN_SOURCE"/>
-									<listOptionValue builtIn="false" value="SUPPORT_S_CURVE"/>
+									<listOptionValue builtIn="false" value="SUPPORT_S_CURVE=1"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.dialect.std.379827873" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" useByScannerDiscovery="true" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.dialect.flags.263987495" name="Other dialect flags" superClass="gnu.cpp.compiler.option.dialect.flags" useByScannerDiscovery="true" value="-std=gnu++17" valueType="string"/>

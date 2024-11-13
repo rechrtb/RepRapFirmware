@@ -485,12 +485,14 @@ float DDARing::GetTopSpeedMmPerSec() const noexcept
 	return (cdda != nullptr) ? cdda->GetTopSpeedMmPerSec() : 0.0;
 }
 
+// Get the (peak) acceleration for reporting in the object model
 float DDARing::GetAccelerationMmPerSecSquared() const noexcept
 {
 	const DDA* const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetAccelerationMmPerSecSquared() : 0.0;
 }
 
+// Get the (peak) deceleration for reporting in the object model
 float DDARing::GetDecelerationMmPerSecSquared() const noexcept
 {
 	const DDA* const cdda = GetCurrentDDA();
