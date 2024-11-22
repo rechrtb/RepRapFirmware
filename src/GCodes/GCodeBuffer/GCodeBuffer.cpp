@@ -1223,7 +1223,7 @@ void GCodeBuffer::MessageAcknowledged(bool cancelled, bool shouldAbort, uint32_t
 				lastResult = GCodeResult::m291Cancelled;
 			}
 #if HAS_SBC_INTERFACE
-			messageAcknowledged = !cancelled || !ms->DoingFile();
+			messageAcknowledged = !(cancelled && shouldAbort) || !ms->DoingFile();
 			reprap.GetSbcInterface().EventOccurred();
 #endif
 		}
