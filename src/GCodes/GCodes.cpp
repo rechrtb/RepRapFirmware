@@ -3759,7 +3759,7 @@ GCodeResult GCodes::ManageTool(GCodeBuffer& gb, const StringRef& reply) THROWS(G
 	bool seen = false;
 
 	// Check tool name
-	String<ToolNameLength> name;
+	String<MaxToolNameLength> name;
 	if (gb.Seen('S'))
 	{
 		gb.GetQuotedString(name.GetRef());
