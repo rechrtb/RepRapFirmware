@@ -2210,17 +2210,6 @@ bool Platform::IsAuxRaw(size_t auxNumber) const noexcept
 #endif
 }
 
-static inline uint32_t GetAddress(GCodeBuffer& gb)
-{
-	uint32_t address = 0;
-	if (gb.GetCommandFraction() < 2)
-	{
-		gb.MustSee('A');
-		address = gb.GetUIValue();
-	}
-	return address;
-}
-
 /**
  * Converts a single byte of hex value to its ASCII hex representation.
  *
@@ -2262,22 +2251,40 @@ static inline void CalculateNordsonUltimusVCheckSum(uint8_t* data, size_t len, u
 	ConvertHexToAsciiHex(sum & 0xFF, checksum); // take last byte of sum and convert to ascii hex
 }
 
+static Variable *_ecv_null GetResultVariable(GCodeBuffer& gb) THROWS(GCodeException)
+{
+	String<MaxVariableNameLength> varName;
+	bool seenV = false;
+	gb.TryGetQuotedString('V', varName.GetRef(), seenV, false);
+	Variable *_ecv_null resultVar = nullptr;
+	if (seenV)
+	{
+		if (!Variable::IsValidVariableName(varName.c_str()))
+		{
+			gb.ThrowGCodeException("variable '%s' is not a valid name", varName.c_str());
+		}
+		auto vset = WriteLockedPointer<VariableSet>(nullptr, &gb.GetVariables());
+		Variable *_ecv_null const v = vset->Lookup(varName.c_str(), false);
+		if (v != nullptr)
+		{
+			gb.ThrowGCodeException("variable '%s' already exists", varName.c_str());
+		}
+		resultVar = vset->InsertNew(varName.c_str(), ExpressionValue(), gb.CurrentFileMachineState().GetBlockNesting());
+	}
+	return resultVar;
+}
+
 // Handle M260 and M260.1 - send and possibly receive via I2C, or send via Modbus
 GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) THROWS(GCodeException)
 {
 	// Get the slave address and bytes or words to send
-
-# if defined(I2C_IFACE) || SUPPORT_MODBUS_RTU
-	const uint32_t address = GetAddress(gb);
-#endif
-
-	int32_t values[MaxI2cOrModbusValues] = {0};
+	int32_t valuesToSend[MaxI2cOrModbusValues] = { 0 };
 	size_t numToSend = 0;
 
 	if (gb.Seen('B'))
 	{
 		numToSend = MaxI2cOrModbusValues;
-		gb.GetIntArray(values, numToSend, false);
+		gb.GetIntArray(valuesToSend, numToSend, false);
 	}
 	else if (gb.Seen('S'))
 	{
@@ -2293,7 +2300,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 
 		for (size_t i = 0; i < numToSend; i++)
 		{
-			values[i] = (int32_t)str[i];
+			valuesToSend[i] = (int32_t)str[i];
 		}
 	}
 	else if (gb.GetCommandFraction() > 0)
@@ -2302,24 +2309,37 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 		return GCodeResult::error;
 	}
 
+	size_t auxChannel = 0;
+	if (gb.GetCommandFraction() > 0)
+	{
+		auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
+		if (auxDevices[auxChannel].GetMode() != AuxMode::device)
+		{
+			reply.copy("Port has not been set to device mode");
+			return GCodeResult::error;
+		}
+	}
+
 	switch (gb.GetCommandFraction())
 	{
 # if defined(I2C_IFACE)
 	case 0:		// I2C
 	case -1:
 		{
+			const uint32_t address = gb.GetLimitedUIValue('A', 1u << 10);
 			uint32_t numToReceive = 0;
 			bool seenR;
 			gb.TryGetUIValue('R', numToReceive, seenR);
+			Variable *_ecv_null const resultVar = GetResultVariable(gb);
 
 			if (numToSend + numToReceive > MaxI2cOrModbusValues)
 			{
 				numToReceive = MaxI2cOrModbusValues - numToSend;
 			}
-			uint8_t bValues[MaxI2cOrModbusValues] = {0};
+			uint8_t bValues[MaxI2cOrModbusValues] = { 0 };
 			for (size_t i = 0; i < numToSend; ++i)
 			{
-				bValues[i] = (uint8_t)values[i];
+				bValues[i] = (uint8_t)valuesToSend[i];
 			}
 
 			I2C::Init();
@@ -2332,16 +2352,28 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 			}
 			else if (numToReceive != 0)
 			{
-				reply.copy("Received");
-				if (bytesTransferred == numToSend)
+				if (resultVar != nullptr)
 				{
-					reply.cat(" nothing");
+					resultVar->AssignArray(bytesTransferred - numToSend,
+											[bValues, numToSend](size_t index)->ExpressionValue
+											{
+												return ExpressionValue((int32_t)bValues[index + numToSend]);
+											}
+										  );
 				}
 				else
 				{
-					for (size_t i = numToSend; i < bytesTransferred; ++i)
+					reply.copy("Received");
+					if (bytesTransferred == numToSend)
 					{
-						reply.catf(" %02x", bValues[i]);
+						reply.cat(" nothing");
+					}
+					else
+					{
+						for (size_t i = numToSend; i < bytesTransferred; ++i)
+						{
+							reply.catf(" %02x", bValues[i]);
+						}
 					}
 				}
 			}
@@ -2352,13 +2384,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 # if SUPPORT_MODBUS_RTU
 	case 1:		// Modbus
 		{
-			const size_t auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
-			if (auxDevices[auxChannel].GetMode() != AuxMode::device)
-			{
-				reply.copy("Port has not been set to device mode");
-				return GCodeResult::error;
-			}
-
+			const uint32_t address = gb.GetLimitedUIValue('A', 256);
 			const uint16_t firstRegister = gb.GetLimitedUIValue('R', 1u << 16);
 			const uint8_t function = (gb.Seen('F')) ? gb.GetLimitedUIValue('F', 5, 17) : 16;	// default to Modbus function Write Multiple Registers but also allow Write Coils, Write Single Coil
 			uint16_t registersToSend[MaxI2cOrModbusValues];
@@ -2370,7 +2396,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 					reply.copy("Invalid Modbus data");
 					return GCodeResult::error;
 				}
-				registersToSend[0] = (values[0] == 0) ? 0 : 0xFF00;
+				registersToSend[0] = (valuesToSend[0] == 0) ? 0 : 0xFF00;
 				break;
 
 			case (uint8_t)ModbusFunction::writeSingleRegister:
@@ -2379,14 +2405,14 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 					reply.copy("Invalid Modbus data");
 					return GCodeResult::error;
 				}
-				registersToSend[0] = (uint16_t)values[0];
+				registersToSend[0] = (uint16_t)valuesToSend[0];
 				break;
 
 			case (uint8_t)ModbusFunction::writeMultipleCoils:
 				memset(registersToSend, 0, sizeof(registersToSend));
 				for (size_t i = 0; i < numToSend; ++i)
 				{
-					if (values[i] != 0)
+					if (valuesToSend[i] != 0)
 					{
 						registersToSend[i/16] |= 1u << (i % 16);
 					}
@@ -2396,7 +2422,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 			case (uint8_t)ModbusFunction::writeMultipleRegisters:
 				for (size_t i = 0; i < numToSend; ++i)
 				{
-					registersToSend[i] = (uint16_t)values[i];
+					registersToSend[i] = (uint16_t)valuesToSend[i];
 				}
 				break;
 
@@ -2424,23 +2450,67 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 			}
 			return rslt;
 		}
+
+	case 4:					// generic Modbus send/receive
+		{
+			const uint32_t address = gb.GetLimitedUIValue('A', 256);
+			Variable *_ecv_null const resultVar = GetResultVariable(gb);
+			uint8_t bValues[MaxI2cOrModbusValues] = { 0 };
+			for (size_t i = 0; i < numToSend; ++i)
+			{
+				bValues[i] = (uint8_t)valuesToSend[i];
+			}
+			const uint32_t numToReceive = gb.GetLimitedUIValue('R', 1, MaxI2cOrModbusValues + 1);
+			uint8_t dataIn[MaxI2cOrModbusValues];
+			GCodeResult rslt = auxDevices[auxChannel].ModbusRawTransaction(address, bValues, numToSend, dataIn, numToReceive);
+			if (rslt == GCodeResult::ok)
+			{
+				do
+				{
+					delay(2);
+					rslt = auxDevices[auxChannel].CheckModbusResult();
+				} while (rslt == GCodeResult::notFinished);
+
+				if (rslt == GCodeResult::ok)
+				{
+					if (resultVar != nullptr)
+					{
+						resultVar->AssignArray(numToReceive, [dataIn](size_t index)->ExpressionValue
+												{
+													return ExpressionValue((int32_t)dataIn[index]);
+												}
+											  );
+					}
+					else
+					{
+						reply.copy("Received");
+						for (size_t i = 0; i < numToReceive; ++i)
+						{
+							reply.catf(" %02x", dataIn[i]);
+						}
+					}
+				}
+				else
+				{
+					reply.copy("no or bad response from Modbus device");
+				}
+			}
+			else
+			{
+				reply.copy("couldn't initiate Modbus transaction");
+			}
+			return rslt;
+		}
 # endif
 
 # if HAS_AUX_DEVICES
 	case 2:
 	{
-		const size_t auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
-		if (auxDevices[auxChannel].GetMode() != AuxMode::device)
-		{
-			reply.copy("Port has not been set to device mode");
-			return GCodeResult::error;
-		}
-
 		uint8_t data[MaxI2cOrModbusValues] = {0};
 
 		for (size_t i = 0; i < numToSend; i++)
 		{
-			data[i] = (uint8_t)values[i];
+			data[i] = (uint8_t)valuesToSend[i];
 		}
 
 		GCodeResult rslt = auxDevices[auxChannel].SendUartData(data, numToSend);
@@ -2451,15 +2521,9 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 		return rslt;
 	}
 
+# if !defined(DUET_NG)			// don't support this on Duet 2 because we are running low on flash memory space
 	case 3: // Nordson Ultimus V https://www.manualslib.com/manual/2917329/Nordson-Ultimus-V.html?page=46#manual
 	{
-		const size_t auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
-		if (auxDevices[auxChannel].GetMode() != AuxMode::device)
-		{
-			reply.copy("Port has not been set to device mode");
-			return GCodeResult::error;
-		}
-
 		AuxDevice& dev = auxDevices[auxChannel];
 
 		// Send `ENQ`
@@ -2495,7 +2559,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 
 		for (size_t i = 0; i < numToSend; i++)
 		{
-			data[i + 3] = (uint8_t)values[i];
+			data[i + 3] = (uint8_t)valuesToSend[i];
 		}
 
 		uint8_t checksum[2] = {0};
@@ -2554,6 +2618,7 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 
 		return rslt;
 	}
+# endif
 #endif
 
 	default:
@@ -2564,30 +2629,18 @@ GCodeResult Platform::SendI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) T
 // Handle M261 and M261.1
 GCodeResult Platform::ReceiveI2cOrModbus(GCodeBuffer& gb, const StringRef &reply) THROWS(GCodeException)
 {
-# if defined(I2C_IFACE) || SUPPORT_MODBUS_RTU
-	const uint32_t address = GetAddress(gb);
-#endif
-
 	const uint32_t numValues = gb.GetLimitedUIValue('B', 0, MaxI2cOrModbusValues + 1);
-	String<MaxVariableNameLength> varName;
-	bool seenV = false;
-	gb.TryGetQuotedString('V', varName.GetRef(), seenV, false);
-	Variable *_ecv_null resultVar = nullptr;
-	if (seenV)
+	Variable *_ecv_null const resultVar = GetResultVariable(gb);
+
+	size_t auxChannel = 0;
+	if (gb.GetCommandFraction() > 0)
 	{
-		if (!Variable::IsValidVariableName(varName.c_str()))
+		auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
+		if (auxDevices[auxChannel].GetMode() != AuxMode::device)
 		{
-			reply.printf("variable '%s' is not a valid name", varName.c_str());
+			reply.copy("Port has not been set to device mode");
 			return GCodeResult::error;
 		}
-		auto vset = WriteLockedPointer<VariableSet>(nullptr, &gb.GetVariables());
-		Variable *_ecv_null const v = vset->Lookup(varName.c_str(), false);
-		if (v != nullptr)
-		{
-			reply.printf("variable '%s' already exists", varName.c_str());
-			return GCodeResult::error;
-		}
-		resultVar = vset->InsertNew(varName.c_str(), ExpressionValue(), gb.CurrentFileMachineState().GetBlockNesting());
 	}
 
 	switch (gb.GetCommandFraction())
@@ -2596,6 +2649,7 @@ GCodeResult Platform::ReceiveI2cOrModbus(GCodeBuffer& gb, const StringRef &reply
 	case 0:		// I2C
 	case -1:
 		{
+			const uint32_t address = gb.GetLimitedUIValue('A', 1u << 10);
 			I2C::Init();
 			uint8_t bValues[MaxI2cOrModbusValues];
 			const size_t bytesRead = I2C::Transfer(address, bValues, 0, numValues);
@@ -2634,13 +2688,7 @@ GCodeResult Platform::ReceiveI2cOrModbus(GCodeBuffer& gb, const StringRef &reply
 #if SUPPORT_MODBUS_RTU
 	case 1:		// Modbus
 		{
-			const size_t auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
-			if (auxDevices[auxChannel].GetMode() != AuxMode::device)
-			{
-				reply.copy("Port has not been set to device mode");
-				return GCodeResult::error;
-			}
-
+			const uint32_t address = gb.GetLimitedUIValue('A', 256);
 			const uint16_t firstRegister = gb.GetLimitedUIValue('R', 1u << 16);
 			const uint8_t function = (gb.Seen('F')) ? gb.GetLimitedUIValue('F', 1, 5) : 4;			// default to Modbus function Read Input Registers but also allow Read Holding Registers, Read Coils, Read Inputs
 			uint16_t registersToReceive[MaxI2cOrModbusValues];
@@ -2715,13 +2763,6 @@ GCodeResult Platform::ReceiveI2cOrModbus(GCodeBuffer& gb, const StringRef &reply
 #if HAS_AUX_DEVICES
 	case 2:		// Uart
 		{
-			const size_t auxChannel = gb.GetLimitedUIValue('P', 1, NumSerialChannels) - 1;
-			if (auxDevices[auxChannel].GetMode() != AuxMode::device)
-			{
-				reply.copy("Port has not been set to device mode");
-				return GCodeResult::error;
-			}
-
 			uint8_t dataReceived[MaxI2cOrModbusValues];
 			GCodeResult rslt = auxDevices[auxChannel].ReadUartData(dataReceived, numValues);
 			if (rslt == GCodeResult::ok)
@@ -2752,6 +2793,8 @@ GCodeResult Platform::ReceiveI2cOrModbus(GCodeBuffer& gb, const StringRef &reply
 		}
 #endif
 
+	case 3:				// Nordson Ultimus V, use M260.3
+	case 4:				// Modbus generic, use M260.4
 	default:
 		return GCodeResult::errorNotSupported;
 	}
