@@ -830,7 +830,7 @@ void Platform::Spin() noexcept
 	if (move.HasMovementError())
 	{
 		const StepErrorDetails details = move.GetStepErrorDetails();
-		MessageF(AddError(MessageType::GenericMessage), "Movement halted because a step timing error occurred (code %u). Please reset the controller.\n", details.stepErrorType);
+		MessageF(AddError(MessageType::GenericMessage), "Movement halted because a step timing error occurred on drive %u (code %u). Please reset the controller.\n", details.drive, details.stepErrorType);
 		if (details.stepErrorType == 3)
 		{
 			MessageF(AddError(MessageType::GenericMessage), "Existing: start=%" PRIu32 " length=%" PRIu32 ", new: start=%" PRIu32 ", overlap=%" PRIu32 " time now=%" PRIu32 "\n",
