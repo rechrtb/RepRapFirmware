@@ -227,6 +227,21 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	// The call to CartesianToMotorSteps may adjust the invisible axis endpoints for architectures such as CoreXYU and delta with >3 towers, so set them up here.
 	const size_t numTotalAxes = reprap.GetGCodes().GetTotalAxes();
 	const size_t numVisibleAxes = reprap.GetGCodes().GetVisibleAxes();
+	const Move& move = reprap.GetMove();
+
+#if SUPPORT_ASYNC_MOVES
+	DriversBitmap ownedDrivers;
+	const Kinematics& kin = move.GetKinematics();
+	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+	{
+		if (nextMove.axesAndExtrudersOwned.IsBitSet(axis))
+		{
+			ownedDrivers |= kin.GetControllingDrives(axis, false);
+		}
+	}
+#endif
+
+	// Set any invisible axis endpoints to the same positions as the previous move
 	const int32_t * const positionNow = prev->DriveCoordinates();
 	for (size_t axis = numVisibleAxes; axis < numTotalAxes; ++axis)
 	{
@@ -236,7 +251,6 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	flags.all = 0;														// set all flags false
 
 	// 1. Compute the new endpoints and the movement vector
-	const Move& move = reprap.GetMove();
 	if (doMotorMapping)
 	{
 		if (!move.CartesianToMotorSteps(nextMove.coords, endPoint, nextMove.isCoordinated))		// transform the axis coordinates if on a delta or CoreXY printer
@@ -258,7 +272,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		if (drive < numVisibleAxes)
 		{
 #if SUPPORT_ASYNC_MOVES
-			if (nextMove.axesAndExtrudersOwned.IsBitSet(drive))
+			if (ownedDrivers.IsBitSet(drive))
 #endif
 			{
 				if (doMotorMapping)
