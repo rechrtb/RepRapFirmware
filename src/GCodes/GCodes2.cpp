@@ -64,6 +64,10 @@
 # include <Platform/Logger.h>
 #endif
 
+#if SUPPORT_PANELDUE_FLASH
+# include <Comms/PanelDueUpdater.h>
+#endif
+
 // If the code to act on is completed, this returns true, otherwise false.
 // It is called repeatedly for a given code until it returns true for that code.
 bool GCodes::ActOnCode(GCodeBuffer& gb, const StringRef& reply) noexcept

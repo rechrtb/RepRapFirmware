@@ -47,6 +47,10 @@
 #include <Storage/CRC32.h>
 #include <Accelerometers/Accelerometers.h>
 
+#if SUPPORT_PANELDUE_FLASH
+# include <Comms/PanelDueUpdater.h>
+#endif
+
 #if SAM4E || SAM4S || SAME70
 # include <AnalogIn.h>
 using LegacyAnalogIn::AdcBits;

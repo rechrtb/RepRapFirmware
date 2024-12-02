@@ -22,6 +22,10 @@
 # include <Comms/FirmwareUpdater.h>
 #endif
 
+#if SUPPORT_PANELDUE_FLASH
+# include <Comms/PanelDueUpdater.h>
+#endif
+
 // Execute a step of the state machine
 // CAUTION: don't allocate any long strings or other large objects directly within this function.
 // The reason is that this function calls FinishedBedProbing(), which on a delta calls DoAutoCalibration(), which uses lots of stack.
