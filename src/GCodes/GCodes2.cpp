@@ -308,21 +308,17 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 
 						// Should we queue this code?
-						if (gb.CanQueueCodes())
+						// Don't queue any GCodes if there are segments not yet picked up by Move, because in the event that a segment corresponds to no movement,
+						// the move gets discarded, which throws out the count of scheduled moves and hence the synchronisation
+						if (gb.CanQueueCodes() && GCodeQueue::ShouldQueueG10(gb))
 						{
-							GCodeQueue * const codeQueue = GetMovementState(gb).codeQueue;
-							if (codeQueue->ShouldQueueG10(gb))
+							if (GetMovementState(gb).segmentsLeft == 0 && GetMovementState(gb).codeQueue->QueueCode(gb))
 							{
-								// Don't queue any GCodes if there are segments not yet picked up by Move, because in the event that a segment corresponds to no movement,
-								// the move gets discarded, which throws out the count of scheduled moves and hence the synchronisation
-								if (GetMovementState(gb).segmentsLeft == 0 && codeQueue->QueueCode(gb))
-								{
-									HandleReply(gb, GCodeResult::ok, "");
-									return true;
-								}
-
-								return false;		// we should queue this code but we can't yet, so wait until we can either execute it or queue it
+								HandleReply(gb, GCodeResult::ok, "");
+								return true;
 							}
+
+							return false;		// we should queue this code but we can't yet, so wait until we can either execute it or queue it
 						}
 
 						// We don't want to queue it
@@ -657,21 +653,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 
 	// Can we queue this code?
-	if (gb.CanQueueCodes())
+	// Don't queue any GCodes if there are segments not yet picked up by Move, because in the event that a segment corresponds to no movement,
+	// the move gets discarded, which throws out the count of scheduled moves and hence the synchronisation
+	if (gb.CanQueueCodes() && GCodeQueue::ShouldQueueMCode(gb))
 	{
-		GCodeQueue * const codeQueue = GetMovementState(gb).codeQueue;
-		if (codeQueue->ShouldQueueMCode(gb))
+		if (GetMovementState(gb).segmentsLeft == 0 && GetMovementState(gb).codeQueue->QueueCode(gb))
 		{
-			// Don't queue any GCodes if there are segments not yet picked up by Move, because in the event that a segment corresponds to no movement,
-			// the move gets discarded, which throws out the count of scheduled moves and hence the synchronisation
-			if (GetMovementState(gb).segmentsLeft == 0 && codeQueue->QueueCode(gb))
-			{
-				HandleReply(gb, GCodeResult::ok, "");
-				return true;
-			}
-
-			return false;		// we should queue this code but we can't yet, so wait until we can either execute it or queue it
+			HandleReply(gb, GCodeResult::ok, "");
+			return true;
 		}
+
+		return false;		// we should queue this code but we can't yet, so wait until we can either execute it or queue it
 	}
 
 #if HAS_SBC_INTERFACE
@@ -4160,7 +4152,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							}
 
 							// An axis letter is given, so try to level the given axis
-							const float correctionAngle = atanf((z2 - z1) / (a2 - a1)) * 180.0 / M_PI;
+							const float correctionAngle = atanf((z2 - z1) / (a2 - a1)) * 180.0 / Pi;
 							const float correctionFactor = gb.Seen('S') ? gb.GetPositiveFValue() : 1.0;
 							ms.coords[axisToUse] += correctionAngle * correctionFactor;
 							ms.rotationalAxesMentioned = true;
@@ -4428,7 +4420,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						if (seenCommandString)
 						{
 							// Replace the power fail script atomically
-							char *_ecv_array newPowerFailScript = new char[powerFailString.strlen() + 1];
+							char *_ecv_array _ecv_null newPowerFailScript = new char[powerFailString.strlen() + 1];
 							strcpy(newPowerFailScript, powerFailString.c_str());
 							ReplaceObject(powerFailScript, newPowerFailScript);
 							reprap.StateUpdated();
