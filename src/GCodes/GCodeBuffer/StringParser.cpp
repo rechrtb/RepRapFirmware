@@ -1788,17 +1788,6 @@ void StringParser::WriteToFile() noexcept
 			return;
 		}
 	}
-	else if (GetCommandLetter() == 'G' && GetCommandNumber() == 998)						// resend request?
-	{
-		if (Seen('P'))
-		{
-			Init();
-			String<StringLength20> scratchString;
-			scratchString.printf("%" PRIi32 "\n", GetIValue());
-			reprap.GetGCodes().HandleReply(gb, GCodeResult::ok, scratchString.c_str());
-			return;
-		}
-	}
 
 	size_t indent = commandIndent;
 	while (indent != 0)
