@@ -506,8 +506,8 @@ ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null 
 	  line(-1), column(-1), gb(gbp),
 	  shortForm(false), wantArrayLength(wal), wantExists(false),
 	  includeNonLive(true), includeImportant(false), includeNulls(false),
-	  excludeVerbose(true), excludeObsolete(true),
-	  obsoleteFieldQueried(false), truncateLongArrays(true)
+	  obsoleteFieldQueried(false), truncateLongArrays(true),
+	  excludedFlags(ObjectModelEntryFlags::verbose | ObjectModelEntryFlags::obsolete)
 {
 	while (true)
 	{
@@ -515,11 +515,22 @@ ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null 
 		{
 		case '\0':
 			return;
-		case 'v':
-			excludeVerbose = false;
+		case 'a':
+			startElement = 0;
+			truncateLongArrays = false;
+			while (isDigit(*reportFlags))
+			{
+				startElement = (10 * startElement) + (*reportFlags - '0');
+				++reportFlags;
+			}
 			break;
-		case 's':
-			shortForm = true;
+		case 'd':
+			maxDepth = 0;
+			while (isDigit(*reportFlags))
+			{
+				maxDepth = (10 * maxDepth) + (*reportFlags - '0');
+				++reportFlags;
+			}
 			break;
 		case 'f':
 			includeNonLive = false; truncateLongArrays = false;
@@ -531,24 +542,16 @@ ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null 
 			includeNulls = true;
 			break;
 		case 'o':
-			excludeObsolete = false;
+			excludedFlags &= ~(uint8_t)ObjectModelEntryFlags::obsolete;
 			break;
-		case 'd':
-			maxDepth = 0;
-			while (isDigit(*reportFlags))
-			{
-				maxDepth = (10 * maxDepth) + (*reportFlags - '0');
-				++reportFlags;
-			}
+		case 'p':
+			excludedFlags |= ObjectModelEntryFlags::notPanelDue;
 			break;
-		case 'a':
-			startElement = 0;
-			truncateLongArrays = false;
-			while (isDigit(*reportFlags))
-			{
-				startElement = (10 * startElement) + (*reportFlags - '0');
-				++reportFlags;
-			}
+		case 's':
+			shortForm = true;
+			break;
+		case 'v':
+			excludedFlags &= ~(uint8_t)ObjectModelEntryFlags::verbose;
 			break;
 		case ' ':
 		case ',':
@@ -566,8 +569,8 @@ ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null 
 	  line(p_line), column(p_col), gb(gbp),
 	  shortForm(false), wantArrayLength(wal), wantExists(wex),
 	  includeNonLive(true), includeImportant(false), includeNulls(false),
-	  excludeVerbose(false), excludeObsolete(false),
-	  obsoleteFieldQueried(false), truncateLongArrays(false)
+	  obsoleteFieldQueried(false), truncateLongArrays(false),
+	  excludedFlags(ObjectModelEntryFlags::none)
 {
 }
 
@@ -600,11 +603,9 @@ int32_t ObjectExplorationContext::GetLastIndex() const noexcept
 bool ObjectExplorationContext::ShouldReport(const ObjectModelEntryFlags f) const noexcept
 {
 	const bool wanted = includeNonLive
-					 || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::live) != 0
+		 	 	 	 || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::live) != 0
 					 || (includeImportant && ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::important) != 0);
-	return wanted
-		&& (!excludeVerbose  || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::verbose) == 0)
-		&& (!excludeObsolete || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::obsolete) == 0);
+	return wanted && ((uint8_t)f & (uint8_t)excludedFlags) == 0;
 }
 
 GCodeException ObjectExplorationContext::ConstructParseException(const char *msg) const noexcept
