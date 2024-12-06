@@ -620,7 +620,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			ToolOffsetTransform(ms);
 			ms.feedRate = ConvertSpeedFromMmPerMin(DefaultFeedRate);	// ask for a good feed rate, we may have paused during a slow move
 			gb.SetState((restoreZ) ? GCodeState::resuming3 : GCodeState::resuming2);
-			NewSingleSegmentMoveAvailable(ms);
+			NewSegmentableMoveAvailable(ms);
 #endif
 		}
 		break;
