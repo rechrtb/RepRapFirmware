@@ -742,6 +742,14 @@ private:
 	bool isFlashingPanelDue;					// Are we in the process of flashing PanelDue?
 #endif
 
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+	// M38 data
+	FileStore *_ecv_null fileBeingHashed = nullptr;
+	CRC32 hash;
+	bool StartHash(const char* filename) noexcept;
+	GCodeResult AdvanceHash(const StringRef &reply) noexcept;
+#endif
+
 	// Laser
 	float laserMaxPower;
 	bool laserPowerSticky;						// true if G1 S parameters are remembered across G1 commands

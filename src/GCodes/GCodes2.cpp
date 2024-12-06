@@ -1439,8 +1439,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 			}
 
-#if 0		// was (HAS_MASS_STORAGE || HAS_EMBEDDED_FILES), removed this function to save space on Duet 2
-			case 38: // Report SHA1 of file
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+			case 38: // Report CRC32 of file
 				if (!LockFileSystem(gb))								// getting file hash takes several calls and isn't reentrant
 				{
 					return false;
