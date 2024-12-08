@@ -599,7 +599,7 @@ private:
 	static Task<MoveTaskStackWords> moveTask;
 
 	static constexpr size_t LaserTaskStackWords = 300;				// stack size in dwords for the laser and IOBits task (increased to support scanning Z probes)
-	static Task<LaserTaskStackWords> *laserTask;					// the task used to manage laser power or IOBits
+	static Task<LaserTaskStackWords> *_ecv_null laserTask;			// the task used to manage laser power or IOBits
 
 	// Member data
 	DDARing rings[NumMovementSystems];
@@ -616,7 +616,7 @@ private:
 #endif
 	volatile uint32_t lastDirChangeTime;							// when we last changed the DIR signal to a slow driver
 
-	StepTimer timer;												// Timer object to control getting step interrupts
+	StepTimer stepsTimer;											// Timer object to control getting step interrupts
 	DriveMovement *_ecv_null activeDMs;
 #if SUPPORT_PHASE_STEPPING || SUPPORT_CLOSED_LOOP
 	DriveMovement *_ecv_null phaseStepDMs;
@@ -966,7 +966,7 @@ inline __attribute__((always_inline)) bool Move::ScheduleNextStepInterrupt() noe
 {
 	if (activeDMs != nullptr)
 	{
-		return timer.ScheduleMovementCallbackFromIsr(activeDMs->nextStepTime);
+		return stepsTimer.ScheduleMovementCallbackFromIsr(activeDMs->nextStepTime);
 	}
 	return false;
 }

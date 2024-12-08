@@ -111,13 +111,13 @@ bool DriveMovement::ScheduleFirstSegment() noexcept
 // set driversCurrentlyUsed to 0 to suppress the step pulse, and return the segment.
 // If there is a segment ready to execute and it has steps, set up our movement parameters, copy the flags over, set the 'executing' flag in the segment, and return the segment.
 // If there is a segment ready to execute but it involves zero steps, skip and free it and start again.
-MoveSegment *DriveMovement::NewSegment(uint32_t now) noexcept
+MoveSegment *_ecv_null DriveMovement::NewSegment(uint32_t now) noexcept
 {
 	positionAtSegmentStart = currentMotorPosition;
 
 	while (true)
 	{
-		MoveSegment *seg = segments;				// capture volatile variable
+		MoveSegment *_ecv_null seg = segments;				// capture volatile variable
 		if (seg == nullptr)
 		{
 			segmentFlags.Init();
