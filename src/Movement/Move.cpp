@@ -44,6 +44,7 @@
 #include <Endstops/ZProbe.h>
 #include <Platform/TaskPriorities.h>
 #include <AppNotifyIndices.h>
+#include <limits>
 
 #if SUPPORT_IOBITS
 # include <Platform/PortControl.h>
