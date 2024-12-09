@@ -41,6 +41,10 @@ Licence: GPL
 #include "SimulationMode.h"
 #include <Movement/BedProbing/Grid.h>
 
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+# include <Storage/CRC32.h>
+#endif
+
 const char feedrateLetter = 'F';						// GCode feedrate
 const char extrudeLetter = 'E'; 						// GCode extrude
 
