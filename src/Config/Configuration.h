@@ -219,6 +219,8 @@ constexpr float MaxArcSegmentLength = 1.0;				// G2 and G3 arc movement commands
 constexpr float MaxArcSegmentsPerSec = 200.0;
 constexpr unsigned int SegmentsPerFulArcCalculation = 8; // we do the full sine/cosine calculation every this number of segments
 
+constexpr uint32_t MaxSegmentTime = 5 * 60;				// maximum time (seconds) to execute a segment, we segment moves that would take longer than this
+
 constexpr uint32_t DefaultIdleTimeout = 30000;			// Milliseconds
 constexpr float DefaultIdleCurrentFactor = 0.3;			// Proportion of normal motor current that we use for idle hold
 
