@@ -280,7 +280,6 @@ private:
 	uint32_t pin;											// the pin number that drives the chip select pin of this driver
 	uint32_t configuredChopConfReg;							// the configured chopper control register, in the Enabled state
 	volatile uint32_t registersToUpdate;					// bitmap of register values that need to be sent to the driver chip
-	LocalDriversBitmap driverBit;							// bitmap of just this driver number
 	uint32_t axisNumber;									// the axis number of this driver as used to index the DriveMovements in the DDA
 	uint32_t microstepShiftFactor;							// how much we need to shift 1 left by to get the current microstepping
 	uint32_t maxStallStepInterval;							// maximum interval between full steps to take any notice of stall detection, in step clocks
@@ -289,6 +288,7 @@ private:
 	volatile uint32_t lastReadStatus;						// the status word that we read most recently, updated by the ISR
 	volatile uint32_t accumulatedStatus;
 
+	LocalDriversBitmap driverBit;							// bitmap of just this driver number
 	uint16_t minSgLoadRegister;								// the minimum value of the StallGuard bits we read
 	bool enabled;
 	volatile uint8_t rdselState;							// 0-3 = actual RDSEL value, 0xFF = unknown
