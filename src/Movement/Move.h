@@ -71,7 +71,7 @@ class CanMessageRevertPosition;
 struct AxisDriversConfig
 {
 	AxisDriversConfig() noexcept { numDrivers = 0; }
-	DriversBitmap GetDriversBitmap() const noexcept;
+	LocalDriversBitmap GetLocalDriversBitmap() const noexcept;
 
 	uint8_t numDrivers;								// Number of drivers assigned to each axis
 	DriverId driverNumbers[MaxDriversPerAxis];		// The driver numbers assigned - only the first numDrivers are meaningful
@@ -168,6 +168,7 @@ public:
 
 	float NormalAcceleration(size_t axisOrExtruder) const noexcept;
 	float Acceleration(size_t axisOrExtruder, bool reduced) const noexcept;
+	const float *_ecv_array Accelerations(bool reduced) const noexcept { return (reduced) ? reducedAccelerations : normalAccelerations; }
 	void SetAcceleration(size_t axisOrExtruder, float value, bool reduced) noexcept;
 	float MaxFeedrate(size_t axisOrExtruder) const noexcept;
 	const float *_ecv_array MaxFeedrates() const noexcept { return maxFeedrates; }
@@ -349,7 +350,7 @@ public:
 	void AddLinearSegments(const DDA& dda, size_t logicalDrive, uint32_t startTime, const PrepParams& params, motioncalc_t steps, MovementFlags moveFlags) noexcept;
 	void SetHomingDda(size_t drive, DDA *dda) noexcept pre(drive < MaxAxesPlusExtruders);
 
-	bool AreDrivesStopped(AxesBitmap drives) const noexcept;								// return true if none of the drives passed has any movement pending
+	bool AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept;						// return true if none of the drives passed has any movement pending
 
 	void Diagnostics(MessageType mtype) noexcept;											// Report useful stuff
 
@@ -401,6 +402,7 @@ public:
 	void ReleaseAuxMove(bool hasNewMove) noexcept;											// Release the aux move buffer and optionally signal that it contains a move
 	GCodeResult ConfigureHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Configure height following
 	GCodeResult StartHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Start/stop height following
+	void ReleaseDrives(MovementSystemNumber msNumber, LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept;
 #endif
 
 	const RandomProbePointSet& GetProbePoints() const noexcept { return probePoints; }		// Return the probe point set constructed from G30 commands
@@ -683,9 +685,9 @@ private:
 
 #if HAS_SMART_DRIVERS
 	size_t numSmartDrivers;											// the number of TMC drivers we have, the remaining are simple enable/step/dir drivers
-	DriversBitmap temperatureShutdownDrivers, temperatureWarningDrivers, shortToGroundDrivers;
+	LocalDriversBitmap temperatureShutdownDrivers, temperatureWarningDrivers, shortToGroundDrivers;
 # if HAS_STALL_DETECT
-	DriversBitmap logOnStallDrivers, eventOnStallDrivers;
+	LocalDriversBitmap logOnStallDrivers, eventOnStallDrivers;
 # endif
 	MillisTimer openLoadTimers[MaxSmartDrivers];
 #endif
@@ -743,7 +745,7 @@ private:
 	// Backlash compensation system variables
 	uint32_t backlashSteps[MaxAxes];						// the backlash converted to microsteps
 	int32_t backlashStepsDue[MaxAxes];						// how many backlash compensation microsteps are due for each axis
-	AxesBitmap lastDirections;								// each bit is set if the corresponding axes motor last moved backwards
+	LogicalDrivesBitmap lastDirections;						// each bit is set if the corresponding axes motor last moved backwards
 
 #if SUPPORT_NONLINEAR_EXTRUSION
 	NonlinearExtrusion nonlinearExtrusion[MaxExtruders];	// nonlinear extrusion coefficients
@@ -1041,6 +1043,16 @@ inline __attribute__((always_inline)) uint32_t Move::GetStepInterval(size_t driv
 inline void Move::InvertCurrentMotorSteps(size_t driver) noexcept
 {
 	dms[driver].currentMotorPosition = -dms[driver].currentMotorPosition;
+}
+
+#endif
+
+#if SUPPORT_ASYNC_MOVES
+
+// Release some drives that are currently owned by the specified movement queue and update the corresponding values in lastKnownEndpoints
+inline void Move::ReleaseDrives(MovementSystemNumber msNumber, LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept
+{
+	rings[msNumber].ReleaseDrives(drivesToRelease, lastKnownEndpoints);
 }
 
 #endif

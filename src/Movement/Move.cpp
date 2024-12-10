@@ -843,7 +843,7 @@ bool Move::WaitingForAllMovesFinished(MovementSystemNumber msNumber
 													if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 													{
 														//TODO the following is OK for CoreXY but not for deltas, Scara etc.
-														const AxesBitmap driversUsed = kinematics->GetControllingDrives(axisOrExtruder, false);
+														const LogicalDrivesBitmap driversUsed = kinematics->GetControllingDrives(axisOrExtruder, false);
 														return driversUsed.IterateWhile([this](unsigned int drive, unsigned int)->bool { return !dms[drive].MotionPending(); });
 													}
 													return !dms[axisOrExtruder].MotionPending();
@@ -1103,8 +1103,7 @@ void Move::MotorStepsToCartesian(const int32_t motorPos[], size_t numVisibleAxes
 // If isCoordinated is false then multi-mode kinematics such as SCARA are allowed to switch mode if necessary to make the specified machine position reachable
 bool Move::CartesianToMotorSteps(const float machinePos[MaxAxes], int32_t motorPos[MaxAxes], bool isCoordinated) const noexcept
 {
-	const bool b = kinematics->CartesianToMotorSteps(machinePos, driveStepsPerMm,
-														reprap.GetGCodes().GetVisibleAxes(), reprap.GetGCodes().GetTotalAxes(), motorPos, isCoordinated);
+	const bool b = kinematics->CartesianToMotorSteps(machinePos, driveStepsPerMm, reprap.GetGCodes().GetVisibleAxes(), reprap.GetGCodes().GetTotalAxes(), motorPos, isCoordinated);
 	if (reprap.GetDebugFlags(Module::Move).IsBitSet(MoveDebugFlags::PrintTransforms))
 	{
 		if (!b)
@@ -1967,7 +1966,7 @@ void Move::SetHomingDda(size_t drive, DDA *dda) noexcept
 }
 
 // Return true if none of the drives passed has any movement pending
-bool Move::AreDrivesStopped(AxesBitmap drives) const noexcept
+bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 {
 	return drives.IterateWhile([this](unsigned int drive, unsigned int index)->bool
 								{
@@ -2987,7 +2986,7 @@ GCodeResult Move::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& repl
 {
 	// Build a bitmap of all the drivers referenced
 	// First looks for explicit driver numbers
-	DriversBitmap drivers;
+	LocalDriversBitmap drivers;
 # if SUPPORT_CAN_EXPANSION
 	CanDriversList canDrivers;
 # endif
@@ -3138,7 +3137,7 @@ GCodeResult Move::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& repl
 #  endif
 	   )
 	{
-		drivers = DriversBitmap::MakeLowestNBits(numSmartDrivers);
+		drivers = LocalDriversBitmap::MakeLowestNBits(numSmartDrivers);
 	}
 
 	if (!OutputBuffer::Allocate(buf))
@@ -3262,7 +3261,7 @@ void Move::PollOneDriver(size_t driver) noexcept
 		StandardDriverStatus stat = SmartDrivers::GetStatus(driver, true, true);
 #endif
 #if HAS_SMART_DRIVERS
-		const DriversBitmap mask = DriversBitmap::MakeFromBits(driver);
+		const LocalDriversBitmap mask = LocalDriversBitmap::MakeFromBits(driver);
 		if (stat.ot)
 		{
 			temperatureShutdownDrivers |= mask;
@@ -3411,13 +3410,13 @@ void Move::PollOneDriver(size_t driver) noexcept
 float Move::GetTmcDriversTemperature(unsigned int boardNumber) const noexcept
 {
 #if defined(DUET3MINI)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
+	const LocalDriversBitmap mask = LocalDriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
 #elif defined(DUET3)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(6);						// there are 6 drivers, only one board
+	const LocalDriversBitmap mask = LocalDriversBitmap::MakeLowestNBits(6);						// there are 6 drivers, only one board
 #elif defined(DUET_NG)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5).ShiftUp(5 * boardNumber);	// there are 5 drivers on each board
+	const LocalDriversBitmap mask = LocalDriversBitmap::MakeLowestNBits(5).ShiftUp(5 * boardNumber);	// there are 5 drivers on each board
 #elif defined(DUET_M)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
+	const LocalDriversBitmap mask = LocalDriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
 #elif defined(PCCB_10)
 	const DriversBitmap mask = (boardNumber == 0)
 							? DriversBitmap::MakeLowestNBits(2)							// drivers 0,1 are on-board

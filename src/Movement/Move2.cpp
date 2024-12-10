@@ -878,7 +878,7 @@ void Move::SetEnableValue(size_t driver, int8_t eVal) noexcept
 		if (eVal == -1)
 		{
 			// User has asked to disable status monitoring for this driver, so clear its error bits
-			const DriversBitmap mask = ~DriversBitmap::MakeFromBits(driver);
+			const LocalDriversBitmap mask = ~LocalDriversBitmap::MakeFromBits(driver);
 			temperatureShutdownDrivers &= mask;
 			temperatureWarningDrivers &= mask;
 			shortToGroundDrivers &= mask;
@@ -1343,7 +1343,7 @@ GCodeResult Move::EutProcessM915(const CanMessageGeneric& msg, const StringRef& 
 		return GCodeResult::error;
 	}
 
-	const auto drivers = DriversBitmap::MakeFromRaw(driverBits);
+	const auto drivers = LocalDriversBitmap::MakeFromRaw(driverBits);
 
 	bool seen = false;
 	{
@@ -1431,7 +1431,7 @@ void Move::SendDriversStatus(CanMessageBuffer& buf) noexcept
 // Stop some drivers and update the corresponding motor positions
 void Move::StopDriversFromRemote(uint16_t whichDrives) noexcept
 {
-	DriversBitmap dr(whichDrives);
+	LocalDriversBitmap dr(whichDrives);
 	dr.Iterate([this](size_t drive, unsigned int)
 				{
 					StopDriveFromRemote(drive);

@@ -237,8 +237,9 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	const size_t numVisibleAxes = reprap.GetGCodes().GetVisibleAxes();
 	const Move& move = reprap.GetMove();
 
+	// 1. Compute the new endpoints and the movement vector
 #if SUPPORT_ASYNC_MOVES
-	DriversBitmap ownedDrivers;
+	LogicalDrivesBitmap ownedDrivers;											// bitmap of drivers that are owned implicitly by this movement system because of the axes it owns
 	const Kinematics& kin = move.GetKinematics();
 	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 	{
@@ -249,42 +250,25 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	}
 #endif
 
-	// Set any invisible axis endpoints to the same positions as the previous move
-	const int32_t * const positionNow = prev->DriveCoordinates();
-	for (size_t axis = numVisibleAxes; axis < numTotalAxes; ++axis)
-	{
-		endPoint[axis] = positionNow[axis];
-	}
-
 	flags.all = 0;														// set all flags false
+	const int32_t *_ecv_array const positionNow = prev->endPoint;
+	bool linearAxesMoving = false;
+	bool rotationalAxesMoving = false;
 
-	// 1. Compute the new endpoints and the movement vector
+	// Deal with axis movement
 	if (doMotorMapping)
 	{
-		if (!move.CartesianToMotorSteps(nextMove.coords, endPoint, nextMove.isCoordinated))		// transform the axis coordinates if on a delta or CoreXY printer
+		if (!move.CartesianToMotorSteps(nextMove.coords, endPoint, nextMove.isCoordinated))		// transform the axis coordinates to motor endpoints
 		{
 			return false;												// throw away the move if it couldn't be transformed
 		}
-	}
 
-	bool linearAxesMoving = false;
-	bool rotationalAxesMoving = false;
-	bool extrudersMoving = false;
-	bool forwardExtruding = false;
-	float accelerations[MaxAxesPlusExtruders];
-
-	for (size_t drive = 0; drive < MaxAxesPlusExtruders; drive++)
-	{
-		accelerations[drive] = reprap.GetMove().Acceleration(drive, nextMove.reduceAcceleration);
-
-		if (drive < numVisibleAxes)
+		for (size_t drive = 0; drive < numTotalAxes; drive++)
 		{
 #if SUPPORT_ASYNC_MOVES
 			if (ownedDrivers.IsBitSet(drive))
 #endif
 			{
-				if (doMotorMapping)
-				{
 					endCoordinates[drive] = nextMove.coords[drive];
 					const float positionDelta = endCoordinates[drive] - prev->GetEndCoordinate(drive, false);
 					directionVector[drive] = positionDelta;
@@ -303,23 +287,40 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 							flags.xyMoving = true;				// this move has XY movement in user space, before axis were mapped
 						}
 					}
-				}
-				else
+			}
+#if SUPPORT_ASYNC_MOVES
+			else
+			{
+				// This is an axis we don't own, so make sure we don't move it
+				directionVector[drive] = 0.0;
+				prev->endCoordinates[drive] = nextMove.coords[drive];
+				endPoint[drive] = positionNow[drive];
+			}
+#endif
+		}
+	}
+	else
+	{
+		// Raw motor move
+		for (size_t drive = 0; drive < numVisibleAxes; drive++)
+		{
+#if SUPPORT_ASYNC_MOVES
+			if (ownedDrivers.IsBitSet(drive))
+#endif
+			{
+				// Raw motor move on a visible axis
+				endPoint[drive] = move.MotorMovementToSteps(drive, nextMove.coords[drive]);
+				const int32_t delta = endPoint[drive] - positionNow[drive];
+				directionVector[drive] = (float)delta/move.DriveStepsPerMm(drive);
+				if (delta != 0)
 				{
-					// Raw motor move on a visible axis
-					endPoint[drive] = move.MotorMovementToSteps(drive, nextMove.coords[drive]);
-					const int32_t delta = endPoint[drive] - positionNow[drive];
-					directionVector[drive] = (float)delta/move.DriveStepsPerMm(drive);
-					if (delta != 0)
+					if (reprap.GetMove().IsAxisRotational(drive))
 					{
-						if (reprap.GetMove().IsAxisRotational(drive))
-						{
-							rotationalAxesMoving = true;
-						}
-						else
-						{
-							linearAxesMoving = true;
-						}
+						rotationalAxesMoving = true;
+					}
+					else
+					{
+						linearAxesMoving = true;
 					}
 				}
 			}
@@ -333,12 +334,25 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 			}
 #endif
 		}
-		else if (
+
+		// Set any invisible axis endpoints to the same positions as the previous move
+		for (size_t axis = numVisibleAxes; axis < numTotalAxes; ++axis)
+		{
+			endPoint[axis] = positionNow[axis];
+		}
+	}
+
+	// Deal with extruder movement
+	float accelerations[MaxAxesPlusExtruders];
+	memcpyf(accelerations, reprap.GetMove().Accelerations(nextMove.reduceAcceleration), MaxAxesPlusExtruders);
+	bool extrudersMoving = false;
+	bool forwardExtruding = false;
+
+	for (size_t drive = MaxAxesPlusExtruders - reprap.GetGCodes().GetNumExtruders(); drive < MaxAxesPlusExtruders; ++drive)
+	{
 #if SUPPORT_ASYNC_MOVES
-					nextMove.axesAndExtrudersOwned.IsBitSet(drive) &&
+		if (nextMove.axesAndExtrudersOwned.IsBitSet(drive))
 #endif
-					LogicalDriveToExtruder(drive) < reprap.GetGCodes().GetNumExtruders()
-				)
 		{
 			// It's an extruder drive. We defer calculating the steps because they may be affected by nonlinear extrusion, which we can't calculate until we
 			// know the speed of the move, and because extruder movement is relative so we need to accumulate fractions of a whole step between moves.
@@ -361,10 +375,6 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 					}
 				}
 			}
-		}
-		else
-		{
-			directionVector[drive] = 0.0;
 		}
 	}
 
@@ -1106,19 +1116,19 @@ void DDA::MatchSpeeds() noexcept
 void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axesMoved) noexcept
 {
 	(void)move.CartesianToMotorSteps(position, endPoint, true);
-	AxesBitmap driversMoved;
+	LogicalDrivesBitmap drivesMoved;
 	const Kinematics& kin = move.GetKinematics();
-	axesMoved.Iterate([this, position, &kin, &driversMoved](unsigned int axis, unsigned int)->void
+	axesMoved.Iterate([this, position, &kin, &drivesMoved](unsigned int axis, unsigned int)->void
 						{
 							endCoordinates[axis] = position[axis];
-							driversMoved |= kin.GetControllingDrives(axis, false);
+							drivesMoved |= kin.GetControllingDrives(axis, false);
 #if SUPPORT_ASYNC_MOVES
 							MovementState::SetLastKnownMachinePosition(axis, position[axis]);
 #endif
 						}
 					 );
 	flags.endCoordinatesValid = true;
-	driversMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
+	drivesMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
 }
 
 // Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.

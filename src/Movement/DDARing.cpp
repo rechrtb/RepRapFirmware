@@ -439,6 +439,14 @@ void DDARing::GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) 
 	whichAxes.Iterate([m, lastQueuedMove](unsigned int axis, unsigned int count) { m[axis] = lastQueuedMove->GetEndCoordinate(axis, false); });
 }
 
+// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints (we actually update the endpoints of all drives we own)
+void DDARing::ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept
+{
+	const int32_t *_ecv_array endPoints = addPointer->GetPrevious()->DriveCoordinates();
+	drivesOwned.Iterate([endPoints, lastKnownEndpoints](unsigned int drive, unsigned int count) -> void { lastKnownEndpoints[drive] = endPoints[drive]; });
+	drivesOwned &= ~drivesToRelease;
+}
+
 #endif
 
 // Set the initial machine coordinates for the next move to be added to the specified values, by setting the final coordinates of the last move in the queue

@@ -64,12 +64,16 @@ void MovementState::ClearMove() noexcept
 #if SUPPORT_ASYNC_MOVES
 
 AxesBitmap MovementState::axesAndExtrudersMoved;						// axes and extruders that are owned by any movement system
+LogicalDrivesBitmap MovementState::logicalDrivesMoved;					// logical drives that are owned by any movement system
 float MovementState::lastKnownMachinePositions[MaxAxesPlusExtruders];	// the last stored machine position of the axes
+int32_t MovementState::lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored  position of the logical drives
 
 /*static*/ void MovementState::GlobalInit(size_t numVisibleAxes) noexcept
 {
 	axesAndExtrudersMoved.Clear();
+	logicalDrivesMoved.Clear();
 	reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, lastKnownMachinePositions);
+	reprap.GetMove().CartesianToMotorSteps(lastKnownMachinePositions, lastKnownEndpoints, false);
 	for (size_t i = numVisibleAxes; i < MaxAxesPlusExtruders; ++i)
 	{
 		lastKnownMachinePositions[i] = 0.0;
@@ -96,6 +100,7 @@ void MovementState::Init(MovementSystemNumber p_msNumber) noexcept
 #if SUPPORT_ASYNC_MOVES
 	memcpyf(coords, lastKnownMachinePositions, MaxAxesPlusExtruders);
 	axesAndExtrudersOwned.Clear();
+	logicalDrivesOwned.Clear();
 	ownedAxisLetters.Clear();
 #else
 	for (float& f : coords)
@@ -171,13 +176,13 @@ void MovementState::Diagnostics(MessageType mtype) noexcept
 {
 	reprap.GetPlatform().MessageF(mtype, "Q%u segments left %u"
 #if SUPPORT_ASYNC_MOVES
-											", axes/extruders owned 0x%07x"
+											", axes/extruders owned 0x%08" PRIx32 ", drives owned 0x%08" PRIx32
 #endif
 											"\n",
 													GetNumber(),
 													segmentsLeft
 #if SUPPORT_ASYNC_MOVES
-													, (unsigned int)axesAndExtrudersOwned.GetRaw()
+													, axesAndExtrudersOwned.GetRaw(), logicalDrivesOwned.GetRaw()
 #endif
 									);
 	codeQueue->Diagnostics(mtype, GetNumber());
@@ -314,6 +319,35 @@ void MovementState::InitObjectCancellation() noexcept
 
 #if SUPPORT_ASYNC_MOVES
 
+// This is how we handle axis and extruder allocation and release:
+//
+// 0. Axes are subject to the following mapping: user axis (i.e. as identified by an axis letter in the GCode) -> machine axis numbers (by applying tool-specific axis mapping) -> logical drive numbers (by applying kinematics).
+//    Extruder numbers are mapped like this: extruder number -> logical drive number.
+//
+// 1. We keep track of which machine axes and extruders a MovementSystem owns ('machine' means after tool-specific axis mapping).
+// 2. We keep track of which logical drives a Movement System owns (the logical drives that the owned machine axes and extruders use).
+// 3. We keep a cache of user axis letters for which we definitely own the corresponding machine axes.
+//    This is to make it faster to check whether we own a machine axis and its drivers at the start of processing a G0/1/2/3 command.
+//
+// 4. We must clear the cache of user axis letters any time we release axes/extruders, or change the current tool (because the tool axis mapping may change).
+//
+// 5. To allocate physical axes that we don't (or may not) already own, we check that they are not already owned other than by this MovementSystem.
+//    Then we ask the kinematics which logical drives control those axes.
+//    Then we check that none of those logical drives is already owned.
+//	  Then we can allocate those machine axes and logical drives.
+//    Note, we could check for other axes that use any of those logical drives too, and then recurse until we have the closure of all affected logical drivers.
+//    However, any such additional axes can't be already owned because the corresponding drivers are not already owned; so we don't need to do that.
+//
+// 6. When allocating a machine axis, we must update our user position to reflect the position of that axis as it was left by whatever MovementSystem previously used it.
+//    We fetch the machine axis positions from lastKnownAxisPositions and transform it to user coordinates.
+//
+// 7. When allocating a logical driver that is used for axis movement we must update the initial endpoints that we use when calculating the amount of movement in the next move.
+//    We fetch these from lastKnownEndpoints.
+//
+// 8. When releasing a machine axis we must store its position in lastKnownAxisPositions.
+//
+// 9. When releasing a logical drive we must store its final endpoint in lastKnownEndpoints.
+
 // Release all owned axes and extruders
 void MovementState::ReleaseAllOwnedAxesAndExtruders() noexcept
 {
@@ -325,7 +359,12 @@ void MovementState::ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept
 {
 	UpdateOwnAxisCoordinates();										// save the positions of the axes we own before we release them, otherwise we will get the wrong positions when we allocate them again
 	axesAndExtrudersOwned &= ~axesToRelease;						// clear the axes/extruders we have been asked to release
+	const LogicalDrivesBitmap drivesStillOwned = reprap.GetMove().GetKinematics().GetAllDrivesUsed(axesAndExtrudersOwned);
+	const LogicalDrivesBitmap drivesToRelease = logicalDrivesOwned & ~drivesStillOwned;
+	reprap.GetMove().ReleaseDrives(msNumber, drivesToRelease, lastKnownEndpoints);
+	logicalDrivesOwned = drivesStillOwned;
 	axesAndExtrudersMoved.ClearBits(axesToRelease);					// remove them from the own axes/extruders
+	logicalDrivesMoved.ClearBits(drivesToRelease);
 	ownedAxisLetters.Clear();										// clear the cache of owned axis letters
 }
 
@@ -340,10 +379,10 @@ void MovementState::ReleaseNonToolAxesAndExtruders() noexcept
 	ReleaseAxesAndExtruders(axesToRelease);
 }
 
-// Allocate additional axes
-AxesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept
+// Allocate additional axes, returning the bitmap of any logical drives we can't allocate
+LogicalDrivesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept
 {
-	// Sometimes we ask to allocate aces that we already own, e.g. when doing firmware retraction. Optimise this case.
+	// Sometimes we ask to allocate axes that we already own, e.g. when doing firmware retraction. Optimise this case.
 	const AxesBitmap axesNeeded = axes & ~axesAndExtrudersOwned;
 	if (axesNeeded.IsEmpty())
 	{
@@ -351,15 +390,19 @@ AxesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLettersBitmap a
 		return axesNeeded;											// return empty bitmap
 	}
 
-	UpdateOwnAxisCoordinates();										// we must do this before we allocate new axes to ourselves
-	const AxesBitmap unAvailable = axesNeeded & axesAndExtrudersMoved;
-	if (unAvailable.IsEmpty())
+	// We don't need to check whether the axes free because if  any are already owned, the corresponding logical drives will be owned too
+	const LogicalDrivesBitmap drivesNeeded = reprap.GetMove().GetKinematics().GetAllDrivesUsed(axesNeeded);
+	const LogicalDrivesBitmap unavailableDrives = drivesNeeded & logicalDrivesMoved;
+	if (unavailableDrives.IsEmpty())
 	{
+		UpdateOwnAxisCoordinates();qq;									// we must do this before we allocate new axes to ourselves
 		axesAndExtrudersMoved |= axes;
 		axesAndExtrudersOwned |= axes;
+		logicalDrivesMoved |= drivesNeeded;
+		logicalDrivesOwned |= drivesNeeded;
 		ownedAxisLetters |= axisLetters;
 	}
-	return unAvailable;
+	return unavailableDrives;
 }
 
 // Fetch and save the current coordinates to lastKnownMachinePositions, also copy them to our own coordinates in case we just did a homing move

@@ -24,7 +24,7 @@ public:
 	void OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], DDA& dda) const noexcept override;
 	HomingMode GetHomingMode() const noexcept override { return HomingMode::homeCartesianAxes; }
 	void LimitSpeedAndAcceleration(DDA& dda, const float *normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const noexcept override;
-	AxesBitmap GetControllingDrives(size_t axis, bool forHoming) const noexcept override;
+	LogicalDrivesBitmap GetControllingDrives(size_t axis, bool forHoming) const noexcept override;
 
 protected:
 	DECLARE_OBJECT_MODEL_WITH_ARRAYS
@@ -38,7 +38,7 @@ private:
 
 	// Derived parameters
 	FixedMatrix<float, MaxAxes, MaxAxes> forwardMatrix;		// maps motor positions to coordinates
-	AxesBitmap controllingDrivers[MaxAxes];						// which other axes are connected to each axis by shared motors etc.
+	LogicalDrivesBitmap controllingDrivers[MaxAxes];		// which drives control each axis
 	bool modified;											// true if matrix has been altered
 	uint8_t firstMotor[MaxAxes], lastMotor[MaxAxes];		// first and last motor used by each axis
 	uint8_t firstAxis[MaxAxes], lastAxis[MaxAxes];			// first and last axis that each motor controls

@@ -53,6 +53,7 @@ public:
 	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept; // Get the position at the end of the last queued move in untransformed coords
 #if SUPPORT_ASYNC_MOVES
 	void GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) const noexcept;	// Return the machine coordinates of just some axes
+	void ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept;	// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints
 #endif
 
 	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
@@ -77,9 +78,6 @@ public:
 
 #if SUPPORT_REMOTE_COMMANDS
 	void AddMoveFromRemote(const CanMessageMovementLinearShaped& msg) noexcept;			// add a move from the ATE to the movement queue
-#endif
-
-#if SUPPORT_REMOTE_COMMANDS
 	const volatile int32_t *GetLastMoveStepsTaken() const noexcept { return lastMoveStepsTaken; }
 #endif
 
@@ -107,6 +105,11 @@ private:
 	unsigned int numLookaheadErrors;											// How many times our lookahead algorithm failed
 
 	float simulationTime;														// Print time since we started simulating
+
+#if SUPPORT_ASYNC_MOVES
+	LogicalDrivesBitmap drivesOwned;
+#endif
+
 #if SUPPORT_REMOTE_COMMANDS
 	volatile int32_t lastMoveStepsTaken[NumDirectDrivers];						// how many steps were taken in the last move we did
 #endif

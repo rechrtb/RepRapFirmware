@@ -324,10 +324,10 @@ bool PolarKinematics::IsContinuousRotationAxis(size_t axis) const noexcept
 }
 
 // Return the drivers that control an axis or tower
-AxesBitmap PolarKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
+LogicalDrivesBitmap PolarKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
 {
 	return (forHoming || axis >= Z_AXIS)
-			? AxesBitmap::MakeFromBits(axis)
+			? LogicalDrivesBitmap::MakeFromBits(axis)
 				: XyAxes;
 }
 

@@ -443,12 +443,12 @@ bool ScaraKinematics::IsContinuousRotationAxis(size_t axis) const noexcept
 }
 
 // Return the drivers that control an axis or tower
-AxesBitmap ScaraKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
+LogicalDrivesBitmap ScaraKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
 {
 	const unsigned int numCoupledAxes = (crosstalk[1] != 0.0 || crosstalk[2] != 0.0) ? 3 : 2;
 	return (forHoming || axis >= numCoupledAxes)
-			? AxesBitmap::MakeFromBits(axis)
-				: AxesBitmap::MakeLowestNBits(numCoupledAxes);
+			? LogicalDrivesBitmap::MakeFromBits(axis)
+				: LogicalDrivesBitmap::MakeLowestNBits(numCoupledAxes);
 }
 
 // Recalculate the derived parameters

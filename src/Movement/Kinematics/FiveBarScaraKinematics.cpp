@@ -926,10 +926,10 @@ bool FiveBarScaraKinematics::IsContinuousRotationAxis(size_t axis) const noexcep
 	return axis == X_AXIS || axis == Y_AXIS || Kinematics::IsContinuousRotationAxis(axis);
 }
 
-AxesBitmap FiveBarScaraKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
+LogicalDrivesBitmap FiveBarScaraKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
 {
 	return (forHoming || axis >= Z_AXIS)
-			? AxesBitmap::MakeFromBits(axis)
+			? LogicalDrivesBitmap::MakeFromBits(axis)
 				: XyAxes;
 }
 

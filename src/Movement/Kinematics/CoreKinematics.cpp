@@ -177,7 +177,7 @@ void CoreKinematics::Recalc() noexcept
 // Return true if the axis doesn't have a single dedicated motor
 inline bool CoreKinematics::HasSharedMotor(size_t axis) const noexcept
 {
-	return controllingDrivers[axis] != AxesBitmap::MakeFromBits(axis);
+	return controllingDrivers[axis] != LogicalDrivesBitmap::MakeFromBits(axis);
 }
 
 CoreKinematics::CoreKinematics(KinematicsType k) noexcept : ZLeadscrewKinematics(k), modified(false)
@@ -448,7 +448,7 @@ void CoreKinematics::LimitSpeedAndAcceleration(DDA& dda, const float* normalised
 
 // Return a bitmap of the motors that are involved in homing a particular axis or tower. Used for implementing stall detection endstops.
 // Usually it is just the corresponding motor (hence this default implementation), but CoreXY and similar kinematics move multiple motors to home an individual axis.
-AxesBitmap CoreKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
+LogicalDrivesBitmap CoreKinematics::GetControllingDrives(size_t axis, bool forHoming) const noexcept
 {
 	return controllingDrivers[axis];
 }

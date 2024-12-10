@@ -3345,6 +3345,7 @@ bool GCodes::GetMacroRestarted() const noexcept
 
 void GCodes::FileMacroCyclesReturn(GCodeBuffer& gb) noexcept
 {
+	//const int retValue = (gb.Seen('P')) ? gb.GetIValue() : 0;		// for when we allow M99 to return 'result'
 	if (gb.IsDoingFileMacro())
 	{
 #if HAS_SBC_INTERFACE
@@ -5269,22 +5270,22 @@ const MovementState& GCodes::GetCurrentMovementState(const ObjectExplorationCont
 void GCodes::AllocateAxes(const GCodeBuffer& gb, MovementState& ms, AxesBitmap axes, ParameterLettersBitmap axLetters) THROWS(GCodeException)
 {
 	//debugPrintf("Allocating axes %04" PRIx32 " letters %08" PRIx32 " command %u\n", axes.GetRaw(), axLetters.GetRaw(), gb.GetCommandNumber());
-	const AxesBitmap badAxes = ms.AllocateAxes(axes, axLetters);
+	const LogicalDrivesBitmap badDrives = ms.AllocateAxes(axes, axLetters);
 	//debugPrintf("alloc done\n");
-	if (!badAxes.IsEmpty())
+	if (!badDrives.IsEmpty())
 	{
 		if (reprap.GetDebugFlags(Module::Move).IsBitSet(MoveDebugFlags::AxisAllocation))
 		{
-			debugPrintf("Failed to allocate axes %07" PRIx32 " to MS %u letters %08"
+			debugPrintf("Failed to allocate drives %07" PRIx32 " to MS %u, axis letters %08"
 #if defined(DUET3)
 				PRIx64
 #else
 				PRIx32
 #endif
 				"\n",
-				badAxes.GetRaw(), ms.GetNumber(), axLetters.GetRaw());
+				badDrives.GetRaw(), ms.GetNumber(), axLetters.GetRaw());
 		}
-		gb.ThrowGCodeException("Axis %c is already used by a different motion system", (unsigned int)axisLetters[badAxes.LowestSetBit()]);
+		gb.ThrowGCodeException("Drive %c is already used by a different motion system", (unsigned int)axisLetters[badDrives.LowestSetBit()]);
 	}
 	UpdateUserPositionFromMachinePosition(gb, ms);
 }

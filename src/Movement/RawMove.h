@@ -30,6 +30,7 @@ struct RawMove
 
 #if SUPPORT_ASYNC_MOVES
 	AxesBitmap axesAndExtrudersOwned;								// axes and extruders that this movement system has moved since the last sync, or owns for other reasons
+	LogicalDrivesBitmap logicalDrivesOwned;							// logical drives that those axes and extruders use
 #endif
 
 	uint16_t moveType : 3,											// the H parameter from the G0 or G1 command, 0 for a normal move
@@ -96,7 +97,7 @@ public:
 
 	AxesBitmap GetAxesAndExtrudersOwned() const noexcept { return axesAndExtrudersOwned; }	// Get the axes and extruders that this movement system owns
 	ParameterLettersBitmap GetOwnedAxisLetters() const noexcept { return ownedAxisLetters; } // Get the letters denoting axes that this movement system owns
-	AxesBitmap AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept;	// try to allocate the requested axes, if we can't then return the axes we can't allocate
+	LogicalDrivesBitmap AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept;	// try to allocate the requested axes, if we can't then return the logical drives we can't allocate
 	void ReleaseAllOwnedAxesAndExtruders() noexcept;
 	void ReleaseNonToolAxesAndExtruders() noexcept;
 	void ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept;
@@ -225,7 +226,9 @@ private:
 	ParameterLettersBitmap ownedAxisLetters;						// cache of letters denoting user axes for which the corresponding machine axes for the current tool are definitely owned
 
 	static AxesBitmap axesAndExtrudersMoved;						// axes and extruders that are owned by any movement system
+	static LogicalDrivesBitmap logicalDrivesMoved;					// logical drives owned by any movement system
 	static float lastKnownMachinePositions[MaxAxesPlusExtruders];	// the last stored machine position of the axes
+	static int32_t lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored position of the logical drives
 #endif
 };
 
