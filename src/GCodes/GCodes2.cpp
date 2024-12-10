@@ -604,7 +604,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	if (   IsSimulating()
 		&& (code < 20 || code > 37)													// allow file operations while simulating
 		&& code != 0 && code != 1 && code != 82 && code != 83
-		&& code != 105 && code != 109 && code != 111 && code != 112 && code != 115 && code != 122
+		&& code != 98 && code != 99													// allow macro calls when simulating
+		&& code != 105 && code != 109 && code != 111 && code != 112 && code != 115 && code != 120 && code != 121 && code != 122
 		&& code != 200 && code != 204 && code != 205 && code != 207
 		&& code != 408 && code != 409 && code != 486
 		&& code != 572 && code != 593												// allow changes to PA and IS while simulating
