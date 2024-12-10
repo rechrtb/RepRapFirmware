@@ -142,7 +142,7 @@ void PrepParams::SetFromDDA(const DDA& dda) noexcept
 
 void PrepParams::DebugPrint() const noexcept
 {
-	debugPrintf("pp: td=%.3e ad=%.3e dsd=%.3e a=%.3e d=%.3e ac=%" PRIu32 " sc=%" PRIu32 " dc=%" PRIu32 "\n",
+	debugPrintf("pp: td=%.3g ad=%.3g dsd=%.3g a=%.3g d=%.3g ac=%" PRIu32 " sc=%" PRIu32 " dc=%" PRIu32 "\n",
 					(double)totalDistance, (double)accelDistance, (double)decelStartDistance, (double)acceleration, (double)deceleration, accelClocks, steadyClocks, decelClocks);
 }
 
@@ -191,7 +191,15 @@ void DDA::DebugPrintVector(const char *name, const float *vec, size_t len) const
 	debugPrintf("%s=", name);
 	for (size_t i = 0; i < len; ++i)
 	{
-		debugPrintf("%c%f", ((i == 0) ? '[' : ' '), (double)vec[i]);
+		const char c = (i == 0) ? '[' : ' ';
+		if (vec[i] == 0.0)
+		{
+			debugPrintf("%c0", c);						// just print 0 to save characters
+		}
+		else
+		{
+			debugPrintf("%c%.4g", c, (double)vec[i]);
+		}
 	}
 	debugPrintf("]");
 }
@@ -212,7 +220,7 @@ void DDA::DebugPrint(const char *tag) const noexcept
 		DebugPrintVector(" end", endCoordinates, numAxes);
 	}
 
-	debugPrintf(" s=%.4e", (double)totalDistance);
+	debugPrintf(" s=%.4g", (double)totalDistance);
 	DebugPrintVector(" vec", directionVector, MaxAxesPlusExtruders);
 	debugPrintf("\n" "a=%.4e d=%.4e reqv=%.4e startv=%.4e topv=%.4e endv=%.4e cks=%" PRIu32 " fp=%" PRIu32 " fl=%04x\n",
 				(double)acceleration, (double)deceleration, (double)requestedSpeed, (double)startSpeed, (double)topSpeed, (double)endSpeed, clocksNeeded, (uint32_t)filePos, flags.all);
