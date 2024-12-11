@@ -1309,7 +1309,6 @@ void Move::RevertPosition(const CanMessageRevertPosition& msg) noexcept
 
 	size_t index = 0;
 	bool needSteps = false;
-	const volatile int32_t * const lastMoveStepsTaken = rings[0].GetLastMoveStepsTaken();
 	constexpr size_t numDrivers = min<size_t>(NumDirectDrivers, MaxLinearDriversPerCanSlave);
 	for (size_t driver = 0; driver < numDrivers; ++driver)
 	{
@@ -1317,7 +1316,7 @@ void Move::RevertPosition(const CanMessageRevertPosition& msg) noexcept
 		if (msg.whichDrives & (1u << driver))
 		{
 			const int32_t stepsWanted = msg.finalStepCounts[index++];
-			const int32_t stepsTaken = lastMoveStepsTaken[driver];
+			const int32_t stepsTaken = GetLastMoveStepsTaken(driver);
 			if (((stepsWanted >= 0 && stepsTaken > stepsWanted) || (stepsWanted <= 0 && stepsTaken < stepsWanted)))
 			{
 				steps = stepsWanted - stepsTaken;
@@ -3190,6 +3189,13 @@ GCodeResult Move::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& repl
 void Move::StopDriveFromRemote(size_t drive) noexcept
 {
 	dms[drive].StopDriverFromRemote();
+}
+
+// Get the number of steps taken by the last move, if it was an isolated move
+int32_t Move::GetLastMoveStepsTaken(size_t drive) const noexcept
+{
+	const DriveMovement& dm = dms[drive];
+	return dm.currentMotorPosition - dm.positionAtMoveStart;
 }
 
 #endif
