@@ -31,7 +31,7 @@
 #endif
 
 constexpr float MaximumMotorCurrent = 2500.0;
-constexpr float MinimumOpenLoadMotorCurrent = 500;			// minimum current in mA for the open load status to be taken seriously
+constexpr float MinimumOpenLoadMotorCurrent = 500.0;		// minimum current in mA for the open load status to be taken seriously
 constexpr uint32_t DefaultMicrosteppingShift = 4;			// x16 microstepping
 constexpr bool DefaultInterpolation = true;					// interpolation enabled
 constexpr int DefaultStallDetectThreshold = 1;
@@ -221,7 +221,7 @@ static inline constexpr uint32_t CurrentToCsBits(float current) noexcept
 
 constexpr uint32_t MinimumOpenLoadCsBits = CurrentToCsBits(MinimumOpenLoadMotorCurrent);
 
-class TmcDriverState
+class TmcDriverState final
 {
 public:
 	void Init(uint32_t driverNumber, uint32_t p_pin) noexcept;
@@ -308,11 +308,11 @@ static Pdc * const spiPdc =
 #endif
 
 // Words to send and receive driver SPI data from/to
-volatile static uint32_t spiDataOut = 0;					// volatile because we care about when it is written
-volatile static uint32_t spiDataIn = 0;						// volatile because the PDC writes it
+static volatile uint32_t spiDataOut = 0;					// volatile because we care about when it is written
+static volatile uint32_t spiDataIn = 0;						// volatile because the PDC writes it
 
 // Variables used by the ISR
-static TmcDriverState * volatile currentDriver = nullptr;	// volatile because the ISR changes it
+static TmcDriverState *_ecv_null volatile currentDriver = nullptr;	// volatile because the ISR changes it
 
 // Set up the PDC to send a register and receive the status
 /*static*/ inline void TmcDriverState::SetupDMA(uint32_t outVal) noexcept
@@ -428,7 +428,6 @@ static TmcDriverState * volatile currentDriver = nullptr;	// volatile because th
 
 // Initialise the state of the driver and its CS pin
 void TmcDriverState::Init(uint32_t driverNumber, uint32_t p_pin) noexcept
-pre(!driversPowered)
 {
 	axisNumber = driverNumber;												// assume straight through mapping at initialisation
 	driverBit = LocalDriversBitmap::MakeFromBits(driverNumber);
@@ -872,7 +871,7 @@ extern "C" void TMC2660_SPI_Handler(void) noexcept SPEED_CRITICAL;
 
 void TMC2660_SPI_Handler(void) noexcept
 {
-	TmcDriverState *driver = currentDriver;				// capture volatile variable
+	TmcDriverState *_ecv_array _ecv_null driver = currentDriver;	// capture volatile variable
 	if (driver != nullptr)
 	{
 		driver->TransferDone();							// tidy up after the transfer we just completed
