@@ -635,7 +635,7 @@ void ObjectExplorationContext::CheckStack(uint32_t calledFunctionStackUsage) con
 	}
 
 	// Not enough stack left to throw an exception
-	SoftwareReset(SoftwareResetReason::stackOverflow, (const uint32_t *)stackPtr);
+	SoftwareReset(SoftwareResetReason::stackOverflow, (const uint32_t *_ecv_array)stackPtr);
 }
 
 // Report this object

@@ -57,7 +57,7 @@ void SoftwareResetData::Clear() noexcept
 }
 
 // Populate this reset data from the parameters passed and the CPU state
-void SoftwareResetData::Populate(uint16_t reason, const uint32_t *stk) noexcept
+void SoftwareResetData::Populate(uint16_t reason, const uint32_t *_ecv_array _ecv_null stk) noexcept
 {
 	magic = magicValue;
 	resetReason = reason | ((extraDebugInfo & 0x07) << 5);

@@ -2189,7 +2189,7 @@ void ExpressionParser::CheckStack(uint32_t calledFunctionStackUsage) const THROW
 	}
 
 	// Not enough stack left to throw an exception
-	SoftwareReset(SoftwareResetReason::stackOverflow, (const uint32_t *)stackPtr);
+	SoftwareReset(SoftwareResetReason::stackOverflow, (const uint32_t *_ecv_array)stackPtr);
 }
 
 // End

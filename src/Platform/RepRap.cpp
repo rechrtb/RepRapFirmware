@@ -1052,7 +1052,7 @@ void RepRap::Tick() noexcept
 				move->EmergencyDisableDrivers();
 
 				// Save the stack of the stuck task when we get stuck in a spin loop
-				const uint32_t *relevantStackPtr;
+				const uint32_t *_ecv_array relevantStackPtr;
 				const TaskHandle relevantTask = (heatTaskStuck) ? Heat::GetHeatTask() : Tasks::GetMainTask();
 				if (relevantTask == RTOSIface::GetCurrentTask())
 				{
@@ -1061,7 +1061,7 @@ void RepRap::Tick() noexcept
 					const uint32_t *_ecv_array stackPtr = _ecv_undefined(const uint32_t *_ecv_array);
 #else
 					__asm volatile("mrs r2, psp");
-					register const uint32_t * stackPtr asm ("r2");				// we want the PSP not the MSP
+					register const uint32_t *_ecv_array stackPtr asm ("r2");	// we want the PSP not the MSP
 #endif
 					relevantStackPtr = stackPtr + 5;							// discard uninteresting registers, keep LR PC PSR
 				}
