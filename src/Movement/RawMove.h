@@ -98,6 +98,7 @@ public:
 	AxesBitmap GetAxesAndExtrudersOwned() const noexcept { return axesAndExtrudersOwned; }	// Get the axes and extruders that this movement system owns
 	ParameterLettersBitmap GetOwnedAxisLetters() const noexcept { return ownedAxisLetters; } // Get the letters denoting axes that this movement system owns
 	LogicalDrivesBitmap AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept;	// try to allocate the requested axes, if we can't then return the logical drives we can't allocate
+	LogicalDrivesBitmap AllocateDrives(LogicalDrivesBitmap drivesNeeded) noexcept;			// try to allocate logical drives directly
 	void ReleaseAllOwnedAxesAndExtruders() noexcept;
 	void ReleaseNonToolAxesAndExtruders() noexcept;
 	void ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept;

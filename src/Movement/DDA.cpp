@@ -251,7 +251,6 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 #endif
 
 	flags.all = 0;														// set all flags false
-	const int32_t *_ecv_array const positionNow = prev->endPoint;
 	bool linearAxesMoving = false;
 	bool rotationalAxesMoving = false;
 
@@ -294,7 +293,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 				// This is an axis we don't own, so make sure we don't move it
 				directionVector[drive] = 0.0;
 				prev->endCoordinates[drive] = nextMove.coords[drive];
-				endPoint[drive] = positionNow[drive];
+				endPoint[drive] = ring.endpointsOfLastMove[drive];
 			}
 #endif
 		}
@@ -310,7 +309,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 			{
 				// Raw motor move on a visible axis
 				endPoint[drive] = move.MotorMovementToSteps(drive, nextMove.coords[drive]);
-				const int32_t delta = endPoint[drive] - positionNow[drive];
+				const int32_t delta = endPoint[drive] - ring.endpointsOfLastMove[drive];
 				directionVector[drive] = (float)delta/move.DriveStepsPerMm(drive);
 				if (delta != 0)
 				{
@@ -330,7 +329,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 				// This is an axis we don't own, so make sure we don't move it
 				directionVector[drive] = 0.0;
 				prev->endCoordinates[drive] = nextMove.coords[drive];
-				endPoint[drive] = positionNow[drive];
+				endPoint[drive] = ring.endpointsOfLastMove[drive];
 			}
 #endif
 		}
@@ -338,7 +337,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		// Set any invisible axis endpoints to the same positions as the previous move
 		for (size_t axis = numVisibleAxes; axis < numTotalAxes; ++axis)
 		{
-			endPoint[axis] = positionNow[axis];
+			endPoint[axis] = ring.endpointsOfLastMove[axis];
 		}
 	}
 
@@ -630,7 +629,7 @@ bool DDA::InitAsyncMove(DDARing& ring, const AsyncMove& nextMove) noexcept
 		const size_t axisToUse = (reprap.GetMove().GetKinematics().GetKinematicsType() == KinematicsType::linearDelta && drive <= Z_AXIS) ? Z_AXIS : drive;
 		directionVector[drive] = nextMove.movements[axisToUse];
 		const int32_t delta = lrintf(nextMove.movements[axisToUse] * reprap.GetMove().DriveStepsPerMm(drive));
-		endPoint[drive] = prev->endPoint[drive] + delta;
+		endPoint[drive] = ring.endpointsOfLastMove[drive] + delta;
 		endCoordinates[drive] = prev->endCoordinates[drive];
 		if (delta != 0)
 		{
@@ -675,7 +674,7 @@ bool DDA::InitAsyncMove(DDARing& ring, const AsyncMove& nextMove) noexcept
 // Set up a remote move. Return true if it represents real movement, else false.
 // All values have already been converted to step clocks and the total distance has been normalised to 1.0.
 // This version handles the new movement message that includes the input shaping plan and passes extruder movement as distance, not steps
-bool DDA::InitFromRemote(const CanMessageMovementLinearShaped& msg) noexcept
+bool DDA::InitFromRemote(DDARing& ring, const CanMessageMovementLinearShaped& msg) noexcept
 {
 	afterPrepare.moveStartTime = StepTimer::ConvertToLocalTime(msg.whenToExecute);
 	flags.all = 0;
@@ -719,7 +718,7 @@ bool DDA::InitFromRemote(const CanMessageMovementLinearShaped& msg) noexcept
 
 	for (size_t drive = 0; drive < NumDirectDrivers; drive++)
 	{
-		endPoint[drive] = prev->endPoint[drive];						// the steps for this move will be added later
+		endPoint[drive] = ring.endpointsOfLastMove[drive];						// the steps for this move will be added later
 		if (drive >= msg.numDrivers)
 		{
 			directionVector[drive] = 0.0;
@@ -1263,7 +1262,7 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 			else if (drive < reprap.GetGCodes().GetTotalAxes())
 			{
 				// It's a linear axis
-				int32_t delta = endPoint[drive] - prev->endPoint[drive];
+				int32_t delta = endPoint[drive] - ring.endpointsOfLastMove[drive];
 				if (delta != 0)
 				{
 					move.EnableDrivers(drive, false);

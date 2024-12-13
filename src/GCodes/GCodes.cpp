@@ -2087,8 +2087,9 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 	// We need to check for moving unowned axes right at the start in case we need to fetch axis positions before processing the command
 	ParameterLettersBitmap axisLettersMentioned = gb.AllParameters() & allAxisLetters;
 	bool meshCompensationInUse;
-	if (ms.moveType == 0)
+	switch (ms.moveType)
 	{
+	case 0:			// normal move
 		meshCompensationInUse = IsUsingMeshCompensation(ms, axisLettersMentioned);
 		if (meshCompensationInUse)
 		{
@@ -2099,11 +2100,18 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 		{
 			AllocateAxisLetters(gb, ms, axisLettersMentioned);
 		}
-	}
-	else
-	{
+		break;
+
+	case 2:			// raw motor move
+		meshCompensationInUse = false;
+		AllocateDriversFromLetters(gb, ms, axisLettersMentioned);
+		break;
+
+		???what about H1 etc. on delta?
+	default:
 		meshCompensationInUse = false;
 		AllocateAxesDirectFromLetters(gb, ms, axisLettersMentioned);
+		break;
 	}
 #endif
 
@@ -5347,6 +5355,37 @@ void GCodes::AllocateAxesDirectFromLetters(const GCodeBuffer& gb, MovementState&
 		}
 	}
 	AllocateAxes(gb, ms, newAxes, ParameterLettersBitmap());			// don't own the letters!
+}
+
+// Allocate drivers by letter for a raw motor move
+void GCodes::AllocateDriversFromLetters(const GCodeBuffer& gb, MovementState& ms, ParameterLettersBitmap axLetters) THROWS(GCodeException)
+{
+	LogicalDrivesBitmap newDrives;
+	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+	{
+		const char c = axisLetters[axis];
+		const unsigned int axisLetterBitNumber = ParameterLetterToBitNumber(c);
+		if (axLetters.IsBitSet(axisLetterBitNumber))
+		{
+			newDrives.SetBit(axis);
+		}
+	}
+	const LogicalDrivesBitmap badDrives = ms.AllocateDrives(newDrives);
+	if (!badDrives.IsEmpty())
+	{
+		if (reprap.GetDebugFlags(Module::Move).IsBitSet(MoveDebugFlags::AxisAllocation))
+		{
+			debugPrintf("Failed to allocate drives %07" PRIx32 " to MS %u"
+#if defined(DUET3)
+				PRIx64
+#else
+				PRIx32
+#endif
+				"\n",
+				badDrives.GetRaw(), ms.GetNumber());
+		}
+		gb.ThrowGCodeException("Drive %c is already used by a different motion system", (unsigned int)axisLetters[badDrives.LowestSetBit()]);
+	}
 }
 
 // Test whether an axis is unowned

@@ -53,11 +53,14 @@ public:
 	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept; // Get the position at the end of the last queued move in untransformed coords
 #if SUPPORT_ASYNC_MOVES
 	void GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) const noexcept;	// Return the machine coordinates of just some axes
-	void ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept;	// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints
+	void ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t returnedEndpoints[MaxAxesPlusExtruders]) noexcept;	// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints
 #endif
 
-	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
-	void AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept;		// Adjust the motor endpoints without moving the motors
+//	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
+//	void AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept;		// Adjust the motor endpoints without moving the motors
+	void SetEndpoint(size_t logicalDrive, int32_t ep) noexcept
+		pre(logicalDrive < MaxAxesPlusExtruders)
+		{ endpointsOfLastMove[logicalDrive] = ep; }
 
 	bool PauseMoves(MovementState& ms) noexcept;										// Pause the print as soon as we can, returning true if we were able to skip any moves in the queue
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
@@ -78,7 +81,6 @@ public:
 
 #if SUPPORT_REMOTE_COMMANDS
 	void AddMoveFromRemote(const CanMessageMovementLinearShaped& msg) noexcept;			// add a move from the ATE to the movement queue
-	const volatile int32_t *GetLastMoveStepsTaken() const noexcept { return lastMoveStepsTaken; }
 #endif
 
 protected:
@@ -109,10 +111,7 @@ private:
 #if SUPPORT_ASYNC_MOVES
 	LogicalDrivesBitmap drivesOwned;
 #endif
-
-#if SUPPORT_REMOTE_COMMANDS
-	volatile int32_t lastMoveStepsTaken[NumDirectDrivers];						// how many steps were taken in the last move we did
-#endif
+	int32_t endpointsOfLastMove[MaxAxesPlusExtruders];							// the drive endpoints of the last move added to the ring
 
 	volatile bool waitingForRingToEmpty;										// True if Move has signalled that we are waiting for this ring to empty
 };

@@ -390,7 +390,7 @@ LogicalDrivesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLetter
 		return axesNeeded;											// return empty bitmap
 	}
 
-	// We don't need to check whether the axes free because if  any are already owned, the corresponding logical drives will be owned too
+	// We don't need to check whether the axes needed are free because if any are already owned, the corresponding logical drives will be owned too
 	const LogicalDrivesBitmap drivesNeeded = reprap.GetMove().GetKinematics().GetAllDrivesUsed(axesNeeded);
 	const LogicalDrivesBitmap unavailableDrives = drivesNeeded & logicalDrivesMoved;
 	if (unavailableDrives.IsEmpty())
@@ -400,7 +400,26 @@ LogicalDrivesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLetter
 		axesAndExtrudersOwned |= axes;
 		logicalDrivesMoved |= drivesNeeded;
 		logicalDrivesOwned |= drivesNeeded;
+		const AxesBitmap axesAffected = reprap.GetMove().GetKinematics().GetAffectedAxes(drivesNeeded, reprap.GetGCodes().GetVisibleAxes());
+		axesAndExtrudersMoved |= axesAffected;
+		axesAndExtrudersOwned |= axesAffected;
 		ownedAxisLetters |= axisLetters;
+	}
+	return unavailableDrives;
+}
+
+// Try to allocate logical drives directly, returning the bitmap of any logical drives we can't allocate
+LogicalDrivesBitmap MovementState::AllocateDrives(LogicalDrivesBitmap drivesNeeded) noexcept
+{
+	const LogicalDrivesBitmap unavailableDrives = drivesNeeded & logicalDrivesMoved;
+	if (unavailableDrives.IsEmpty())
+	{
+		UpdateOwnAxisCoordinates();qq;									// we must do this before we allocate new axes to ourselves
+		const AxesBitmap axesAffected = reprap.GetMove().GetKinematics().GetAffectedAxes(drivesNeeded, reprap.GetGCodes().GetVisibleAxes());
+		logicalDrivesMoved |= drivesNeeded;
+		logicalDrivesOwned |= drivesNeeded;
+		axesAndExtrudersMoved |= axesAffected;
+		axesAndExtrudersOwned |= axesAffected;
 	}
 	return unavailableDrives;
 }

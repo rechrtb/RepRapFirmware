@@ -393,9 +393,9 @@ void CoreKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const fl
 	{
 		float tempCoordinates[MaxAxes];
 		const size_t numTotalAxes = reprap.GetGCodes().GetTotalAxes();
-		for (size_t axis = 0; axis < numTotalAxes; ++axis)
+		for (size_t ax = 0; ax < numTotalAxes; ++ax)
 		{
-			tempCoordinates[axis] = dda.GetEndCoordinate(axis, false);
+			tempCoordinates[ax] = dda.GetEndCoordinate(ax, false);
 		}
 		tempCoordinates[axis] = hitPoint;
 		dda.SetPositions(move, tempCoordinates, controllingDrivers[axis]);

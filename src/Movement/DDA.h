@@ -94,7 +94,7 @@ public:
 	uint32_t GetTimeLeft() const noexcept;
 
 #if SUPPORT_REMOTE_COMMANDS
-	bool InitFromRemote(const CanMessageMovementLinearShaped& msg) noexcept;
+	bool InitFromRemote(DDARing& ring, const CanMessageMovementLinearShaped& msg) noexcept;
 #endif
 
 	const int32_t *_ecv_array DriveCoordinates() const noexcept { return endPoint; }			// Get endpoints of a move in machine coordinates

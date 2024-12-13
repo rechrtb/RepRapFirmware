@@ -440,10 +440,9 @@ void DDARing::GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) 
 }
 
 // Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints (we actually update the endpoints of all drives we own)
-void DDARing::ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept
+void DDARing::ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t returnedEndpoints[MaxAxesPlusExtruders]) noexcept
 {
-	const int32_t *_ecv_array endPoints = addPointer->GetPrevious()->DriveCoordinates();
-	drivesOwned.Iterate([endPoints, lastKnownEndpoints](unsigned int drive, unsigned int count) -> void { lastKnownEndpoints[drive] = endPoints[drive]; });
+	drivesOwned.Iterate([endpointsOfLastMove, returnedEndpoints](unsigned int drive, unsigned int count) -> void { returnedEndpoints[drive] = endpointsOfLastMove[drive]; });
 	drivesOwned &= ~drivesToRelease;
 }
 
