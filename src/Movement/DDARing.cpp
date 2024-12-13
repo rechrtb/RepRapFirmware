@@ -442,7 +442,7 @@ void DDARing::GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) 
 // Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints (we actually update the endpoints of all drives we own)
 void DDARing::ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t returnedEndpoints[MaxAxesPlusExtruders]) noexcept
 {
-	drivesOwned.Iterate([endpointsOfLastMove, returnedEndpoints](unsigned int drive, unsigned int count) -> void { returnedEndpoints[drive] = endpointsOfLastMove[drive]; });
+	drivesOwned.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = endpointsOfLastMove[drive]; } );
 	drivesOwned &= ~drivesToRelease;
 }
 
@@ -826,7 +826,7 @@ void DDARing::AddMoveFromRemote(const CanMessageMovementLinearShaped& msg) noexc
 {
 	if (addPointer->GetState() == DDA::empty)
 	{
-		if (addPointer->InitFromRemote(msg))
+		if (addPointer->InitFromRemote(*this, msg))
 		{
 			addPointer = addPointer->GetNext();
 			scheduledMoves++;

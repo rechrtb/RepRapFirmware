@@ -56,8 +56,9 @@ public:
 	void ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t returnedEndpoints[MaxAxesPlusExtruders]) noexcept;	// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints
 #endif
 
-//	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
-//	void AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept;		// Adjust the motor endpoints without moving the motors
+	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
+	void AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept;		// Adjust the motor endpoints without moving the motors
+	const int32_t *_ecv_array  GetEndpointsOfLastQueuedMove() const noexcept { return endpointsOfLastMove; }
 	void SetEndpoint(size_t logicalDrive, int32_t ep) noexcept
 		pre(logicalDrive < MaxAxesPlusExtruders)
 		{ endpointsOfLastMove[logicalDrive] = ep; }
