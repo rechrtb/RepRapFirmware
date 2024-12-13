@@ -581,7 +581,6 @@ private:
 	bool IsAxisFree(unsigned int axis) const noexcept;														// test whether an axis is unowned
 	bool DoSync(GCodeBuffer& gb) noexcept;																	// sync with the other stream returning true if done, false if we need to wait for it
 	bool SyncWith(GCodeBuffer& thisGb, const GCodeBuffer& otherGb) noexcept;								// synchronise motion systems
-	void UpdateAllCoordinates(const GCodeBuffer& gb) noexcept;
 #endif
 
 #if SUPPORT_KEEPOUT_ZONES

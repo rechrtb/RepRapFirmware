@@ -28,7 +28,7 @@ public:
 	bool CartesianToMotorSteps(const float machinePos[], const float stepsPerMm[], size_t numVisibleAxes, size_t numTotalAxes, int32_t motorPos[], bool isCoordinated) const noexcept override;
 	void MotorStepsToCartesian(const int32_t motorPos[], const float stepsPerMm[], size_t numVisibleAxes, size_t numTotalAxes, float machinePos[]) const noexcept override;
 	bool SupportsAutoCalibration() const noexcept override { return true; }
-	bool DoAutoCalibration(size_t numFactors, const RandomProbePointSet& probePoints, const StringRef& reply) noexcept override;
+	bool DoAutoCalibration(MovementState& ms, size_t numFactors, const RandomProbePointSet& probePoints, const StringRef& reply) noexcept override;
 	void SetCalibrationDefaults() noexcept override { Init(); }
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE

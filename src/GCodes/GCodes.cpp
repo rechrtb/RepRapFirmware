@@ -244,19 +244,25 @@ void GCodes::Reset() noexcept
 	g68Angle = g68Centre[0] = g68Centre[1] = 0.0;				// no coordinate rotation
 #endif
 
+	{
+		float initialPosition[MaxAxesPlusExtruders];
+		reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, initialPosition);
+		for (size_t i = numVisibleAxes; i < MaxAxesPlusExtruders; ++i)
+		{
+			initialPosition[i] = 0.0;
+		}
+
 #if SUPPORT_ASYNC_MOVES
-	MovementState::GlobalInit(numVisibleAxes);
-	pausedMovementSystemNumber = 0;
+		MovementState::GlobalInit(initialPosition);
+		pausedMovementSystemNumber = 0;
 #endif
 
-	for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
-	{
-		MovementState& ms = moveStates[i];
-		ms.Init(i);
-#if !SUPPORT_ASYNC_MOVES
-		reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, ms.coords);
-#endif
-		ToolOffsetInverseTransform(ms);
+		for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
+		{
+			MovementState& ms = moveStates[i];
+			ms.Init(i, initialPosition);
+			ToolOffsetInverseTransform(ms);
+		}
 	}
 
 	for (float& f : currentBabyStepOffsets)
@@ -820,11 +826,11 @@ void GCodes::EndSimulation(GCodeBuffer *null gb) noexcept
 		// So we set the positions as if MS0 owns all the axes, then set the positions of any that MS1 owns.
 		if (ms.GetNumber() == 0)
 		{
-			reprap.GetMove().SetNewPositionOfAllAxes(ms, true);
+			ms.SetNewPositionOfAllAxes(true);
 		}
 		else
 		{
-			reprap.GetMove().SetNewPositionOfOwnedAxes(ms, true);
+			ms.SetNewPositionOfOwnedAxes(true);
 		}
 	}
 	axesVirtuallyHomed = axesHomed;
@@ -1776,7 +1782,7 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 		//TODO only do this is we did a special move
 #if SUPPORT_ASYNC_MOVES
 		// Get the position of all axes by combining positions from the queues
-		ms.UpdateOwnAxisCoordinates();
+		ms.SaveOwnDriveCoordinates();
 		UpdateUserPositionFromMachinePosition(gb, ms);
 		collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
 
@@ -5419,7 +5425,7 @@ bool GCodes::SyncWith(GCodeBuffer& thisGb, const GCodeBuffer& otherGb) noexcept
 			if (otherGb.IsLaterThan(thisGb))
 			{
 				// Other input channel has skipped this sync point
-				UpdateAllCoordinates(thisGb);
+				GetMovementState(thisGb).UpdateCoordinatesFromLastKnownEndpoints();
 				thisGb.syncState = GCodeBuffer::SyncState::running;
 				//debugPrintf("Channel %u changed state to running, %u\n", thisGb.GetChannel().ToBaseType(), __LINE__);
 				synced = true;
@@ -5429,7 +5435,7 @@ bool GCodes::SyncWith(GCodeBuffer& thisGb, const GCodeBuffer& otherGb) noexcept
 		}
 
 		// If we get here then the other input channel is also syncing, so it's safe to use the machine axis coordinates of the axes it owns to update our user coordinates
-		UpdateAllCoordinates(thisGb);
+		GetMovementState(thisGb).UpdateCoordinatesFromLastKnownEndpoints();
 
 		// Now that we no longer need to read axis coordinates from the other motion system, flag that we have finished syncing
 		thisGb.syncState = GCodeBuffer::SyncState::synced;
@@ -5490,16 +5496,6 @@ bool GCodes::DoSync(GCodeBuffer& gb) noexcept
 			: (&gb == File2GCode()) ? SyncWith(gb, *FileGCode())
 				: true;
 	return rslt;
-}
-
-// Update our machine coordinates from the set of last stored coordinates. If we have moved any axes then we must call ms.SaveOwnAxisPositions before calling this.
-void GCodes::UpdateAllCoordinates(const GCodeBuffer& gb) noexcept
-{
-	MovementState& ms = GetMovementState(gb);
-	memcpyf(ms.coords, MovementState::GetLastKnownMachinePositions(), MaxAxes);
-	reprap.GetMove().InverseAxisAndBedTransform(ms.coords, ms.currentTool);
-	UpdateUserPositionFromMachinePosition(gb, ms);
-	reprap.GetMove().SetNewPositionOfAllAxes(ms, true);
 }
 
 #endif

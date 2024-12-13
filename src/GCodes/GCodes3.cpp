@@ -87,10 +87,10 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb, const StringRef& reply) THROWS
 		}
 #if SUPPORT_ASYNC_MOVES
 		// Check for setting unowned axes before processing the command
-		axisLettersMentioned.ClearBits(ms.GetOwnedAxisLetters());
-		if (axisLettersMentioned.IsNonEmpty())
+		const ParameterLettersBitmap axisLettersNeeded = axisLettersMentioned & ~ms.GetOwnedAxisLetters();
+		if (axisLettersNeeded.IsNonEmpty())
 		{
-			AllocateAxisLetters(gb, ms, axisLettersMentioned);
+			AllocateAxisLetters(gb, ms, axisLettersNeeded);
 		}
 #endif
 		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
@@ -125,9 +125,10 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb, const StringRef& reply) THROWS
 			ToolOffsetInverseTransform(ms);					// make sure the limits are reflected in the user position
 		}
 #if SUPPORT_ASYNC_MOVES
-		ms.OwnedAxisCoordinatesUpdated(axesIncluded);		// save coordinates of any owned axes we changed
+		ms.SetNewPositionOfOwnedAxes(true);
+#else
+		ms.SetNewPositionfAlAxes(true);
 #endif
-		reprap.GetMove().SetNewPositionOfOwnedAxes(ms, true);
 		if (!IsSimulating())
 		{
 			axesHomed |= reprap.GetMove().GetKinematics().AxesAssumedHomed(axesIncluded);
@@ -579,11 +580,11 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 				ToolOffsetTransform(ms);										// ensure that the position of any new axes are updated in moveBuffer
 				if (ms.GetNumber() == 0)
 				{
-					reprap.GetMove().SetNewPositionOfAllAxes(ms, true);			// tell the Move system where the axes are
+					ms.SetNewPositionOfAllAxes(true);								// tell the Move system where the axes are
 				}
 				else
 				{
-					reprap.GetMove().SetNewPositionOfOwnedAxes(ms, true);		// tell the Move system where the axes are
+					ms.SetNewPositionOfOwnedAxes(true);								// tell the Move system where the axes are
 				}
 			}
 		}

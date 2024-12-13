@@ -72,7 +72,7 @@ GCodeResult GCodes::ExecuteG30(GCodeBuffer& gb, const StringRef& reply) THROWS(G
 				reprap.GetMove().SetZBedProbePoint((size_t)g30ProbePointIndex, z, false, false);
 				if (g30SValue >= -1)
 				{
-					return GetGCodeResultFromError(reprap.GetMove().FinishedBedProbing(g30SValue, reply));
+					return reprap.GetMove().FinishedBedProbing(ms, g30SValue, reply);
 				}
 			}
 			else

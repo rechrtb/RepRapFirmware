@@ -90,10 +90,7 @@ class MovementState : public RawMove
 public:
 
 #if SUPPORT_ASYNC_MOVES
-	static void GlobalInit(size_t numVisibleAxes) noexcept;
-	static const float *GetLastKnownMachinePositions() noexcept { return lastKnownMachinePositions; }
-	static AxesBitmap GetAxesAndExtrudersMoved() noexcept { return axesAndExtrudersMoved; }
-	static void SetLastKnownMachinePosition(size_t axis, float pos) noexcept { lastKnownMachinePositions[axis] = pos; }
+	static void GlobalInit(const float initialPosition[MaxAxesPlusExtruders]) noexcept;
 
 	AxesBitmap GetAxesAndExtrudersOwned() const noexcept { return axesAndExtrudersOwned; }	// Get the axes and extruders that this movement system owns
 	ParameterLettersBitmap GetOwnedAxisLetters() const noexcept { return ownedAxisLetters; } // Get the letters denoting axes that this movement system owns
@@ -103,14 +100,20 @@ public:
 	void ReleaseNonToolAxesAndExtruders() noexcept;
 	void ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept;
 	void ReleaseAxisLetter(char letter) noexcept;											// stop claiming that we own an axis letter (if we do) but don't release the associated axis
-	void UpdateOwnAxisCoordinates() noexcept;													// fetch and save the coordinates of axes we own to lastKnownMachinePositions
-	void OwnedAxisCoordinatesUpdated(AxesBitmap axesIncluded) noexcept;						// update changed coordinates of some owned axes - called after G92
-	void OwnedAxisCoordinateUpdated(size_t axis) noexcept;									// update the machine coordinate of an axis we own - called after Z probing
+	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the coordinates of axes we own to lastKnownMachinePositions
+	void UpdateCoordinatesFromLastKnownEndpoints() noexcept;								// update our coordinates from the saved endpoints
+//	void OwnedAxisCoordinatesUpdated(AxesBitmap axesIncluded) noexcept;						// update changed coordinates of some owned axes - called after G92
+//	void OwnedAxisCoordinateUpdated(size_t axis) noexcept;									// update the machine coordinate of an axis we own - called after Z probing
 #endif
+
+	void SetNewPositionOfAllAxes(bool doBedCompensation) noexcept;
+	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
+	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;
+
 
 	MovementSystemNumber GetNumber() const noexcept { return msNumber; }
 	float GetProportionDone() const noexcept;												// get the proportion of this whole move that has been completed, based on segmentsLeft and totalSegments
-	void Init(MovementSystemNumber p_msNumber) noexcept;
+	void Init(MovementSystemNumber p_msNumber, const float initialPosition[MaxAxesPlusExtruders]) noexcept;
 	void ResetLaser() noexcept;																// reset the laser parameters
 	void ChangeExtrusionFactor(unsigned int extruder, float multiplier) noexcept;			// change the extrusion factor of an extruder
 	const RestorePoint& GetRestorePoint(size_t n) const pre(n < NumTotalRestorePoints) { return restorePoints[n]; }
@@ -226,9 +229,8 @@ private:
 #if SUPPORT_ASYNC_MOVES
 	ParameterLettersBitmap ownedAxisLetters;						// cache of letters denoting user axes for which the corresponding machine axes for the current tool are definitely owned
 
-	static AxesBitmap axesAndExtrudersMoved;						// axes and extruders that are owned by any movement system
+	static AxesBitmap allOwnedAxesAndExtruders;						// axes and extruders that are owned by any movement system
 	static LogicalDrivesBitmap logicalDrivesMoved;					// logical drives owned by any movement system
-	static float lastKnownMachinePositions[MaxAxesPlusExtruders];	// the last stored machine position of the axes
 	static int32_t lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored position of the logical drives
 #endif
 };

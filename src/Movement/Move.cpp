@@ -1065,20 +1065,6 @@ void Move::AppendDiagnostics(const StringRef& reply) noexcept
 
 #endif
 
-// Set the current position to be this
-void Move::SetNewPositionOfAllAxes(const MovementState& ms, bool doBedCompensation) noexcept
-{
-	SetNewPositionOfSomeAxes(ms, doBedCompensation, AxesBitmap::MakeLowestNBits(reprap.GetGCodes().GetVisibleAxes()));
-}
-
-void Move::SetNewPositionOfSomeAxes(const MovementState& ms, bool doBedCompensation, AxesBitmap axes) noexcept
-{
-	float newPos[MaxAxesPlusExtruders];
-	memcpyf(newPos, ms.coords, ARRAY_SIZE(newPos));			// copy to local storage because Transform modifies it
-	AxisAndBedTransform(newPos, ms.currentTool, doBedCompensation);
-	SetRawPosition(newPos, ms.GetNumber(), axes);
-}
-
 // Convert distance to steps for a particular drive
 int32_t Move::MotorMovementToSteps(size_t drive, float coord) const noexcept
 {
@@ -1179,6 +1165,11 @@ void Move::SetMotorPosition(size_t drive, int32_t pos) noexcept
 		});
 	}
 #endif
+}
+
+void Move::SetMotorPositions(LogicalDrivesBitmap drives, const int32_t *positions) noexcept
+{
+	drives.Iterate([this, positions](unsigned int drive, unsigned int count) { SetMotorPosition(drive, positions[drive]); });
 }
 
 // Enter or leave simulation mode

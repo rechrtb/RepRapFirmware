@@ -431,19 +431,9 @@ void DDARing::GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMappi
 
 #if SUPPORT_ASYNC_MOVES
 
-// Return the machine coordinates of just some axes in the last queued move.
-// On machines with nonlinear kinematics this is quite likely to return coordinates slightly different from the original ones.
-void DDARing::GetPartialMachinePosition(float m[MaxAxes], AxesBitmap whichAxes) const noexcept
+void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) const noexcept
 {
-	DDA * const lastQueuedMove = addPointer->GetPrevious();
-	whichAxes.Iterate([m, lastQueuedMove](unsigned int axis, unsigned int count) { m[axis] = lastQueuedMove->GetEndCoordinate(axis, false); });
-}
-
-// Release some drives that this queue owns and update the corresponding values in lastKnownEndpoints (we actually update the endpoints of all drives we own)
-void DDARing::ReleaseDrives(LogicalDrivesBitmap drivesToRelease, int32_t returnedEndpoints[MaxAxesPlusExtruders]) noexcept
-{
-	drivesOwned.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = endpointsOfLastMove[drive]; } );
-	drivesOwned &= ~drivesToRelease;
+	logicalDrives.Iterate([this, lastKnownEndpoints](unsigned int drive, unsigned int count) { lastKnownEndpoints[drive] = endpointsOfLastMove[drive]; } );
 }
 
 #endif
@@ -456,11 +446,18 @@ void DDARing::SetPositions(Move& move, const float positions[MaxAxesPlusExtruder
 	addPointer->GetPrevious()->SetPositions(move, positions, axes);
 }
 
-// Adjust the motor endpoints without moving the motors
-void DDARing::AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept
+// Set the endpoints of some drives that we have just allocated
+void DDARing::SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 {
-	AtomicCriticalSectionLocker lock;
-	addPointer->GetPrevious()->AdjustMotorPositions(move, adjustment, numMotors);
+	const bool updateLastMove = addPointer->GetPrevious()->GetState();
+	logicalDrives.Iterate([this, ep, updateLastMove](unsigned int drive, unsigned int count)
+							{
+								endpointsOfLastMove[drive] = ep[drive];
+								if (updateLastMove)
+								{
+									addPointer->GetPrevious()->SetDriveCoordinate(ep[drive], drive);
+								}
+							});
 }
 
 // Get the DDA that should currently be executing, or nullptr if no move from this ring should be executing

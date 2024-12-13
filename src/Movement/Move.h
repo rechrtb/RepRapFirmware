@@ -257,17 +257,17 @@ public:
 
 	// Various functions called from GCodes module
 	void GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, bool disableMotorMapping) const noexcept; // Get the current position in untransformed coords
-#if SUPPORT_ASYNC_MOVES
-	void GetPartialMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, AxesBitmap whichAxes) const noexcept
-			pre(queueNumber < NumMovementSystems);							// Get the current position of some axes from one of the rings
-#endif
-	void SetRawPosition(const float positions[MaxAxes], MovementSystemNumber msNumber, AxesBitmap axes) noexcept
-			pre(msNumber < NumMovementSystems);							// Set the current position to be this without transforming them first
-	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;		// Perform motor endpoint adjustment after auto calibration
+	void SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;
+		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
+
+//	void SetRawPosition(const float positions[MaxAxes], AxesBitmap axes) noexcept
+//			pre(msNumber < NumMovementSystems);							// Set the current position to be this without transforming them first
+//	void AdjustMotorPositions(MovementState& ms, const float adjustment[], size_t numMotors) noexcept;		// Perform motor endpoint adjustment after auto calibration
 	void GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, uint8_t moveType, const Tool *tool) const noexcept;
 																			// Return the position (after all queued moves have been executed) in transformed coords
 	int32_t GetLiveMotorPosition(size_t driver) const noexcept pre(driver < MaxAxesPlusExtruders);
 	void SetMotorPosition(size_t drive, int32_t pos) noexcept pre(drive < MaxAxesPlusExtruders);
+	void SetMotorPositions(LogicalDrivesBitmap drives, const int32_t *positions) noexcept;
 
 	void MoveAvailable() noexcept;											// Called from GCodes to tell the Move task that a move is available
 	bool WaitingForAllMovesFinished(MovementSystemNumber msNumber
@@ -275,15 +275,13 @@ public:
 									, AxesBitmap axesAndExtrudersOwned
 #endif
 								   ) noexcept
-		pre(msNumber < rings.upb);										// Tell the lookahead ring we are waiting for it to empty and return true if it is
+		pre(msNumber < rings.upb);											// Tell the lookahead ring we are waiting for it to empty and return true if it is
 	void DoLookAhead() noexcept SPEED_CRITICAL;								// Run the look-ahead procedure
-	void SetNewPositionOfOwnedAxes(const MovementState& ms, bool doBedCompensation) noexcept;	// Set the current position to be this
-	void SetNewPositionOfAllAxes(const MovementState& ms, bool doBedCompensation) noexcept;		// Set the current position to be this
 	void ResetExtruderPositions() noexcept;									// Resets the extrusion amounts of the live coordinates
 	void SetXYBedProbePoint(size_t index, float x, float y) noexcept;		// Record the X and Y coordinates of a probe point
-	void SetZBedProbePoint(size_t index, float z, bool wasXyCorrected, bool wasError) noexcept; // Record the Z coordinate of a probe point
-	float GetProbeCoordinates(int count, float& x, float& y, bool wantNozzlePosition) const noexcept; // Get pre-recorded probe coordinates
-	bool FinishedBedProbing(int sParam, const StringRef& reply) noexcept;	// Calibrate or set the bed equation after probing
+	void SetZBedProbePoint(size_t index, float z, bool wasXyCorrected, bool wasError) noexcept;			// Record the Z coordinate of a probe point
+	float GetProbeCoordinates(int count, float& x, float& y, bool wantNozzlePosition) const noexcept;	// Get pre-recorded probe coordinates
+	GCodeResult FinishedBedProbing(MovementState& ms, int sParam, const StringRef& reply) noexcept;		// Calibrate or set the bed equation after probing
 	void SetAxisCompensation(unsigned int axis, float tangent) noexcept;	// Set an axis-pair compensation angle
 	float AxisCompensation(unsigned int axis) const noexcept;				// The tangent value
 	bool IsXYCompensated() const;											// Check if XY axis compensation applies to the X or Y axis
@@ -402,7 +400,7 @@ public:
 	void ReleaseAuxMove(bool hasNewMove) noexcept;											// Release the aux move buffer and optionally signal that it contains a move
 	GCodeResult ConfigureHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Configure height following
 	GCodeResult StartHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Start/stop height following
-	void ReleaseDrives(MovementSystemNumber msNumber, LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept;
+	void GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrivesOwned, int32_t SetLastEndpoints[MaxAxesPlusExtruders]) const noexcept;
 #endif
 
 	const RandomProbePointSet& GetProbePoints() const noexcept { return probePoints; }		// Return the probe point set constructed from G30 commands
@@ -543,7 +541,7 @@ private:
 	void AxisTransform(float xyzPoint[MaxAxes], const Tool *_ecv_null tool) const noexcept;						// Take a position and apply the axis-angle compensations
 	void InverseAxisTransform(float xyzPoint[MaxAxes], const Tool *_ecv_null tool) const noexcept;				// Go from an axis transformed point back to user coordinates
 	float ComputeHeightCorrection(float xyzPoint[MaxAxes], const Tool *_ecv_null tool) const noexcept;			// Compute the height correction needed at a point, ignoring taper
-	void SetNewPositionOfSomeAxes(const MovementState& ms, bool doBedCompensation, AxesBitmap axes) noexcept;	// Set the current position to be this
+//	void SetNewPositionOfSomeAxes(const MovementState& ms, bool doBedCompensation, AxesBitmap axes) noexcept;	// Set the current position to be this
 	void GetLiveMachineCoordinates(float coords[MaxAxes]) const noexcept;										// Get the current machine coordinates, independently of the above functions, so not affected by other tasks calling them
 
 	const char *_ecv_array GetCompensationTypeString() const noexcept;
@@ -920,27 +918,9 @@ inline void Move::UpdateExtrusionPendingLimits(float extrusionPending) noexcept
 	else if (extrusionPending < minExtrusionPending) { minExtrusionPending = extrusionPending; }
 }
 
-#if SUPPORT_ASYNC_MOVES
-
-// Get the current position of some axes from one of the rings
-inline void Move::GetPartialMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, AxesBitmap whichAxes) const noexcept
+inline void Move::SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 {
-	rings[msNumber].GetPartialMachinePosition(m, whichAxes);
-}
-
-#endif
-
-// Set the current position to be this without transforming them first
-inline void Move::SetRawPosition(const float positions[MaxAxes], MovementSystemNumber msNumber, AxesBitmap axes) noexcept
-{
-	rings[msNumber].SetPositions(*this, positions, axes);
-}
-
-// Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.
-// There must be no pending movement when calling this!
-inline void Move::AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept
-{
-	rings[0].AdjustMotorPositions(*this, adjustment, numMotors);
+	rings[msNumber].SetLastEndpoints(logicalDrives, ep);
 }
 
 inline int32_t Move::GetLiveMotorPosition(size_t driver) const noexcept
@@ -1013,15 +993,6 @@ inline void Move::ResetAfterError() noexcept
 	}
 }
 
-inline void Move::SetNewPositionOfOwnedAxes(const MovementState& ms, bool doBedCompensation) noexcept
-{
-#if SUPPORT_ASYNC_MOVES
-	SetNewPositionOfSomeAxes(ms, doBedCompensation, ms.GetAxesAndExtrudersOwned());
-#else
-	SetNewPositionOfAllAxes(ms, doBedCompensation);
-#endif
-}
-
 #if HAS_SMART_DRIVERS
 
 // Get the current step interval for this axis or extruder, or 0 if it is not moving
@@ -1048,12 +1019,13 @@ inline void Move::InvertCurrentMotorSteps(size_t driver) noexcept
 
 #endif
 
+void SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;
+
 #if SUPPORT_ASYNC_MOVES
 
-// Release some drives that are currently owned by the specified movement queue and update the corresponding values in lastKnownEndpoints
-inline void Move::ReleaseDrives(MovementSystemNumber msNumber, LogicalDrivesBitmap drivesToRelease, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) noexcept
+inline void Move::GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrivesOwned, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
 {
-	rings[msNumber].ReleaseDrives(drivesToRelease, lastKnownEndpoints);
+	rings[msNumber].GetLastEndpoints(logicalDrivesOwned, returnedEndpoints);
 }
 
 #endif

@@ -342,6 +342,7 @@ constexpr size_t NumRealModules = Module::NumValues - 1;
 class Network;
 class Platform;
 class GCodes;
+class MovementState;
 class Move;
 class DDA;
 class Kinematics;

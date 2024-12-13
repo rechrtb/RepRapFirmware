@@ -1114,20 +1114,22 @@ void DDA::MatchSpeeds() noexcept
 // This may be called from an ISR, e.g. via Kinematics::OnHomingSwitchTriggered
 void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axesMoved) noexcept
 {
-	(void)move.CartesianToMotorSteps(position, endPoint, true);
-	LogicalDrivesBitmap drivesMoved;
-	const Kinematics& kin = move.GetKinematics();
-	axesMoved.Iterate([this, position, &kin, &drivesMoved](unsigned int axis, unsigned int)->void
-						{
-							endCoordinates[axis] = position[axis];
-							drivesMoved |= kin.GetControllingDrives(axis, false);
+	if (move.CartesianToMotorSteps(position, endPoint, true))
+	{
+		LogicalDrivesBitmap drivesMoved;
+		const Kinematics& kin = move.GetKinematics();
+		axesMoved.Iterate([this, position, &kin, &drivesMoved](unsigned int axis, unsigned int)->void
+							{
+								endCoordinates[axis] = position[axis];
+								drivesMoved |= kin.GetControllingDrives(axis, false);
 #if SUPPORT_ASYNC_MOVES
-							MovementState::SetLastKnownMachinePosition(axis, position[axis]);
+								MovementState::SetLastKnownMachinePosition(axis, position[axis]);
 #endif
-						}
-					 );
-	flags.endCoordinatesValid = true;
-	drivesMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
+							}
+						 );
+		flags.endCoordinatesValid = true;
+		drivesMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
+	}
 }
 
 // Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.
