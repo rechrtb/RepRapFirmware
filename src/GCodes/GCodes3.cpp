@@ -127,7 +127,7 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb, const StringRef& reply) THROWS
 #if SUPPORT_ASYNC_MOVES
 		ms.SetNewPositionOfOwnedAxes(true);
 #else
-		ms.SetNewPositionfAlAxes(true);
+		ms.SetNewPositionOfAllAxes(true);
 #endif
 		if (!IsSimulating())
 		{
