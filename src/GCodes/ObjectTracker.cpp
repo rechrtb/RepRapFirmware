@@ -9,6 +9,7 @@
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Platform/RepRap.h>
 #include "GCodes.h"
+#include <limits>
 
 // Object model tables and functions for class ObjectTracker
 
