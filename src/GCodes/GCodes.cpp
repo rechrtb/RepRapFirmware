@@ -246,16 +246,10 @@ void GCodes::Reset() noexcept
 
 	{
 		float initialPosition[MaxAxesPlusExtruders];
+		memsetf(initialPosition, 0.0, ARRAY_SIZE(initialPosition));
 		reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, initialPosition);
-		for (size_t i = numVisibleAxes; i < MaxAxesPlusExtruders; ++i)
-		{
-			initialPosition[i] = 0.0;
-		}
 
-#if SUPPORT_ASYNC_MOVES
 		MovementState::GlobalInit(initialPosition);
-		pausedMovementSystemNumber = 0;
-#endif
 
 		for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
 		{
@@ -282,6 +276,9 @@ void GCodes::Reset() noexcept
 	lastDuration = 0;
 
 	pauseState = PauseState::notPaused;
+#if SUPPORT_ASYNC_MOVES
+	pausedMovementSystemNumber = 0;
+#endif
 #if HAS_VOLTAGE_MONITOR
 	isPowerFailPaused = false;
 #endif

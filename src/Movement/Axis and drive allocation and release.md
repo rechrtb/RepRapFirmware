@@ -34,48 +34,62 @@ To handle allocation of axes and the associated drives:
 
 Special situations:
 - At initialisation time: 
-   We take the assumed initial machine position for that kinematics and store it in all MSs
-   We transform that machine position to endpoints
-   We store those endpoints in lastKnownEndpoints and in the motor positions in the DMs.
+   We take the assumed initial machine position for the kinematics (GCodes::Reset)
+   We transform that machine position to lastKnownEndpoints and also store them in the motor positions in the DMs (MovementState::GlobalInit, called for GCodes::Reset)
+   We store the assumed initial machine position and the corresponding user position in all MSs (MovementState::Init)
+   We also store the endpoints in the DDA rings (MovementState::Init)
+
 - When we execute G92: we allocate the axes (and extruders) that the G92 command refers to, and hence the drives affected.
    We transform the G92 coordinates to machine coordinates and store them in the current MS
    We transform the machine coordinates into drive endpoints
    We store those endpoints in the DDARing for the MS concerned and in the motor positions in the DMs.
+
 - When auto-calibrating a delta printer anbd adjusting positions to take account of endstop offsets:
    We fetch the endpoints from the DDARing for the MS that did the calibration
    We adjust those endpoints as instructed by the calbration
    We also store the new endpoints in lastKnownEndpoints and in the motor positions in the DMs.
+
 - When we complete a simulation and restore the user and machine positions:
    We transform the restored position to machnie coordinates and to endpoints
    We store those endpoints in lastKnownEndpoints from the restored position and copy them into the DDARings
    We also store them in the motor positions in the DMs in case the transformation left us with slightly different endpoints from previously
+
 - When we do an endstop-sensitive move on a Cartesian or Core machine and that axis is controlled by drives that don't affect other axes:
    We only need to stop the axis whose endstop triggered, if other axes are being homes simultaneously
    We retrieve the new endpoint for those drives (usually only one) from the DM motor position, copy them into the DDARing of the owning MS, and also copy them into lastKnownEndpoints
    If it was a homing move then the system will change the machine coordinate of that axis, transform it to endpoints, and update endpoints (similar to executnig a G92 command for that axis)
+
 - When we do an endstop-sensitive move on an axis on a Core machine and that axis is controlled by drives that affect other axes:
    We stop all drives
    We retrieve the new endpoints for all drives owned by the MS that initiated the homing move from the DM motor position, copy them into the DDARing of the owning MS, and also copy them into lastKnownEndpoints
- When we do an endstop-sensitive move on a machine that homes using raw motor moves:
+
+- When we do an endstop-sensitive move on a machine that homes using raw motor moves:
    We stop the drive whose endstop triggered 
    We copy its endpoint from the DM motor position into the DDARing of the MS that initiated the move and into lastKnownEndpoints
+
 - When we do a probing move and the probe triggers:
    We stop all drives
    We retrieve the new endpoints for all drives owned by the MS that initiated the homing move from the DM motor position, copy them into the DDARing of the owning MS, and also copy them into lastKnownEndpoints
- When we apply babystepping:
+
+- When we apply babystepping:
    Currently babystepping assumes that Z motion and not other motion is controlled only by the Z drive. It adjusts the Z position and the endpoint of the Z driver in existing moves in the queue.
    We must also update the Z drive endpont in the DDARing by the amount of Z babystepping pushed throuh the queue.
+
 - When we pause a print and some moves in the queue are thrown away:
    We must set the endpoint in the DDA ring in which moves have been thrown away to the endpont of the last completed move
+
 - When we do an emergency pause and throw away all moves in the queue:
    If we are definitely going to stop, we needn't update endpoints. Otherwise, we must set the endpoint in the DDA ring in which moves have been thrown away to the endpont of the last completed move.
 
-  Common operations:
-  - Changing the deemed positions of some axes/drives, requiring endpoints to be adjusted on ownding DDARings, DMs and lastKnownEndpoints.
-     Called during initialisation (but no drives are owned)
-     Called by G92 (at least the affected drives are owned)
-     Called when homing moves change the assumed machine coordinates
-     Called when Z probing moves change the assumed machine coordinates
-  - Retrieving from the DMs endpoints of some drives that were stopped by an endstop or probe, updating the owning DDARing and lastKnownEndpoints, and updating axis corodinates
-     Called after a endstop-sensitive or probing move that stops one or more drives, before any adjustment to the assumed machine coordinates
-  
+Common operations:
+- Changing the deemed positions of some axes/drives, requiring endpoints to be adjusted on ownding DDARings, DMs and lastKnownEndpoints.
+   Called during initialisation (but no drives are owned)
+   Called by G92 (at least the affected drives are owned)
+   Called when homing moves change the assumed machine coordinates
+   Called when Z probing moves change the assumed machine coordinates
+- Retrieving from the DMs endpoints of some drives that were stopped by an endstop or probe, updating the owning DDARing and lastKnownEndpoints, and updating axis corodinates
+   Called after a endstop-sensitive or probing move that stops one or more drives, before any adjustment to the assumed machine coordinates
+ 
+Configurations which don't support multiple motion systems:
+- For convenience we still maintain lastKnownEndpoints, to reduce the amount of coe that is conditional on supporting multiple motion systems
+- We replace MoveState member logicalDrivesOwned by a static constant that means all logical drives

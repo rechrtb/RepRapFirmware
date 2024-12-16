@@ -28,9 +28,13 @@ struct RawMove
 
 	const Tool *_ecv_null movementTool;								// which tool (if any) is being used by this move
 
+	static constexpr LogicalDrivesBitmap allLogicalDrives = LogicalDrivesBitmap::MakeLowestNBits(MaxAxesPlusExtruders);
+
 #if SUPPORT_ASYNC_MOVES
 	AxesBitmap axesAndExtrudersOwned;								// axes and extruders that this movement system has moved since the last sync, or owns for other reasons
-	LogicalDrivesBitmap logicalDrivesOwned;							// logical drives that those axes and extruders use
+	LogicalDrivesBitmap logicalDrivesOwned;							// logical drives that this movement system owns
+#else
+	static constexpr LogicalDrivesBitmap logicalDrivesOwned = allLogicalDrives;
 #endif
 
 	uint16_t moveType : 3,											// the H parameter from the G0 or G1 command, 0 for a normal move
@@ -88,10 +92,9 @@ constexpr size_t ResumeObjectRestorePointNumber = NumVisibleRestorePoints + 1;
 class MovementState : public RawMove
 {
 public:
-
-#if SUPPORT_ASYNC_MOVES
 	static void GlobalInit(const float initialPosition[MaxAxesPlusExtruders]) noexcept;
 
+#if SUPPORT_ASYNC_MOVES
 	AxesBitmap GetAxesAndExtrudersOwned() const noexcept { return axesAndExtrudersOwned; }	// Get the axes and extruders that this movement system owns
 	ParameterLettersBitmap GetOwnedAxisLetters() const noexcept { return ownedAxisLetters; } // Get the letters denoting axes that this movement system owns
 	LogicalDrivesBitmap AllocateAxes(AxesBitmap axes, ParameterLettersBitmap axisLetters) noexcept;	// try to allocate the requested axes, if we can't then return the logical drives we can't allocate
@@ -100,12 +103,10 @@ public:
 	void ReleaseNonToolAxesAndExtruders() noexcept;
 	void ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept;
 	void ReleaseAxisLetter(char letter) noexcept;											// stop claiming that we own an axis letter (if we do) but don't release the associated axis
-	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the coordinates of axes we own to lastKnownMachinePositions
 	void UpdateCoordinatesFromLastKnownEndpoints() noexcept;								// update our coordinates from the saved endpoints
-//	void OwnedAxisCoordinatesUpdated(AxesBitmap axesIncluded) noexcept;						// update changed coordinates of some owned axes - called after G92
-//	void OwnedAxisCoordinateUpdated(size_t axis) noexcept;									// update the machine coordinate of an axis we own - called after Z probing
 #endif
 
+	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the coordinates of axes we own to lastKnownMachinePositions
 	void SetNewPositionOfAllAxes(bool doBedCompensation) noexcept;
 	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
 	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;
@@ -225,12 +226,12 @@ private:
 	mutable float latestLiveCoordinates[MaxAxesPlusExtruders];		// the most recent set of live coordinates that we fetched
 	mutable uint32_t latestLiveCoordinatesFetchedAt = 0;			// when we fetched the live coordinates
 
+	static int32_t lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored position of the logical drives
+
 #if SUPPORT_ASYNC_MOVES
 	ParameterLettersBitmap ownedAxisLetters;						// cache of letters denoting user axes for which the corresponding machine axes for the current tool are definitely owned
 
-	static AxesBitmap allOwnedAxesAndExtruders;						// axes and extruders that are owned by any movement system
-	static LogicalDrivesBitmap logicalDrivesMoved;					// logical drives owned by any movement system
-	static int32_t lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored position of the logical drives
+	static LogicalDrivesBitmap allLogicalDrivesOwned;				// logical drives owned by any movement system
 #endif
 };
 
