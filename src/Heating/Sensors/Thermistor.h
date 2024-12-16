@@ -39,7 +39,7 @@ protected:
 	DECLARE_OBJECT_MODEL
 
 private:
-	static TemperatureSensor::SensorTypeDescriptor thermistorDescriptor, pt100descriptor;
+	static SensorTypeDescriptor thermistorDescriptor, pt100descriptor;
 
 	void CalcDerivedParameters() noexcept;											// calculate shA and shB
 	int32_t GetRawReading(bool& valid) const noexcept;								// get the ADC reading

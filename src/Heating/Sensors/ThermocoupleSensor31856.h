@@ -28,7 +28,7 @@ public:
 	static constexpr const char *_ecv_array TypeName = "thermocouplemax31856";
 
 private:
-	static TemperatureSensor::SensorTypeDescriptor typeDescriptor;
+	static SensorTypeDescriptor typeDescriptor;
 
 	TemperatureError TryInitThermocouple() const noexcept;
 	GCodeResult FinishConfiguring(bool changed, const StringRef& reply) noexcept;

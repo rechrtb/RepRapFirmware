@@ -26,7 +26,7 @@ public:
 	static constexpr const char *_ecv_array TypeName = "linearanalog";
 
 private:
-	static TemperatureSensor::SensorTypeDescriptor typeDescriptor;
+	static SensorTypeDescriptor typeDescriptor;
 
 	void CalcDerivedParameters() noexcept;
 

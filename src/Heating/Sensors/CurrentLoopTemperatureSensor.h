@@ -28,7 +28,7 @@ public:
 	static constexpr const char *_ecv_array TypeName = "currentloop";
 
 private:
-	static TemperatureSensor::SensorTypeDescriptor typeDescriptor;
+	static SensorTypeDescriptor typeDescriptor;
 
 	TemperatureError TryGetLinearAdcTemperature(float& t) noexcept;
 	GCodeResult FinishConfiguring(bool changed, const StringRef& reply) noexcept;
