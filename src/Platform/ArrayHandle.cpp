@@ -9,7 +9,7 @@
 #include <ObjectModel/ObjectModel.h>
 
 // Declare placement new operator for class ExpressionValue so that we don't have to include <new>
-void* operator new(std::size_t, ExpressionValue* arg) noexcept { return arg; }
+void* operator new(size_t, ExpressionValue* arg) noexcept { return arg; }
 
 // Version of struct StorageSpace to represent an array. This overlays struct StorageSpace, so the 'length' field corresponds to the same field in that struct.
 struct ArrayStorageSpace

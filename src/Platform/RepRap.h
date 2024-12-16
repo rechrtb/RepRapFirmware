@@ -41,7 +41,7 @@ enum class ResponseSource
 
 typedef Bitmap<uint32_t> DebugFlags;
 
-class RepRap INHERIT_OBJECT_MODEL
+class RepRap final INHERIT_OBJECT_MODEL
 {
 public:
 	RepRap() noexcept;

@@ -16,7 +16,6 @@
 #include <GCodes/GCodes.h>
 #include <ObjectModel/GlobalVariables.h>
 #include <GCodes/GCodeBuffer/ExpressionParser.h>
-#include <array>
 
 constexpr FileInfoParser::ParseTableEntry FileInfoParser::parseTable[] =
 {
