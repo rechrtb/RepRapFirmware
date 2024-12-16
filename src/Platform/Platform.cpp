@@ -53,7 +53,6 @@
 
 #if SAM4E || SAM4S || SAME70
 # include <AnalogIn.h>
-using LegacyAnalogIn::AdcBits;
 # include <DmacManager.h>
 # include <pmc/pmc.h>
 # if SAME70
@@ -62,7 +61,6 @@ static_assert(NumDmaChannelsUsed <= NumDmaChannelsSupported, "Need more DMA chan
 #elif SAME5x
 # include <AnalogIn.h>
 # include <DmacManager.h>
-using AnalogIn::AdcBits;			// for compatibility with CoreNG, which doesn't have the AnalogIn namespace
 #endif
 
 #include <Libraries/sd_mmc/sd_mmc.h>
@@ -114,24 +112,24 @@ using AnalogIn::AdcBits;			// for compatibility with CoreNG, which doesn't have 
 
 	float Platform::AdcReadingToPowerVoltage(uint16_t adcVal) const noexcept
 	{
-		return (adcVal * powerMonitorVoltageRange)/(1u << AdcBits);
+		return (adcVal * powerMonitorVoltageRange)/(1u << AnalogIn::AdcBits);
 	}
 
 	uint16_t Platform::PowerVoltageToAdcReading(float voltage) const noexcept
 	{
-		return (uint16_t)((voltage * (1u << AdcBits))/powerMonitorVoltageRange);
+		return (uint16_t)((voltage * (1u << AnalogIn::AdcBits))/powerMonitorVoltageRange);
 	}
 
 # else
 
 inline constexpr float AdcReadingToPowerVoltage(uint16_t adcVal) noexcept
 {
-	return adcVal * (PowerMonitorVoltageRange/(1u << AdcBits));
+	return adcVal * (PowerMonitorVoltageRange/(1u << AnalogIn::AdcBits));
 }
 
 inline constexpr uint16_t PowerVoltageToAdcReading(float voltage) noexcept
 {
-	return (uint16_t)(voltage * ((1u << AdcBits)/PowerMonitorVoltageRange));
+	return (uint16_t)(voltage * ((1u << AnalogIn::AdcBits)/PowerMonitorVoltageRange));
 }
 
 constexpr uint16_t driverPowerOnAdcReading = PowerVoltageToAdcReading(10.0);			// minimum voltage at which we initialise the drivers
@@ -150,12 +148,12 @@ constexpr uint16_t driverNormalVoltageAdcReading = PowerVoltageToAdcReading(27.5
 
 inline constexpr float AdcReadingToV12Voltage(uint16_t adcVal) noexcept
 {
-	return adcVal * (V12MonitorVoltageRange/(1u << AdcBits));
+	return adcVal * (V12MonitorVoltageRange/(1u << AnalogIn::AdcBits));
 }
 
 inline constexpr uint16_t V12VoltageToAdcReading(float voltage) noexcept
 {
-	return (uint16_t)(voltage * ((1u << AdcBits)/V12MonitorVoltageRange));
+	return (uint16_t)(voltage * ((1u << AnalogIn::AdcBits)/V12MonitorVoltageRange));
 }
 
 constexpr uint16_t driverV12OnAdcReading = V12VoltageToAdcReading(10.0);				// minimum voltage at which we initialise the drivers
@@ -201,8 +199,8 @@ constexpr ObjectModelArrayTableEntry Platform::objectModelArrayTable[] =
 	// 0. boards[0].drivers
 	{
 		nullptr,
-		[] (const ObjectModel *self, const ObjectExplorationContext& context) noexcept -> size_t { return NumDirectDrivers; },
-		[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(&reprap.GetMove(), 14); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(NumDirectDrivers),
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF(&reprap.GetMove(), 14)
 	}
 };
 
@@ -290,7 +288,7 @@ constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
 	5,																		// number of sections
 	11 + SUPPORT_ACCELEROMETERS + HAS_SBC_INTERFACE + HAS_MASS_STORAGE + HAS_VOLTAGE_MONITOR + HAS_12V_MONITOR + HAS_CPU_TEMP_SENSOR
-	  + SUPPORT_CAN_EXPANSION + SUPPORT_DIRECT_LCD + MCU_HAS_UNIQUE_ID + HAS_WIFI_NETWORKING,		// section 0: boards[0]
+	  + SUPPORT_CAN_EXPANSION + (int)SUPPORT_DIRECT_LCD + MCU_HAS_UNIQUE_ID + HAS_WIFI_NETWORKING,		// section 0: boards[0]
 #if HAS_CPU_TEMP_SENSOR
 	3,																		// section 1: mcuTemp
 #else
@@ -761,7 +759,7 @@ bool Platform::FlushMessages() noexcept
 	if (usbHasMore)
 	{
 		MutexLocker lock(usbMutex);
-		OutputBuffer *usbOutputBuffer = usbOutput.GetFirstItem();
+		OutputBuffer *_ecv_null usbOutputBuffer = usbOutput.GetFirstItem();
 		if (usbOutputBuffer == nullptr)
 		{
 			(void) usbOutput.Pop();
@@ -1020,7 +1018,7 @@ void Platform::Spin() noexcept
 
 			// Check for a VSSA fault
 #if HAS_VREF_MONITOR
-			constexpr uint32_t MaxVssaFilterSum = (15 * (1u << AdcBits) * ThermistorAverageReadings * 4)/2200;		// VSSA fuse should have <= 15 ohms resistance
+			constexpr uint32_t MaxVssaFilterSum = (15 * (1u << AnalogIn::AdcBits) * ThermistorAverageReadings * 4)/2200;		// VSSA fuse should have <= 15 ohms resistance
 			if (adcFilters[VssaFilterIndex].GetSum() > MaxVssaFilterSum)
 			{
 				Message(ErrorMessage, "VSSA fault, check thermistor wiring\n");
@@ -1186,7 +1184,7 @@ float Platform::GetCpuTemperature() const noexcept
 	result = (divisor == 0) ? 0 : result/divisor;
 	return (float)result/16 + mcuTemperatureAdjust;
 #else
-	const float voltage = (float)adcFilters[CpuTempFilterIndex].GetSum() * (3.3/(float)((1u << AdcBits) * ThermistorAverageReadings));
+	const float voltage = (float)adcFilters[CpuTempFilterIndex].GetSum() * (3.3/(float)((1u << AnalogIn::AdcBits) * ThermistorAverageReadings));
 # if SAM4E || SAM4S
 	return (voltage - 1.44) * (1000.0/4.7) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-13C
 # elif SAME70
@@ -1362,7 +1360,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	{
 		NonVolatileMemory mem;
 		unsigned int slot;
-		const SoftwareResetData * const srd = mem.GetLastWrittenResetData(slot);
+		const SoftwareResetData *_ecv_null const srd = mem.GetLastWrittenResetData(slot);
 		if (srd == nullptr)
 		{
 			Message(mtype, "Last software reset details not available\n");
@@ -1641,9 +1639,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 	case (unsigned int)DiagnosticTestType::OutputBufferStarvation:
 		{
-			OutputBuffer *buf;
-			while (OutputBuffer::Allocate(buf)) { }
-			OutputBuffer::ReleaseAll(buf);
+			OutputBuffer *_ecv_null nbuf;
+			while (OutputBuffer::Allocate(nbuf)) { }
+			OutputBuffer::ReleaseAll(nbuf);
 		}
 		break;
 
@@ -2062,7 +2060,7 @@ GCodeResult Platform::HandleM575(GCodeBuffer& gb, const StringRef& reply) THROWS
 {
 	// Get the channel specified by the command and the corresponding GCode buffer
 	const size_t chan = gb.GetLimitedUIValue('P', NumSerialChannels);
-	GCodeBuffer * const gbp = reprap.GetGCodes().GetSerialGCodeBuffer(chan);
+	GCodeBuffer *_ecv_null const gbp = reprap.GetGCodes().GetSerialGCodeBuffer(chan);
 
 #if HAS_AUX_DEVICES
 	// If a baud rate has been provided, just store it for later use
@@ -2151,7 +2149,7 @@ GCodeResult Platform::HandleM575(GCodeBuffer& gb, const StringRef& reply) THROWS
 	{
 		// Just print the existing configuration
 		const uint32_t cp = GetCommsProperties(chan);
-		const char *crcMode = (cp & 4) ? "requires CRC"
+		const char *_ecv_array crcMode = (cp & 4) ? "requires CRC"
 								: (cp & 1) ? "requires checksum or CRC"
 									: "does not require checksum or CRC";
 #if HAS_AUX_DEVICES
@@ -2166,7 +2164,7 @@ GCodeResult Platform::HandleM575(GCodeBuffer& gb, const StringRef& reply) THROWS
 			else
 			{
 				const AuxDevice& dev = auxDevices[chan - FirstAuxChannel];
-				const char *modeString = (dev.GetMode() == AuxMode::device) ? "Device / modbus RTU" :
+				const char *_ecv_array modeString = (dev.GetMode() == AuxMode::device) ? "Device / modbus RTU" :
 											(IsAuxRaw(chan - 1)) ? "raw"
 												: "PanelDue";
 				reply.printf("Channel %d: baud rate %" PRIu32 ", %s mode, ", chan, GetBaudRate(chan), modeString);
@@ -2244,7 +2242,9 @@ static inline void ConvertHexToAsciiHex(uint8_t hex, uint8_t asciiHex[2])
 	}
 }
 
-static inline void CalculateNordsonUltimusVCheckSum(uint8_t* data, size_t len, uint8_t checksum[2])
+# if !defined(DUET_NG)			// we don't support this on Duet 2 because we are running low on flash memory space
+
+static inline void CalculateNordsonUltimusVCheckSum(uint8_t *_ecv_array data, size_t len, uint8_t checksum[2])
 {
 	uint16_t sum = 0;
 	for (size_t i = 0; i < len; i++)
@@ -2254,6 +2254,8 @@ static inline void CalculateNordsonUltimusVCheckSum(uint8_t* data, size_t len, u
 
 	ConvertHexToAsciiHex(sum & 0xFF, checksum); // take last byte of sum and convert to ascii hex
 }
+
+#endif
 
 static Variable *_ecv_null GetResultVariable(GCodeBuffer& gb) THROWS(GCodeException)
 {
@@ -2918,7 +2920,7 @@ void Platform::RawMessage(MessageType type, const char *_ecv_array message) noex
 		MutexLocker lock(usbMutex);
 
 		// Ensure we have a valid buffer to write to that isn't referenced for other destinations
-		OutputBuffer *usbOutputBuffer = usbOutput.GetLastItem();
+		OutputBuffer *_ecv_null usbOutputBuffer = usbOutput.GetLastItem();
 		if (usbOutputBuffer == nullptr || usbOutputBuffer->IsReferenced())
 		{
 			if (OutputBuffer::Allocate(usbOutputBuffer))
@@ -2940,7 +2942,7 @@ void Platform::RawMessage(MessageType type, const char *_ecv_array message) noex
 // Note: this overload of Platform::Message does not process the special action flags in the MessageType.
 // Also it treats calls to send a blocking USB message the same as ordinary USB messages,
 // and calls to send an immediate LCD message the same as ordinary LCD messages
-void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
+void Platform::Message(MessageType type, OutputBuffer *buffer) noexcept
 {
 #if HAS_MASS_STORAGE
 	// First deal with logging because it doesn't hang on to the buffer
@@ -3120,7 +3122,7 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 	if (gb.Seen('S'))
 	{
 		StopLogging();
-		const auto logLevel = (LogLevel) gb.GetLimitedUIValue('S', LogLevel::off, LogLevel::NumValues);
+		const auto logLevel = (LogLevel::RawType)gb.GetLimitedUIValue('S', LogLevel::off, LogLevel::NumValues);
 		if (logLevel > LogLevel::off)
 		{
 			// Start logging
@@ -3261,7 +3263,7 @@ GCodeResult Platform::HandleM81(GCodeBuffer& gb, const StringRef& reply) THROWS(
 		delayedPowerDown = gb.Seen('D');
 		if (delayedPowerDown)
 		{
-			whenToPowerDown = (gb.GetUIValue() * SecondsToMillis) + millis();
+			whenToPowerDown = (gb.GetUIValue() * (uint32_t)SecondsToMillis) + millis();
 		}
 		if (!powerDownWhenFansStop && !delayedPowerDown)
 		{
@@ -3326,7 +3328,7 @@ void Platform::SetCommsProperties(size_t chan, uint32_t cp) noexcept
 
 uint32_t Platform::GetCommsProperties(size_t chan) const noexcept
 {
-	return (chan < NumSerialChannels) ? commsParams[chan] : 0;
+	return (chan < NumSerialChannels) ? commsParams[chan] : 0u;
 }
 
 // Re-initialise a serial channel.
@@ -3599,7 +3601,7 @@ bool Platform::DeleteSysFile(const char *_ecv_array filename) const noexcept
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE || HAS_EMBEDDED_FILES
 
 // Open a file
-FileStore* Platform::OpenFile(const char *_ecv_array folder, const char *_ecv_array fileName, OpenMode mode, uint32_t preAllocSize) const noexcept
+FileStore *_ecv_null Platform::OpenFile(const char *_ecv_array folder, const char *_ecv_array fileName, OpenMode mode, uint32_t preAllocSize) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return (MassStorage::CombineName(location.GetRef(), folder, fileName))
@@ -3616,7 +3618,7 @@ bool Platform::FileExists(const char *_ecv_array folder, const char *_ecv_array 
 // Return a pointer to a string holding the directory where the system files are. Lock the sysdir lock before calling this.
 const char *_ecv_array Platform::InternalGetSysDir() const noexcept
 {
-	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
+	return (sysDir != nullptr) ? _ecv_not_null(sysDir) : DEFAULT_SYS_DIR;
 }
 
 bool Platform::SysFileExists(const char *_ecv_array filename) const noexcept
@@ -3625,7 +3627,7 @@ bool Platform::SysFileExists(const char *_ecv_array filename) const noexcept
 	return MakeSysFileName(location.GetRef(), filename) && MassStorage::FileExists(location.c_str());
 }
 
-FileStore* Platform::OpenSysFile(const char *_ecv_array filename, OpenMode mode) const noexcept
+FileStore *_ecv_null Platform::OpenSysFile(const char *_ecv_array filename, OpenMode mode) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return (MakeSysFileName(location.GetRef(), filename))
@@ -3672,7 +3674,7 @@ GCodeResult Platform::SetSysDir(const char *_ecv_array dir, const StringRef& rep
 
 	newSysDir.cat('/');								// the call to DirectoryExists removed the trailing '/'
 	const size_t len = newSysDir.strlen() + 1;
-	char* const nsd = new char[len];
+	char *_ecv_array _ecv_null const nsd = new char[len];
 	memcpy(nsd, newSysDir.c_str(), len);
 	ReplaceObject(sysDir, nsd);
 	reprap.DirectoriesUpdated();
@@ -3790,13 +3792,13 @@ float Platform::GetCurrentV12Voltage() const noexcept
 
 // Real-time clock
 
-bool Platform::SetDateTime(time_t time) noexcept
+bool Platform::SetDateTime(time_t tim) noexcept
 {
 	struct tm brokenDateTime;
-	const bool ok = (gmtime_r(&time, &brokenDateTime) != nullptr);
+	const bool ok = (gmtime_r(&tim, &brokenDateTime) != nullptr);
 	if (ok)
 	{
-		realTime = time;			// set the date and time
+		realTime = tim;			// set the date and time
 
 		// Write a log message, giving the time since power up in same format as the logger does
 		const uint32_t timeSincePowerUp = (uint32_t)(millis64()/1000u);
@@ -4136,7 +4138,7 @@ void Platform::Tick() noexcept
 	}
 #endif
 
-	const ZProbe& currentZProbe = endstops.GetDefaultZProbeFromISR();
+	const ZProbe &_ecv_from currentZProbe = endstops.GetDefaultZProbeFromISR();
 	switch (tickState)
 	{
 	case 1:
