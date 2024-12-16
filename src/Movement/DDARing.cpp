@@ -429,14 +429,10 @@ void DDARing::GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMappi
 	}
 }
 
-#if SUPPORT_ASYNC_MOVES
-
-void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) const noexcept
+void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
 {
-	logicalDrives.Iterate([this, lastKnownEndpoints](unsigned int drive, unsigned int count) { lastKnownEndpoints[drive] = endpointsOfLastMove[drive]; } );
+	logicalDrives.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = endpointsOfLastMove[drive]; } );
 }
-
-#endif
 
 // Set the initial machine coordinates for the next move to be added to the specified values, by setting the final coordinates of the last move in the queue
 // The last move in the queue must have already been set up by the Move process before this is called.
@@ -449,7 +445,9 @@ void DDARing::SetPositions(Move& move, const float positions[MaxAxesPlusExtruder
 // Set the endpoints of some drives that we have just allocated
 void DDARing::SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 {
-	const bool updateLastMove = addPointer->GetPrevious()->GetState();
+	const DDA::DDAState stateOfPreviousMove = addPointer->GetPrevious()->GetState();
+	//TODO what if the state changes while we are executing this?
+	const bool updateLastMove = (stateOfPreviousMove != DDA::DDAState::committed && stateOfPreviousMove != DDA::DDAState::provisional);
 	logicalDrives.Iterate([this, ep, updateLastMove](unsigned int drive, unsigned int count)
 							{
 								endpointsOfLastMove[drive] = ep[drive];

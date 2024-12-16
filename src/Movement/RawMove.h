@@ -110,7 +110,6 @@ public:
 	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
 	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;
 
-
 	MovementSystemNumber GetNumber() const noexcept { return msNumber; }
 	float GetProportionDone() const noexcept;												// get the proportion of this whole move that has been completed, based on segmentsLeft and totalSegments
 	void Init(MovementSystemNumber p_msNumber, const float initialPosition[MaxAxesPlusExtruders]) noexcept;

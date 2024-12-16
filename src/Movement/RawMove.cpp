@@ -491,21 +491,6 @@ void MovementState::UpdateCoordinatesFromLastKnownEndpoints() noexcept
 	move.InverseAxisAndBedTransform(coords, currentTool);
 }
 
-// Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.
-// There must be no pending movement when calling this!
-void MovementState::AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept
-{
-	SaveOwnDriveCoordinates();
-	Move& move = reprap.GetMove();
-	for (size_t i  = 0; i < numMotors; ++i)
-	{
-		lastKnownEndpoints[i] += lrintf(adjustment[i] * reprap.GetMove().DriveStepsPerMm(i));
-	}
-	const LogicalDrivesBitmap drives = LogicalDrivesBitmap::MakeLowestNBits(numMotors);
-	move.SetLastEndpoints(GetNumber(), drives, lastKnownEndpoints);
-	move.SetMotorPositions(drives, lastKnownEndpoints);
-}
-
 void AsyncMove::SetDefaults() noexcept
 {
 	for (float& f : movements)
@@ -516,5 +501,26 @@ void AsyncMove::SetDefaults() noexcept
 }
 
 #endif
+
+// Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.
+// There must be no pending movement when calling this!
+void MovementState::AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept
+{
+#if SUPPORT_ASYNC_MOVES
+	SaveOwnDriveCoordinates();
+#endif
+	Move& move = reprap.GetMove();
+	const LogicalDrivesBitmap drivesToAdjust = LogicalDrivesBitmap::MakeLowestNBits(numMotors);
+#if !SUPPORT_ASYNC_MOVES
+	int32_t lastKnownEndpoints[MaxAxes];
+	move.GetLastEndpoints(msNumber, drivesToAdjust, lastKnownEndpoints);
+#endif
+	for (size_t i  = 0; i < numMotors; ++i)
+	{
+		lastKnownEndpoints[i] += lrintf(adjustment[i] * reprap.GetMove().DriveStepsPerMm(i));
+	}
+	move.SetLastEndpoints(GetNumber(), drivesToAdjust, lastKnownEndpoints);
+	move.SetMotorPositions(drivesToAdjust, lastKnownEndpoints);
+}
 
 // End

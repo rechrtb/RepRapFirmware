@@ -1132,19 +1132,6 @@ void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axe
 	}
 }
 
-// Adjust the motor endpoints without moving the motors. Called after auto-calibrating a linear delta or rotary delta machine.
-// There must be no pending movement when calling this!
-void DDA::AdjustMotorPositions(Move& move, const float adjustment[], size_t numMotors) noexcept
-{
-	for (size_t drive = 0; drive < numMotors; ++drive)
-	{
-		const int32_t adjustAmount = lrintf(adjustment[drive] * move.DriveStepsPerMm(drive));
-		endPoint[drive] += adjustAmount;
-		move.SetMotorPosition(drive, endPoint[drive]);
-	}
-	flags.endCoordinatesValid = false;
-}
-
 // Force an end point. Called when a homing switch is triggered.
 void DDA::SetDriveCoordinate(int32_t a, size_t drive) noexcept
 {

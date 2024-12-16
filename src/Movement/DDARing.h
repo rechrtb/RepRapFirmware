@@ -51,9 +51,7 @@ public:
 	float GetTotalExtrusionRate() const noexcept;
 
 	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept; // Get the position at the end of the last queued move in untransformed coords
-#if SUPPORT_ASYNC_MOVES
-	void GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t lastKnownEndpoints[MaxAxesPlusExtruders]) const noexcept;
-#endif
+	void GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept;
 	void SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;
 
 	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these

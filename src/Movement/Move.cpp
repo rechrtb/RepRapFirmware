@@ -1172,6 +1172,16 @@ void Move::SetMotorPositions(LogicalDrivesBitmap drives, const int32_t *position
 	drives.Iterate([this, positions](unsigned int drive, unsigned int count) { SetMotorPosition(drive, positions[drive]); });
 }
 
+void Move::SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
+{
+	rings[msNumber].SetLastEndpoints(logicalDrives, ep);
+}
+
+void Move::GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
+{
+	rings[msNumber].GetLastEndpoints(logicalDrives, returnedEndpoints);
+}
+
 // Enter or leave simulation mode
 void Move::Simulate(SimulationMode simMode) noexcept
 {

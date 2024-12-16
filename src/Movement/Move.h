@@ -256,7 +256,10 @@ public:
 #endif
 
 	// Various functions called from GCodes module
-	void GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, bool disableMotorMapping) const noexcept; // Get the current position in untransformed coords
+	void GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, bool disableMotorMapping) const noexcept // Get the current position in untransformed coords
+		pre(msNumber < NumMovementSystems);
+	void GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
+		pre(msNumber < NumMovementSystems);
 	void SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
 
@@ -400,7 +403,6 @@ public:
 	void ReleaseAuxMove(bool hasNewMove) noexcept;											// Release the aux move buffer and optionally signal that it contains a move
 	GCodeResult ConfigureHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Configure height following
 	GCodeResult StartHeightFollowing(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Start/stop height following
-	void GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrivesOwned, int32_t SetLastEndpoints[MaxAxesPlusExtruders]) const noexcept;
 #endif
 
 	const RandomProbePointSet& GetProbePoints() const noexcept { return probePoints; }		// Return the probe point set constructed from G30 commands
@@ -918,11 +920,6 @@ inline void Move::UpdateExtrusionPendingLimits(float extrusionPending) noexcept
 	else if (extrusionPending < minExtrusionPending) { minExtrusionPending = extrusionPending; }
 }
 
-inline void Move::SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
-{
-	rings[msNumber].SetLastEndpoints(logicalDrives, ep);
-}
-
 inline int32_t Move::GetLiveMotorPosition(size_t driver) const noexcept
 {
 	return dms[driver].currentMotorPosition;
@@ -1015,17 +1012,6 @@ inline __attribute__((always_inline)) uint32_t Move::GetStepInterval(size_t driv
 inline void Move::InvertCurrentMotorSteps(size_t driver) noexcept
 {
 	dms[driver].currentMotorPosition = -dms[driver].currentMotorPosition;
-}
-
-#endif
-
-void SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;
-
-#if SUPPORT_ASYNC_MOVES
-
-inline void Move::GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrivesOwned, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
-{
-	rings[msNumber].GetLastEndpoints(logicalDrivesOwned, returnedEndpoints);
 }
 
 #endif
