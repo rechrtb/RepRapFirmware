@@ -157,8 +157,16 @@ extern "C" void hsmciIdle(uint32_t stBits, uint32_t dmaBits) noexcept
 // Otherwise the table will be allocate in RAM instead of flash, which wastes too much RAM.
 
 // Macro to build a standard lambda function that includes the necessary type conversions
-#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(RepRap, __VA_ARGS__)
-#define OBJECT_MODEL_FUNC_IF(_condition,...) OBJECT_MODEL_FUNC_IF_BODY(RepRap, _condition,__VA_ARGS__)
+#define OBJECT_MODEL_FUNC(...)					OBJECT_MODEL_FUNC_BODY(RepRap, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC_IF(_condition,...)	OBJECT_MODEL_FUNC_IF_BODY(RepRap, _condition,__VA_ARGS__)
+#define OBJECT_MODEL_ARRAY_COUNT(_value)		OBJECT_MODEL_ARRAY_COUNT_BODY(RepRap, _value)
+#define OBJECT_MODEL_ARRAY_VALUE(...)			OBJECT_MODEL_ARRAY_VALUE_BODY(RepRap, __VA_ARGS__)
+
+// Get an ExpressionValue that represents a port if it is in use, or null if it is unused
+static ExpressionValue GetExpressionForGpOutPort(GpOutputPort& port) noexcept
+{
+	return (port.IsUnused()) ? ExpressionValue(nullptr) : ExpressionValue(&port);
+}
 
 constexpr ObjectModelArrayTableEntry RepRap::objectModelArrayTable[] =
 {
@@ -166,78 +174,71 @@ constexpr ObjectModelArrayTableEntry RepRap::objectModelArrayTable[] =
 	{
 		nullptr,					// no lock needed
 #if SUPPORT_CAN_EXPANSION
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return ((const RepRap*)self)->expansion->GetNumExpansionBoards() + 1; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue
-				{	return (context.GetLastIndex() == 0)
-							? ExpressionValue(((const RepRap*)self)->platform, 0)
-								: ExpressionValue(((const RepRap*)self)->expansion, 0); }
+		OBJECT_MODEL_ARRAY_COUNT(self->expansion->GetNumExpansionBoards() + 1),
+		OBJECT_MODEL_ARRAY_VALUE((context.GetLastIndex() == 0)
+									? ExpressionValue(self->platform, 0)
+									: ExpressionValue(self->expansion, 0))
 #else
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return 1; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(((const RepRap*)self)->platform, 0); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(1),
+		OBJECT_MODEL_ARRAY_VALUE(self->platform, 0)
 #endif
 	},
 	// 1. Fans
 	{
 		&FansManager::fansLock,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return ((const RepRap*)self)->fansManager->GetNumFansToReport(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(((const RepRap*)self)->fansManager->FindFan(context.GetLastIndex()).Ptr()); }
+		OBJECT_MODEL_ARRAY_COUNT(self->fansManager->GetNumFansToReport()),
+		OBJECT_MODEL_ARRAY_VALUE(self->fansManager->FindFan(context.GetLastIndex()).Ptr()),
 	},
 	// 2. Inputs
 	{
 		nullptr,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return ((const RepRap*)self)->gCodes->GetNumInputs(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(((const RepRap*)self)->gCodes->GetInput(context.GetLastIndex())); }
+		OBJECT_MODEL_ARRAY_COUNT(self->gCodes->GetNumInputs()),
+		OBJECT_MODEL_ARRAY_VALUE(self->gCodes->GetInput(context.GetLastIndex()))
 	},
 	// 3. Spindles
 	{
 		nullptr,					// no lock needed
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext& context) noexcept -> size_t { return MaxSpindles; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(&((const RepRap*)self)->platform->AccessSpindle(context.GetLastIndex())); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(MaxSpindles),
+		OBJECT_MODEL_ARRAY_VALUE(&(self->platform->AccessSpindle(context.GetLastIndex())))
 	},
 	// 4. Tools
 	{
 		&Tool::toolListLock,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return Tool::GetNumToolsToReport(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(Tool::GetLockedTool(context.GetLastIndex()).Ptr()); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(Tool::GetNumToolsToReport()),
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF(Tool::GetLockedTool(context.GetLastIndex()).Ptr())
 	},
 	// 5. Volumes
 	{
 		nullptr,
 #if HAS_MASS_STORAGE
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return MassStorage::GetNumVolumes(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(MassStorage::GetVolume(context.GetLastIndex())); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(MassStorage::GetNumVolumes()),
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF(MassStorage::GetVolume(context.GetLastIndex()))
 #else
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return 0; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(nullptr); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(0),
+		OBJECT_MODEL_ARRAY_VALUE(nullptr)
 #endif
 	},
 	// 6. GP outputs
 	{
 		nullptr,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return reprap.GetPlatform().GetNumGpOutputsToReport(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue
-						{
-							const GpOutputPort& port = reprap.GetPlatform().GetGpOutPort(context.GetLastIndex());
-							return (port.IsUnused()) ? ExpressionValue(nullptr) : ExpressionValue(&port);
-						}
+		OBJECT_MODEL_ARRAY_COUNT(self->GetPlatform().GetNumGpOutputsToReport()),
+		OBJECT_MODEL_ARRAY_VALUE(GetExpressionForGpOutPort(self->GetPlatform().GetGpOutPort(context.GetLastIndex())))
 	},
 	// 7. Restore points
 	{
 		nullptr,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return NumVisibleRestorePoints; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue
-																			{ return ExpressionValue(&((const RepRap*)self)->gCodes->GetCurrentMovementState(context).restorePoints[context.GetLastIndex()]); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(NumVisibleRestorePoints),
+		OBJECT_MODEL_ARRAY_VALUE(&self->gCodes->GetCurrentMovementState(context).restorePoints[context.GetLastIndex()])
 	},
 	// 8. Volume changes
 	{
 		nullptr,
 #if HAS_MASS_STORAGE
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return MassStorage::GetNumVolumes(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue
-																			{ return ExpressionValue((int32_t)MassStorage::GetVolumeSeq(context.GetLastIndex())); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(MassStorage::GetNumVolumes()),
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF((int32_t)MassStorage::GetVolumeSeq(context.GetLastIndex()))
 #else
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return 0; },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(nullptr); }
+		OBJECT_MODEL_ARRAY_COUNT_NOSELF(0),
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF(nullptr)
 #endif
 	}
 #if SUPPORT_LED_STRIPS
@@ -245,9 +246,8 @@ constexpr ObjectModelArrayTableEntry RepRap::objectModelArrayTable[] =
 	// 9. LED strips
 	{
 		&LedStripManager::ledLock,
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext&) noexcept -> size_t { return ((const RepRap*)self)->platform->GetLedStripManager().GetNumLedStrips(); },
-		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue
-				{ return ExpressionValue(((const RepRap*)self)->platform->GetLedStripManager().GetLedStrip(context.GetLastIndex())); }
+		OBJECT_MODEL_ARRAY_COUNT(self->platform->GetLedStripManager().GetNumLedStrips()),
+		OBJECT_MODEL_ARRAY_VALUE(self->platform->GetLedStripManager().GetLedStrip(context.GetLastIndex()))
 	}
 #endif
 };
@@ -2247,7 +2247,7 @@ OutputBuffer *RepRap::GetModelResponse(const GCodeBuffer *_ecv_null gb, const ch
 
 		try
 		{
-			reprap.ReportAsJson(gb, outBuf, key, flags, wantArrayLength);
+			ReportAsJson(gb, outBuf, key, flags, wantArrayLength);
 			outBuf->cat("}\n");
 			if (outBuf->HadOverflow())
 			{

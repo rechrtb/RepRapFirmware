@@ -522,25 +522,48 @@ struct ObjectModelClassDescriptor
 		return _parent::GetObjectModelArrayEntry(index); \
 	}
 
-#define OBJECT_MODEL_FUNC_BODY(_class,...) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+#define OBJECT_MODEL_FUNC_BODY(_class,...)							[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
 	{ const _class * const self = static_cast<const _class*>(arg); return ExpressionValue(__VA_ARGS__); }
-#define OBJECT_MODEL_FUNC_IF_BODY(_class,_condition,...) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+#define OBJECT_MODEL_FUNC_IF_BODY(_class,_condition,...)			[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
 	{ const _class * const self = static_cast<const _class*>(arg); return (_condition) ? ExpressionValue(__VA_ARGS__) : ExpressionValue(nullptr); }
-#define OBJECT_MODEL_FUNC_ARRAY(_index) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+
+#define OBJECT_MODEL_FUNC_BODY_NONLEAF(_class,...)					[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ const _class *_ecv_from const self = static_cast<const _class *_ecv_from>(arg); return ExpressionValue(__VA_ARGS__); }
+#define OBJECT_MODEL_FUNC_IF_BODY_NONLEAF(_class,_condition,...)	[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ const _class *_ecv_from const self = static_cast<const _class *_ecv_from>(arg); return (_condition) ? ExpressionValue(__VA_ARGS__) : ExpressionValue(nullptr); }
+
+#define OBJECT_MODEL_FUNC_ARRAY(_index)								[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
 	{ \
 		static_assert((unsigned int)_index >= ArrayIndexOffset); \
 		static_assert((unsigned int)_index < sizeof(objectModelArrayTable)/sizeof(ObjectModelArrayTableEntry) + ArrayIndexOffset); \
 		return ExpressionValue(arg, _index, true); \
 	}
-#define OBJECT_MODEL_FUNC_ARRAY_IF_BODY(_class,_condition,_index) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+#define OBJECT_MODEL_FUNC_ARRAY_IF_BODY(_class,_condition,_index)	[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
 	{ \
 		static_assert((unsigned int)_index >= ArrayIndexOffset); \
 		static_assert((unsigned int)_index < sizeof(objectModelArrayTable)/sizeof(ObjectModelArrayTableEntry) + ArrayIndexOffset); \
 		const _class * const self = static_cast<const _class*>(arg); \
 		return (_condition) ? ExpressionValue(arg, _index, true) : ExpressionValue(nullptr); \
 	}
-#define OBJECT_MODEL_FUNC_NOSELF(...) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(__VA_ARGS__); }
-#define OBJECT_MODEL_FUNC_IF_NOSELF(_condition,...) [] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+
+#define OBJECT_MODEL_FUNC_NOSELF(...)								[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ return ExpressionValue(__VA_ARGS__); }
+#define OBJECT_MODEL_FUNC_IF_NOSELF(_condition,...)					[] (const ObjectModel *_ecv_from arg, ObjectExplorationContext& context) noexcept -> ExpressionValue \
 	{ return (_condition) ? ExpressionValue(__VA_ARGS__) : ExpressionValue(nullptr); }
+
+#define OBJECT_MODEL_ARRAY_COUNT_BODY(_class,_value)				[] (const ObjectModel *_ecv_from rawSelf, const ObjectExplorationContext& context) noexcept -> size_t \
+	{ const _class *const self = static_cast<const _class *const>(rawSelf); return _value; }
+#define OBJECT_MODEL_ARRAY_VALUE_BODY(_class,...)					[] (const ObjectModel *_ecv_from rawSelf, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ const _class *const self = static_cast<const _class *const>(rawSelf); return ExpressionValue(__VA_ARGS__); }
+
+#define OBJECT_MODEL_ARRAY_COUNT_BODY_NONLEAF(_class,_value)		[] (const ObjectModel *_ecv_from rawSelf, const ObjectExplorationContext& context) noexcept -> size_t \
+	{ const _class *_ecv_from const self = static_cast<const _class *_ecv_from const>(rawSelf); return _value; }
+#define OBJECT_MODEL_ARRAY_VALUE_BODY_NONLEAF(_class,...)			[] (const ObjectModel *_ecv_from rawSelf, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ const _class *_ecv_from const self = static_cast<const _class *_ecv_from const>(rawSelf); return ExpressionValue(__VA_ARGS__); }
+
+#define OBJECT_MODEL_ARRAY_COUNT_NOSELF(_value)						[] (const ObjectModel *_ecv_from rawSelf, const ObjectExplorationContext& context) noexcept -> size_t \
+	{ return _value; }
+#define OBJECT_MODEL_ARRAY_VALUE_NOSELF(...)						[] (const ObjectModel *_ecv_from rawSelf, ObjectExplorationContext& context) noexcept -> ExpressionValue \
+	{ return ExpressionValue(__VA_ARGS__); }
 
 #endif /* SRC_OBJECTMODEL_OBJECTMODEL_H_ */
