@@ -92,7 +92,7 @@ constexpr bool FileInfoParser::TableIsCorrectlyOrdered() noexcept
 		}
 	}
 	return true;
-};
+}
 
 static_assert(FileInfoParser::TableIsCorrectlyOrdered());
 
