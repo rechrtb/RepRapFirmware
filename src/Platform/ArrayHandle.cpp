@@ -180,7 +180,7 @@ void ArrayHandle::Delete() noexcept
 			ArrayStorageSpace *const aSpace = reinterpret_cast<ArrayStorageSpace*>(slotPtr->storage);
 			for (size_t i = 0; i < aSpace->count; ++i)
 			{
-				aSpace->elements[i].~ExpressionValue();			// call destructor on the elements
+				aSpace->elements[i].Release();					// release the element
 			}
 		}
 		Heap::DeleteSlot(slotPtr);
