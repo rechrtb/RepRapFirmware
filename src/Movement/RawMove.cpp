@@ -475,19 +475,13 @@ void AsyncMove::SetDefaults() noexcept
 // There must be no pending movement when calling this!
 void MovementState::AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept
 {
-#if SUPPORT_ASYNC_MOVES
 	SaveOwnDriveCoordinates();
-#endif
 	Move& move = reprap.GetMove();
-	const LogicalDrivesBitmap drivesToAdjust = LogicalDrivesBitmap::MakeLowestNBits(numMotors);
-#if !SUPPORT_ASYNC_MOVES
-	int32_t lastKnownEndpoints[MaxAxes];
-	move.GetLastEndpoints(msNumber, drivesToAdjust, lastKnownEndpoints);
-#endif
 	for (size_t i  = 0; i < numMotors; ++i)
 	{
-		lastKnownEndpoints[i] += lrintf(adjustment[i] * reprap.GetMove().DriveStepsPerMm(i));
+		lastKnownEndpoints[i] += lrintf(adjustment[i] * move.DriveStepsPerMm(i));
 	}
+	const LogicalDrivesBitmap drivesToAdjust = LogicalDrivesBitmap::MakeLowestNBits(numMotors);
 	move.SetLastEndpoints(GetNumber(), drivesToAdjust, lastKnownEndpoints);
 	move.SetMotorPositions(drivesToAdjust, lastKnownEndpoints);
 }

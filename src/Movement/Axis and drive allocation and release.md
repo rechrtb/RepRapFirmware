@@ -37,34 +37,44 @@ To handle allocation of axes and the associated drives:
 
 Initialising a standard move in the DDA:
 - We must start from the correct set of endpoints. If we have just allocated one or more drives then these may not be the same as the endpoints store in the previous DDA entry.
-  This could be solved by storing in the DDARing a set of endpoints representing the start positions of the next move to be added to the ring.
-   But that doesn't solve the next issue.
+   This could be solved by storing in the DDARing a set of endpoints representing the start positions of the next move to be added to the ring.
+   But that doesn't solve the next issue. So we update the endpoints in the previous move instead, This is safe as long as the ownedDrives bits for the updated endpoints are not set.
 - We must start frm the correct set of coordinates so that we can set dv in the DDA correctly.
 
 Preparing (committing) a move in the DDA:
 - DDA::Prepare uses the difference in endpoints stored in the previous move and endpoint of the new move to get the number of steps required.
    This is a problem if the previous move had the wrong endpoints for these drives because they were not owned.
-   A solution is: (1) in each DDA store the bitmap of owned drives. Don't move any other drives. (2) when the endpoints in a MS need to be updated, update them in the previous move, like we always used to do.
+   The solution we adopt is: (1) in each DDA store the bitmap of owned drives. Don't move any other drives. (2) when the endpoints in a MS need to be updated, update them in the previous move, like we always used to do.
 
 Special situations:
-- At initialisation time: 
+- At initialisation time: DONE
    We take the assumed initial machine position for the kinematics (GCodes::Reset)
    We transform that machine position to lastKnownEndpoints and also store them in the motor positions in the DMs (MovementState::GlobalInit, called for GCodes::Reset)
    We store the assumed initial machine position and the corresponding user position in all MSs (MovementState::Init)
    We also store the endpoints in the DDA rings (MovementState::Init)
 
-- When we execute G92: we allocate the axes (and extruders) that the G92 command refers to, and hence the drives affected.
-   We transform the G92 coordinates to machine coordinates and store them in the current MS
-   We transform the machine coordinates into drive endpoints
-   We store those endpoints in the DDARing for the MS concerned and in the motor positions in the DMs.
+- When we execute G92: DONE
+   We allocate the axes (and extruders) that the G92 command refers to, and hence the drives affected (GCodes::SetPositions)
+   We transform the G92 coordinates to machine coordinates and store them in the current MS (GCodes::SetPositions)
+   We transform the machine coordinates into drive endpoints (GCodes::SetPositions)
+   We store those endpoints in the DDARing for the MS concerned and in the motor positions in the DMs (MovementState::SetNewPositionOfOwnedAxes)
 
-- When auto-calibrating a delta printer anbd adjusting positions to take account of endstop offsets:
-   We fetch the endpoints from the DDARing for the MS that did the calibration
-   We adjust those endpoints as instructed by the calbration
-   We also store the new endpoints in lastKnownEndpoints and in the motor positions in the DMs.
+- When auto-calibrating a delta printer and adjusting positions to take account of endstop offsets: DONE
+   We fetch the endpoints from the DDARing for the MS that did the calibration to lastKnownEndpoints (MovementState::AdjustMotorPositions)
+   We adjust those endpoints as instructed by the calibration (MovementState::AdjustMotorPositions)
+   We also store the new endpoints in our DDARing and in the motor positions in the DMs (MovementState::AdjustMotorPositions)
 
-- When we complete a simulation and restore the user and machine positions:
-   We transform the restored position to machnie coordinates and to endpoints
+- When we complete a simulation and restore the user and machine positions: ********* TODO **********
+   Currently we save the user position of each MS in its restore point, then try to restore endpoints based on them.
+   A problem with that is that any axes that are unowned wont get restored.
+   Maybe it's better instead at the start of the simulation to have all MSs save the endpoints of their owned drives to lastKnownEndPoints and save their current tool numbers, release all drives, and then save lastKnownEndpoints.
+   When simulation ends we can restore lastKnownEndpoints from the saved copy, set the DDARing last moves endpoints and the motor endpoints to them, restore the current tool in the MSs,
+   and transform lastKnownEndpoints back to machine and user coordinates in each MS .
+   
+   Old idea was:
+   In each movement state: (GCodes::EndSimulation)
+     We restore the user position and the current tool to the values in the restore point in that MS
+     We transform the restored position to machine coordinates and to endpoints
    We store those endpoints in lastKnownEndpoints from the restored position and copy them into the DDARings
    We also store them in the motor positions in the DMs in case the transformation left us with slightly different endpoints from previously
 
