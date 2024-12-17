@@ -392,11 +392,7 @@ void CoreKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const fl
 	if (HasSharedMotor(axis))
 	{
 		float tempCoordinates[MaxAxes];
-		const size_t numTotalAxes = reprap.GetGCodes().GetTotalAxes();
-		for (size_t ax = 0; ax < numTotalAxes; ++ax)
-		{
-			tempCoordinates[ax] = dda.GetEndCoordinate(ax, false);
-		}
+		dda.GetEndCoordinates(tempCoordinates, false);
 		tempCoordinates[axis] = hitPoint;
 		dda.SetPositions(move, tempCoordinates, controllingDrivers[axis]);
 	}

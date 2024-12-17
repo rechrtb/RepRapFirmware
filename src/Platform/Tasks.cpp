@@ -27,7 +27,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <freertos_task_additions.h>
-#include <malloc.h>
+#include <malloc.h>						// non-standfard include file, defines 'mallinfo'
 
 const uint8_t memPattern = 0xA5;		// this must be the same pattern as FreeRTOS because we use common code for checking for stack overflow
 

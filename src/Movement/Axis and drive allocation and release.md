@@ -4,19 +4,22 @@ Multiple motion systems in RRF 3.6
 Multiple motion systems present challenges in RRF 3.6 because the final movement is generated using a single set of DriveMovement objects;
 whereas in 3.5 the DMs were attached to the DDAs, which were in separate queues for each MS. This is how we handle these channelges in 3.6.
 
-The overall scheme is:
+The overall movement scheme is:
 - There is one DDARing for each MS
 - Each move generated in a particular MS is put into a DDA in the corresponding DDA ring
 - When a move is committed, MoveSegments for the logical drives concerned are generated from the DDA. These segments are attached to the DMs in the common set
-- After a DDA is committed, the DDA is used only for tracking when the move should complete, reporting on its parameters (acceleration, top speed etc.), and homing operations
+- After a DDA is committed, the DDA is used only for tracking when the move should complete, reporting on its parameters (acceleration, top speed etc.)
+
+Objectives
+- A MS must 'own' a logical drive before it can move it. At most one MS can own a logical drive at any one time.
+- When one MS releases a drive and another allocates it, the final drive endpoint set by the old owner must be copied to the new owner, and axis coordinates updated appropriately
+- The fact that a drive endpoint has changed in the MS because of a change in ownership must not cause the motion system to attempt to move from the old endpoint to the new one
+
+Recording of endpoints:
 - Each DDARing maintains a copy of endpoints of the last move that was added to it. Only the endpoints of drives that the corresponding MS owns should be considered valid.
 - We also maintain a global copy of the endpoints of drives that are not owned (lastKnownEndpoints). These are set during initialisation and updated whenever a MS releases a drive.
-
-So we have the following sets of endoints:
-- The endpoints stored in the DDARings. These are valid only for the drives thsat are owned by the corresponding MS.
-- lastKnownEndpoints
-- currentMotorPosition maintained by the DM
-- 'endpoint' stored in each DDA. These are the planned endpoints for the move that the DDA represents. Homing and probing moves will generally complete before some of those endpoints are reached.
+- Each DMs maintain its endpoint in 'currentMotorPosition'
+- Each DDA has 'endpoint'. These are the planned endpoints for the move that the DDA represents. Homing and probing moves will generally complete before some of those endpoints are reached.
 
 System invariants:
 - When no moves are queued and any corrections for homing or calibration have been applied:
@@ -31,6 +34,17 @@ To handle allocation of axes and the associated drives:
    then transform the whole set of DDA endpoints to the new machine coordinates of that MS; then transform them to the new user coordinates of that MS.
 - Because allocating an axis can change the user position recorded in the MS, we must do the allocation right at the start of processing G0/1/2/3 commands, before we make any use of the initial position.
 - To release a set of drives we first copy their last endpoints from the DDARing of the owning MS to lastKnownEndpoints; then we flag those drives as unowned.
+
+Initialising a standard move in the DDA:
+- We must start from the correct set of endpoints. If we have just allocated one or more drives then these may not be the same as the endpoints store in the previous DDA entry.
+  This could be solved by storing in the DDARing a set of endpoints representing the start positions of the next move to be added to the ring.
+   But that doesn't solve the next issue.
+- We must start frm the correct set of coordinates so that we can set dv in the DDA correctly.
+
+Preparing (committing) a move in the DDA:
+- DDA::Prepare uses the difference in endpoints stored in the previous move and endpoint of the new move to get the number of steps required.
+   This is a problem if the previous move had the wrong endpoints for these drives because they were not owned.
+   A solution is: (1) in each DDA store the bitmap of owned drives. Don't move any other drives. (2) when the endpoints in a MS need to be updated, update them in the previous move, like we always used to do.
 
 Special situations:
 - At initialisation time: 
@@ -82,7 +96,7 @@ Special situations:
    If we are definitely going to stop, we needn't update endpoints. Otherwise, we must set the endpoint in the DDA ring in which moves have been thrown away to the endpont of the last completed move.
 
 Common operations:
-- Changing the deemed positions of some axes/drives, requiring endpoints to be adjusted on ownding DDARings, DMs and lastKnownEndpoints.
+- Changing the deemed positions of some axes/drives, requiring endpoints to be adjusted on owning DDARings, DMs and lastKnownEndpoints.
    Called during initialisation (but no drives are owned)
    Called by G92 (at least the affected drives are owned)
    Called when homing moves change the assumed machine coordinates

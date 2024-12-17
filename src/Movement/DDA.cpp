@@ -207,20 +207,7 @@ void DDA::DebugPrintVector(const char *name, const float *vec, size_t len) const
 // Print the text followed by the DDA only
 void DDA::DebugPrint(const char *tag) const noexcept
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	debugPrintf("%s %u ts=%" PRIu32 " DDA:", tag, (unsigned int)state, afterPrepare.moveStartTime);
-	if (flags.endCoordinatesValid)
-	{
-		float startCoordinates[MaxAxes];
-		for (size_t i = 0; i < numAxes; ++i)
-		{
-			startCoordinates[i] = endCoordinates[i] - (totalDistance * directionVector[i]);
-		}
-		DebugPrintVector(" start", startCoordinates, numAxes);
-		DebugPrintVector(" end", endCoordinates, numAxes);
-	}
-
-	debugPrintf(" s=%.4g", (double)totalDistance);
+	debugPrintf("%s %u ts=%" PRIu32 " DDA: s=%.4g", tag, (unsigned int)state, afterPrepare.moveStartTime, (double)totalDistance);
 	DebugPrintVector(" vec", directionVector, MaxAxesPlusExtruders);
 	debugPrintf("\n" "a=%.4e d=%.4e reqv=%.4e startv=%.4e topv=%.4e endv=%.4e cks=%" PRIu32 " fp=%" PRIu32 " fl=%04x\n",
 				(double)acceleration, (double)deceleration, (double)requestedSpeed, (double)startSpeed, (double)topSpeed, (double)endSpeed, clocksNeeded, (uint32_t)filePos, flags.all);
@@ -239,15 +226,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 
 	// 1. Compute the new endpoints and the movement vector
 #if SUPPORT_ASYNC_MOVES
-	LogicalDrivesBitmap ownedDrivers;											// bitmap of drivers that are owned implicitly by this movement system because of the axes it owns
-	const Kinematics& kin = move.GetKinematics();
-	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
-	{
-		if (nextMove.axesAndExtrudersOwned.IsBitSet(axis))
-		{
-			ownedDrivers |= kin.GetControllingDrives(axis, false);
-		}
-	}
+	ownedDrives = nextMove.logicalDrivesOwned;
 #endif
 
 	flags.all = 0;														// set all flags false
@@ -265,11 +244,11 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		for (size_t drive = 0; drive < numTotalAxes; drive++)
 		{
 #if SUPPORT_ASYNC_MOVES
-			if (ownedDrivers.IsBitSet(drive))
+			if (ownedDrives.IsBitSet(drive))
 #endif
 			{
-					endCoordinates[drive] = nextMove.coords[drive];
-					const float positionDelta = endCoordinates[drive] - prev->GetEndCoordinate(drive, false);
+					const float positionDelta = nextMove.coords[drive] - ring.GetStartCoordinate(drive);
+					ring.SetStartCoordinate(drive, nextMove.coords[drive]);
 					directionVector[drive] = positionDelta;
 					if (positionDelta != 0.0)
 					{
@@ -292,8 +271,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 			{
 				// This is an axis we don't own, so make sure we don't move it
 				directionVector[drive] = 0.0;
-				prev->endCoordinates[drive] = nextMove.coords[drive];
-				endPoint[drive] = ring.GetEndpointsOfLastQueuedMove()[drive];
+				endPoint[drive] = prev->endPoint[drive];
 			}
 #endif
 		}
@@ -304,12 +282,12 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		for (size_t drive = 0; drive < numVisibleAxes; drive++)
 		{
 #if SUPPORT_ASYNC_MOVES
-			if (ownedDrivers.IsBitSet(drive))
+			if (ownedDrives.IsBitSet(drive))
 #endif
 			{
 				// Raw motor move on a visible axis
 				endPoint[drive] = move.MotorMovementToSteps(drive, nextMove.coords[drive]);
-				const int32_t delta = endPoint[drive] - ring.GetEndpointsOfLastQueuedMove()[drive];
+				const int32_t delta = endPoint[drive] - prev->endPoint[drive];
 				directionVector[drive] = (float)delta/move.DriveStepsPerMm(drive);
 				if (delta != 0)
 				{
@@ -328,16 +306,15 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 			{
 				// This is an axis we don't own, so make sure we don't move it
 				directionVector[drive] = 0.0;
-				prev->endCoordinates[drive] = nextMove.coords[drive];
-				endPoint[drive] = ring.GetEndpointsOfLastQueuedMove()[drive];
+				endPoint[drive] = prev->endPoint[drive];
 			}
 #endif
 		}
 
 		// Set any invisible axis endpoints to the same positions as the previous move
-		for (size_t axis = numVisibleAxes; axis < numTotalAxes; ++axis)
+		for (size_t drive = numVisibleAxes; drive < numTotalAxes; ++drive)
 		{
-			endPoint[axis] = ring.GetEndpointsOfLastQueuedMove()[axis];
+			endPoint[drive] = prev->endPoint[drive];
 		}
 	}
 
@@ -356,7 +333,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 			// It's an extruder drive. We defer calculating the steps because they may be affected by nonlinear extrusion, which we can't calculate until we
 			// know the speed of the move, and because extruder movement is relative so we need to accumulate fractions of a whole step between moves.
 			const float movement = nextMove.coords[drive];
-			endCoordinates[drive] = directionVector[drive] = movement;			// for an extruder, endCoordinates is the amount of movement
+			directionVector[drive] = movement;							// for an extruder, endCoordinates is the amount of movement
 			if (movement != 0.0)
 			{
 				extrudersMoving = true;
@@ -385,7 +362,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		{
 			for (size_t drive = 0; drive < numTotalAxes; ++drive)
 			{
-				prev->endCoordinates[drive] = nextMove.coords[drive];
+				ring.SetStartCoordinate(drive, nextMove.coords[drive]);
 			}
 		}
 		return false;
@@ -412,7 +389,6 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	flags.controlLaser = nextMove.isCoordinated && nextMove.checkEndstops == 0;
 
 	// The end coordinates will be valid at the end of this move if it does not involve endstop checks and is not a raw motor move
-	flags.endCoordinatesValid = !nextMove.checkEndstops && doMotorMapping;
 	flags.continuousRotationShortcut = (nextMove.moveType == 0);
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
@@ -551,7 +527,6 @@ bool DDA::InitLeadscrewMove(DDARing& ring, float feedrate, const float adjustmen
 	for (size_t drive = 0; drive < MaxAxesPlusExtruders; drive++)
 	{
 		endPoint[drive] = prev->endPoint[drive];				// adjusting leadscrews doesn't change the endpoint
-		endCoordinates[drive] = prev->endCoordinates[drive];	// adjusting leadscrews doesn't change the position
 		directionVector[drive] = 0.0;
 	}
 
@@ -578,7 +553,6 @@ bool DDA::InitLeadscrewMove(DDARing& ring, float feedrate, const float adjustmen
 	virtualExtruderPosition = prev->virtualExtruderPosition;
 	tool = nullptr;
 	filePos = prev->filePos;
-	flags.endCoordinatesValid = prev->flags.endCoordinatesValid;
 	acceleration = deceleration = reprap.GetMove().NormalAcceleration(Z_AXIS);
 
 #if SUPPORT_LASER && SUPPORT_IOBITS
@@ -629,8 +603,7 @@ bool DDA::InitAsyncMove(DDARing& ring, const AsyncMove& nextMove) noexcept
 		const size_t axisToUse = (reprap.GetMove().GetKinematics().GetKinematicsType() == KinematicsType::linearDelta && drive <= Z_AXIS) ? Z_AXIS : drive;
 		directionVector[drive] = nextMove.movements[axisToUse];
 		const int32_t delta = lrintf(nextMove.movements[axisToUse] * reprap.GetMove().DriveStepsPerMm(drive));
-		endPoint[drive] = ring.GetEndpointsOfLastQueuedMove()[drive] + delta;
-		endCoordinates[drive] = prev->endCoordinates[drive];
+		endPoint[drive] = prev->endPoint[drive] + delta;
 		if (delta != 0)
 		{
 			realMove = true;
@@ -718,7 +691,7 @@ bool DDA::InitFromRemote(DDARing& ring, const CanMessageMovementLinearShaped& ms
 
 	for (size_t drive = 0; drive < NumDirectDrivers; drive++)
 	{
-		endPoint[drive] = ring.GetEndpointsOfLastQueuedMove()[drive];						// the steps for this move will be added later
+		endPoint[drive] = prev->endPoint[drive];						// the steps for this move will be added later
 		if (drive >= msg.numDrivers)
 		{
 			directionVector[drive] = 0.0;
@@ -966,7 +939,6 @@ float DDA::AdvanceBabyStepping(DDARing& ring, size_t axis, float amount) noexcep
 		}
 
 		// Even if there is no babystepping to do this move, we may need to adjust the end coordinates
-		cdda->endCoordinates[Z_AXIS] += babySteppingDone;
 		cdda->endPoint[Z_AXIS] += (int32_t)(babySteppingDone * reprap.GetMove().DriveStepsPerMm(Z_AXIS));
 
 		// Now do the next move
@@ -1120,14 +1092,12 @@ void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axe
 		const Kinematics& kin = move.GetKinematics();
 		axesMoved.Iterate([this, position, &kin, &drivesMoved](unsigned int axis, unsigned int)->void
 							{
-								endCoordinates[axis] = position[axis];
 								drivesMoved |= kin.GetControllingDrives(axis, false);
 #if SUPPORT_ASYNC_MOVES
 								MovementState::SetLastKnownMachinePosition(axis, position[axis]);
 #endif
 							}
 						 );
-		flags.endCoordinatesValid = true;
 		drivesMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
 	}
 }
@@ -1136,27 +1106,24 @@ void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axe
 void DDA::SetDriveCoordinate(int32_t a, size_t drive) noexcept
 {
 	endPoint[drive] = a;
-	flags.endCoordinatesValid = false;
 	reprap.GetMove().SetMotorPosition(drive, a);
 }
 
 // Get a Cartesian end coordinate from this move
-float DDA::GetEndCoordinate(size_t drive, bool disableMotorMapping) noexcept
-pre(disableDeltaMapping || drive < MaxAxes)
+void DDA::GetEndCoordinates(float returnedCoords[MaxAxes], bool disableMotorMapping) noexcept
 {
+	Move& move = reprap.GetMove();
+	const size_t totalAxes = reprap.GetGCodes().GetTotalAxes();
 	if (disableMotorMapping)
 	{
-		return reprap.GetMove().MotorStepsToMovement(drive, endPoint[drive]);
+		for (size_t axis = 0; axis < totalAxes; ++axis)
+		{
+			returnedCoords[axis] = move.MotorStepsToMovement(axis, endPoint[axis]);
+		}
 	}
 	else
 	{
-		const size_t visibleAxes = reprap.GetGCodes().GetVisibleAxes();
-		if (drive < visibleAxes && !flags.endCoordinatesValid)
-		{
-			reprap.GetMove().MotorStepsToCartesian(endPoint, visibleAxes, reprap.GetGCodes().GetTotalAxes(), endCoordinates);
-			flags.endCoordinatesValid = true;
-		}
-		return endCoordinates[drive];
+		move.MotorStepsToCartesian(endPoint, reprap.GetGCodes().GetVisibleAxes(), totalAxes, returnedCoords);
 	}
 }
 
@@ -1248,97 +1215,103 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 					}
 				}
 			}
-			else if (drive < reprap.GetGCodes().GetTotalAxes())
-			{
-				// It's a linear axis
-				int32_t delta = endPoint[drive] - prev->endPoint[drive];
-				if (delta != 0)
-				{
-					move.EnableDrivers(drive, false);
-					if (flags.continuousRotationShortcut && reprap.GetMove().GetKinematics().IsContinuousRotationAxis(drive))
-					{
-						// This is a continuous rotation axis, so we may have adjusted the move to cross the 180 degrees position
-						const int32_t stepsPerRotation = lrintf(360.0 * move.DriveStepsPerMm(drive));
-						if (delta > stepsPerRotation/2)
-						{
-							delta -= stepsPerRotation;
-						}
-						else if (delta < -stepsPerRotation/2)
-						{
-							delta += stepsPerRotation;
-						}
-					}
-
-					delta = move.ApplyBacklashCompensation(drive, delta);
-					if (flags.checkEndstops)
-					{
-						move.SetHomingDda(drive, this);
-					}
-
-					// We generate segments even for nonlocal drivers so that the final position is correct and to track the position in near real time
-					move.AddLinearSegments(*this, drive, afterPrepare.moveStartTime, params, (motioncalc_t)delta, segFlags);
-					afterPrepare.drivesMoving.SetBit(drive);
-
-#if SUPPORT_CAN_EXPANSION
-					const AxisDriversConfig& config = move.GetAxisDriversConfig(drive);
-					for (size_t i = 0; i < config.numDrivers; ++i)
-					{
-						const DriverId driver = config.driverNumbers[i];
-						if (driver.IsRemote())
-						{
-							CanMotion::AddAxisMovement(params, driver, delta);
-						}
-					}
-#endif
-					axisMotorsEnabled.SetBit(drive);
-					additionalAxisMotorsToEnable |= reprap.GetMove().GetKinematics().GetControllingDrives(drive, flags.checkEndstops);
-				}
-			}
 			else
+#if SUPPORT_ASYNC_MOVES
+			if (ownedDrives.IsBitSet(drive))
+#endif
 			{
-				// It's an extruder drive
-				if (directionVector[drive] != 0.0)
+				if (drive < reprap.GetGCodes().GetTotalAxes())
 				{
-					const size_t extruder = LogicalDriveToExtruder(drive);
-
-					// Check for cold extrusion/retraction. Do this now because we can't read temperatures from within the step ISR, also this works for CAN-connected extruders.
-					// Don't check if it is a special move (indicated by flags.checkEndstops) because the 'tool' variable isn't valid for those moves
-					if (simMode != SimulationMode::off || flags.checkEndstops || Tool::ExtruderMovementAllowed(tool, directionVector[drive] > 0, extruder))
+					// It's a linear axis
+					int32_t delta = endPoint[drive] - prev->endPoint[drive];
+					if (delta != 0)
 					{
 						move.EnableDrivers(drive, false);
-
-						if (flags.isPrintingMove && directionVector[drive] > 0.0)
+						if (flags.continuousRotationShortcut && reprap.GetMove().GetKinematics().IsContinuousRotationAxis(drive))
 						{
-							extrusionFraction += directionVector[drive];					// accumulate the total extrusion fraction
+							// This is a continuous rotation axis, so we may have adjusted the move to cross the 180 degrees position
+							const int32_t stepsPerRotation = lrintf(360.0 * move.DriveStepsPerMm(drive));
+							if (delta > stepsPerRotation/2)
+							{
+								delta -= stepsPerRotation;
+							}
+							else if (delta < -stepsPerRotation/2)
+							{
+								delta += stepsPerRotation;
+							}
 						}
 
-#if SUPPORT_NONLINEAR_EXTRUSION
-						// Add the nonlinear extrusion correction to totalExtrusion.
-						// If we are given a stupidly short move to execute then clocksNeeded can be zero, which leads to NaNs in this code; so we need to guard against that.
-						if (flags.isPrintingMove && clocksNeeded != 0)
+						delta = move.ApplyBacklashCompensation(drive, delta);
+						if (flags.checkEndstops)
 						{
-							const NonlinearExtrusion& nl = move.GetExtrusionCoefficients(extruder);
-							float& dv = directionVector[drive];
-							const float averageExtrusionSpeed = (totalDistance * dv * StepClockRate)/(float)clocksNeeded;		// need speed in mm/sec for nonlinear extrusion calculation
-							const float factor = 1.0 + min<float>((nl.A + (nl.B * averageExtrusionSpeed)) * averageExtrusionSpeed, nl.limit);
-							dv *= factor;
+							move.SetHomingDda(drive, this);
 						}
-#endif
 
-						const motioncalc_t delta = totalDistance * directionVector[drive] * move.DriveStepsPerMm(drive);
-
-						// We generate segments even for nonlocal extruders in order to track extruder position
-						move.AddLinearSegments(*this, drive, afterPrepare.moveStartTime, params, delta, segFlags);
+						// We generate segments even for nonlocal drivers so that the final position is correct and to track the position in near real time
+						move.AddLinearSegments(*this, drive, afterPrepare.moveStartTime, params, (motioncalc_t)delta, segFlags);
+						afterPrepare.drivesMoving.SetBit(drive);
 
 #if SUPPORT_CAN_EXPANSION
-						const DriverId driver = move.GetExtruderDriver(extruder);
-						if (driver.IsRemote())
+						const AxisDriversConfig& config = move.GetAxisDriversConfig(drive);
+						for (size_t i = 0; i < config.numDrivers; ++i)
 						{
-							// The MovementLinearShaped message requires the extrusion amount in steps to be passed as a float. The remote board adds the PA and handles fractional steps.
-							CanMotion::AddExtruderMovement(params, driver, delta, flags.usePressureAdvance);
+							const DriverId driver = config.driverNumbers[i];
+							if (driver.IsRemote())
+							{
+								CanMotion::AddAxisMovement(params, driver, delta);
+							}
 						}
 #endif
-						afterPrepare.drivesMoving.SetBit(drive);
+						axisMotorsEnabled.SetBit(drive);
+						additionalAxisMotorsToEnable |= reprap.GetMove().GetKinematics().GetControllingDrives(drive, flags.checkEndstops);
+					}
+				}
+				else
+				{
+					// It's an extruder drive
+					if (directionVector[drive] != 0.0)
+					{
+						const size_t extruder = LogicalDriveToExtruder(drive);
+
+						// Check for cold extrusion/retraction. Do this now because we can't read temperatures from within the step ISR, also this works for CAN-connected extruders.
+						// Don't check if it is a special move (indicated by flags.checkEndstops) because the 'tool' variable isn't valid for those moves
+						if (simMode != SimulationMode::off || flags.checkEndstops || Tool::ExtruderMovementAllowed(tool, directionVector[drive] > 0, extruder))
+						{
+							move.EnableDrivers(drive, false);
+
+							if (flags.isPrintingMove && directionVector[drive] > 0.0)
+							{
+								extrusionFraction += directionVector[drive];					// accumulate the total extrusion fraction
+							}
+
+#if SUPPORT_NONLINEAR_EXTRUSION
+							// Add the nonlinear extrusion correction to totalExtrusion.
+							// If we are given a stupidly short move to execute then clocksNeeded can be zero, which leads to NaNs in this code; so we need to guard against that.
+							if (flags.isPrintingMove && clocksNeeded != 0)
+							{
+								const NonlinearExtrusion& nl = move.GetExtrusionCoefficients(extruder);
+								float& dv = directionVector[drive];
+								const float averageExtrusionSpeed = (totalDistance * dv * StepClockRate)/(float)clocksNeeded;		// need speed in mm/sec for nonlinear extrusion calculation
+								const float factor = 1.0 + min<float>((nl.A + (nl.B * averageExtrusionSpeed)) * averageExtrusionSpeed, nl.limit);
+								dv *= factor;
+							}
+#endif
+
+							const motioncalc_t delta = totalDistance * directionVector[drive] * move.DriveStepsPerMm(drive);
+
+							// We generate segments even for nonlocal extruders in order to track extruder position
+							move.AddLinearSegments(*this, drive, afterPrepare.moveStartTime, params, delta, segFlags);
+
+#if SUPPORT_CAN_EXPANSION
+							const DriverId driver = move.GetExtruderDriver(extruder);
+							if (driver.IsRemote())
+							{
+								// The MovementLinearShaped message requires the extrusion amount in steps to be passed as a float. The remote board adds the PA and handles fractional steps.
+								CanMotion::AddExtruderMovement(params, driver, delta, flags.usePressureAdvance);
+							}
+#endif
+							afterPrepare.drivesMoving.SetBit(drive);
+						}
 					}
 				}
 			}

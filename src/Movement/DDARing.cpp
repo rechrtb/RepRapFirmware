@@ -414,24 +414,12 @@ bool DDARing::SetWaitingToEmpty() noexcept
 // Return the untransformed machine coordinates
 void DDARing::GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept
 {
-	DDA * const lastQueuedMove = addPointer->GetPrevious();
-	const size_t numAxes = reprap.GetGCodes().GetVisibleAxes();
-	for (size_t i = 0; i < MaxAxes; i++)
-	{
-		if (i < numAxes)
-		{
-			m[i] = lastQueuedMove->GetEndCoordinate(i, disableMotorMapping);
-		}
-		else
-		{
-			m[i] = 0.0;
-		}
-	}
+	addPointer->GetPrevious()->GetEndCoordinates(m, disableMotorMapping);
 }
 
 void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
 {
-	logicalDrives.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = endpointsOfLastMove[drive]; } );
+	logicalDrives.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = addPointer->GetPrevious()->DriveCoordinates()[drive]; } );
 }
 
 // Set the initial machine coordinates for the next move to be added to the specified values, by setting the final coordinates of the last move in the queue
@@ -442,19 +430,13 @@ void DDARing::SetPositions(Move& move, const float positions[MaxAxesPlusExtruder
 	addPointer->GetPrevious()->SetPositions(move, positions, axes);
 }
 
-// Set the endpoints of some drives that we have just allocated
+// Set the endpoints of some drives that we have just allocated. The drives must not be owned in the previous move!
 void DDARing::SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 {
-	const DDA::DDAState stateOfPreviousMove = addPointer->GetPrevious()->GetState();
-	//TODO what if the state changes while we are executing this?
-	const bool updateLastMove = (stateOfPreviousMove != DDA::DDAState::committed && stateOfPreviousMove != DDA::DDAState::provisional);
-	logicalDrives.Iterate([this, ep, updateLastMove](unsigned int drive, unsigned int count)
+	DDA *prev = addPointer->GetPrevious();
+	logicalDrives.Iterate([prev, ep](unsigned int drive, unsigned int count)
 							{
-								endpointsOfLastMove[drive] = ep[drive];
-								if (updateLastMove)
-								{
-									addPointer->GetPrevious()->SetDriveCoordinate(ep[drive], drive);
-								}
+								prev->SetDriveCoordinate(ep[drive], drive);
 							});
 }
 
@@ -566,13 +548,8 @@ bool DDARing::PauseMoves(MovementState& ms) noexcept
 
 	// We may be going to skip some moves. Get the end coordinate of the previous move.
 	DDA * const prevDda = addPointer->GetPrevious();
-	const size_t numVisibleAxes = reprap.GetGCodes().GetVisibleAxes();
 	RestorePoint& rp = ms.GetPauseRestorePoint();
-	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
-	{
-		rp.moveCoords[axis] = prevDda->GetEndCoordinate(axis, false);
-	}
-
+	prevDda->GetEndCoordinates(rp.moveCoords, false);
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
@@ -671,12 +648,7 @@ bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
 
 	// Get the end coordinates of the last move that was or will be completed, or the coordinates of the current move when we aborted it.
 	DDA * const prevDda = addPointer->GetPrevious();
-	const size_t numVisibleAxes = reprap.GetGCodes().GetVisibleAxes();
-	for (size_t axis = 0; axis < numVisibleAxes; ++axis)
-	{
-		rp.moveCoords[axis] = prevDda->GetEndCoordinate(axis, false);
-	}
-
+	prevDda->GetEndCoordinates(rp.moveCoords, false);
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 	// Free the DDAs for the moves we are going to skip

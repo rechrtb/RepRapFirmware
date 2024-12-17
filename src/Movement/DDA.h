@@ -97,10 +97,10 @@ public:
 	bool InitFromRemote(DDARing& ring, const CanMessageMovementLinearShaped& msg) noexcept;
 #endif
 
-	const int32_t *_ecv_array DriveCoordinates() const noexcept { return endPoint; }			// Get endpoints of a move in machine coordinates
-	void SetDriveCoordinate(int32_t a, size_t drive) noexcept;									// Force an end point
+	const int32_t *_ecv_array DriveCoordinates() const noexcept { return endPoint; }				// Get endpoints of a move in machine coordinates
+	void SetDriveCoordinate(int32_t a, size_t drive) noexcept;										// Force an end point
 	void SetFeedRate(float rate) noexcept { requestedSpeed = rate; }
-	float GetEndCoordinate(size_t drive, bool disableMotorMapping) noexcept;
+	void GetEndCoordinates(float returnedCoords[MaxAxes], bool disableMotorMapping) noexcept;		// Calculate the machine axis coordinates (after bed and skew correction) at the end of this move
 	void SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axesMoved) noexcept;	// Force the endpoints to be these
 
 	FilePosition GetFilePosition() const noexcept { return filePos; }
@@ -206,8 +206,7 @@ private:
 	{
 		struct
 		{
-			uint16_t endCoordinatesValid : 1,		// True if endCoordinates can be relied
-					 canPauseAfter : 1,				// True if we can pause at the end of this move
+			uint16_t canPauseAfter : 1,				// True if we can pause at the end of this move
 					 isPrintingMove : 1,			// True if this move includes XY movement and extrusion
 					 usePressureAdvance : 1,		// True if pressure advance should be applied to any forward extrusion
 					 hadLookaheadUnderrun : 1,		// True if the lookahead queue was not long enough to optimise this move
@@ -233,12 +232,11 @@ private:
 	LaserPwmOrIoBits laserPwmOrIoBits;				// laser PWM required or port state required during this move (here because it is currently 16 bits)
 #endif
 
-	const Tool *tool;								// which tool (if any) is active
+	const Tool *_ecv_null tool;						// which tool (if any) is active
 
     FilePosition filePos;							// The position in the SD card file after this move was read, or zero if not read from SD card
 
 	int32_t endPoint[MaxAxesPlusExtruders];  		// Machine coordinates of the endpoint
-	float endCoordinates[MaxAxesPlusExtruders];		// The Cartesian coordinates at the end of the move plus extrusion amounts
 	float directionVector[MaxAxesPlusExtruders];	// The normalised direction vector - first 3 are XYZ Cartesian coordinates even on a delta
     float totalDistance;							// How long is the move in hypercuboid space
 #if SUPPORT_S_CURVE
@@ -264,6 +262,10 @@ private:
 	float proportionDone;							// what proportion of the extrusion in the G1 or G0 move of which this is a part has been done after this segment is complete
 	float initialUserC0, initialUserC1;				// if this is a segment of an arc move, the user X and Y coordinates at the start
 	uint32_t clocksNeeded;
+
+#if SUPPORT_ASYNC_MOVES
+	LogicalDrivesBitmap ownedDrives;				// logical drives we are allowed to move
+#endif
 
 	union
 	{

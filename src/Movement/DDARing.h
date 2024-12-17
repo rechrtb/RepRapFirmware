@@ -50,13 +50,14 @@ public:
 	float GetDecelerationMmPerSecSquared() const noexcept;								// Get the (peak) deceleration for reporting in the object model
 	float GetTotalExtrusionRate() const noexcept;
 
-	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept; // Get the position at the end of the last queued move in untransformed coords
+	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept;	// Get the position at the end of the last queued move in untransformed coords
 	void GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept;
 	void SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;
 
+	float GetStartCoordinate(size_t axis) const noexcept pre(axis < MaxAxes) { return startCoordinates[axis]; }
+	void SetStartCoordinate(size_t axis, float pos) noexcept pre(axis < MaxAxes) { startCoordinates[axis] = pos; }
 	void SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept;	// Force the machine coordinates to be these
 	void AdjustMotorPositions(const int32_t adjustment[], size_t numMotors) noexcept;		// Adjust the motor endpoints without moving the motors
-	const int32_t *_ecv_array  GetEndpointsOfLastQueuedMove() const noexcept { return endpointsOfLastMove; }
 
 	bool PauseMoves(MovementState& ms) noexcept;										// Pause the print as soon as we can, returning true if we were able to skip any moves in the queue
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
@@ -104,7 +105,7 @@ private:
 
 	float simulationTime;														// Print time since we started simulating
 
-	int32_t endpointsOfLastMove[MaxAxesPlusExtruders];							// the drive endpoints of the last move added to the ring
+	float startCoordinates[MaxAxes];											// the axis coordinates to start the next move from
 
 	volatile bool waitingForRingToEmpty;										// True if Move has signalled that we are waiting for this ring to empty
 };
