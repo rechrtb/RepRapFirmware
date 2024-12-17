@@ -45,7 +45,7 @@ struct DateTime
 };
 
 // Struct used to hold the expressions with polymorphic types
-struct ExpressionValue
+struct ExpressionValue final
 {
 	uint32_t type : 8,								// what type is stored in the union
 			 param : 24;							// additional parameter, e.g. number of usual displayed decimal places for a float,
@@ -129,7 +129,7 @@ struct ExpressionValue
 
 	ExpressionValue(const ExpressionValue& other) noexcept;
 	ExpressionValue(ExpressionValue&& other) noexcept;
-	~ExpressionValue();
+	~ExpressionValue() { Release(); }
 	ExpressionValue& operator=(const ExpressionValue& other) noexcept;
 	void Release() noexcept;					// release any associated storage
 
