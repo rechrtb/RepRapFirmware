@@ -61,10 +61,11 @@ void MovementState::ClearMove() noexcept
 	moveFractionToSkip = 0.0;
 }
 
-int32_t MovementState::lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored  position of the logical drives
+int32_t MovementState::lastKnownEndpoints[MaxAxesPlusExtruders];			// the last stored  position of the logical drives
+int32_t MovementState::endpointsAtSimulationStart[MaxAxesPlusExtruders];	// what the endpoints were before we started simulating
 
 #if SUPPORT_ASYNC_MOVES
-LogicalDrivesBitmap MovementState::allLogicalDrivesOwned;				// logical drives that are owned by any movement system
+LogicalDrivesBitmap MovementState::allLogicalDrivesOwned;					// logical drives that are owned by any movement system
 #endif
 
 /*static*/ void MovementState::GlobalInit(const float initialPosition[MaxAxesPlusExtruders]) noexcept
@@ -484,6 +485,16 @@ void MovementState::AdjustMotorPositions(const float adjustment[], size_t numMot
 	const LogicalDrivesBitmap drivesToAdjust = LogicalDrivesBitmap::MakeLowestNBits(numMotors);
 	move.SetLastEndpoints(GetNumber(), drivesToAdjust, lastKnownEndpoints);
 	move.SetMotorPositions(drivesToAdjust, lastKnownEndpoints);
+}
+
+/*static*/ void MovementState::SaveEndpointsBeforeSimulating() noexcept
+{
+	memcpyi32(endpointsAtSimulationStart, lastKnownEndpoints, ARRAY_SIZE(endpointsAtSimulationStart));
+}
+
+/*static*/ void MovementState::RestoreEndpointsAfterSimulating() noexcept
+{
+	memcpyi32(lastKnownEndpoints, endpointsAtSimulationStart, ARRAY_SIZE(lastKnownEndpoints));
 }
 
 // End

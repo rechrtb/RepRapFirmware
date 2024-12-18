@@ -809,26 +809,22 @@ bool GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept
 void GCodes::EndSimulation(GCodeBuffer *null gb) noexcept
 {
 	// Ending a simulation, so restore the position
+	MovementState::RestoreEndpointsAfterSimulating();					// restore the endpoints
+	Move& move = reprap.GetMove();
+	move.SetMotorPositions(MovementState::allLogicalDrives, MovementState::GetLastKnownEndpoints());
 	for (MovementState& ms : moveStates)
 	{
 		const RestorePoint& rp = ms.GetSimulationRestorePoint();
-		RestorePosition(ms, rp);
+		RestorePosition(ms, rp);										// this restores the tool and the position, although we don't need to restore the position because we are going to overwrite it
 		if (gb != nullptr && ms.GetNumber() != 0)
 		{
-			gb->LatestMachineState().feedRate = rp.feedRate;
+			gb->LatestMachineState().feedRate = rp.feedRate;			// restore the feed rate
 		}
-		ms.SelectTool(rp.toolNumber, true);
-		ToolOffsetTransform(ms);
-		// We need to reset the machine positions of all axes but it's likely that most axes are unowned.
-		// So we set the positions as if MS0 owns all the axes, then set the positions of any that MS1 owns.
-		if (ms.GetNumber() == 0)
-		{
-			ms.SetNewPositionOfAllAxes(true);
-		}
-		else
-		{
-			ms.SetNewPositionOfOwnedAxes(true);
-		}
+		ms.SelectTool(rp.toolNumber, true);								// set the restored tool number as selected
+
+		move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.initialCoords);
+		move.InverseAxisAndBedTransform(ms.initialCoords, ms.currentTool);
+		ToolOffsetInverseTransform(ms);
 	}
 	axesVirtuallyHomed = axesHomed;
 	reprap.MoveUpdated();

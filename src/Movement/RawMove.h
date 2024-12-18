@@ -106,10 +106,12 @@ public:
 	void UpdateCoordinatesFromLastKnownEndpoints() noexcept;								// update our coordinates from the saved endpoints
 #endif
 
-	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the coordinates of axes we own to lastKnownMachinePositions
+	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the endpoints of logical drives we own to lastKnownEndpoints
 	void SetNewPositionOfAllAxes(bool doBedCompensation) noexcept;
 	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
 	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;
+	float LiveMachineCoordinate(unsigned int axisOrExtruder) const noexcept;				// Get a single coordinate for reporting e.g.in the OM
+	void ForceLiveCoordinatesUpdate() noexcept { forceLiveCoordinatesUpdate = true; }		// Force the stored coordinates to be updated next time LiveMachineCoordinate is called
 
 	MovementSystemNumber GetNumber() const noexcept { return msNumber; }
 	float GetProportionDone() const noexcept;												// get the proportion of this whole move that has been completed, based on segmentsLeft and totalSegments
@@ -144,8 +146,6 @@ public:
 	void ResumePrinting(GCodeBuffer& gb) noexcept;
 
 	// Reporting
-	float LiveMachineCoordinate(unsigned int axisOrExtruder) const noexcept;				// Get a single coordinate for reporting e.g.in the OM
-	void ForceLiveCoordinatesUpdate() noexcept { forceLiveCoordinatesUpdate = true; }		// Force the stored coordinates to be updated next time LiveMachineCoordinate is called
 	void Diagnostics(MessageType mtype) noexcept;
 
 	// These variables are currently all public, but we ought to make most of them private
@@ -220,6 +220,10 @@ public:
 	SegmentedMoveState segMoveState;
 	bool pausedInMacro;												// if we are paused then this is true if we paused while fileGCode was executing a macro
 
+	static void SaveEndpointsBeforeSimulating() noexcept;
+	static void RestoreEndpointsAfterSimulating() noexcept;
+	static const int32_t *_ecv_array GetLastKnownEndpoints() noexcept { return lastKnownEndpoints; }
+
 private:
 	MovementSystemNumber msNumber;
 	mutable bool forceLiveCoordinatesUpdate = true;					// true if we want to force latestLiveCoordinates to be updated
@@ -227,6 +231,7 @@ private:
 	mutable uint32_t latestLiveCoordinatesFetchedAt = 0;			// when we fetched the live coordinates
 
 	static int32_t lastKnownEndpoints[MaxAxesPlusExtruders];		// the last stored position of the logical drives
+	static int32_t endpointsAtSimulationStart[MaxAxesPlusExtruders];	// the endpoints when we started a simulation
 
 #if SUPPORT_ASYNC_MOVES
 	ParameterLettersBitmap ownedAxisLetters;						// cache of letters denoting user axes for which the corresponding machine axes for the current tool are definitely owned

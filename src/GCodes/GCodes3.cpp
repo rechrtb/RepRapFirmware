@@ -291,11 +291,20 @@ GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const 
 	{
 		if (!IsSimulating())
 		{
-			axesVirtuallyHomed = AxesBitmap::MakeLowestNBits(numVisibleAxes);	// pretend all axes are homed
+			// Ensure that lastKnownEndpoints is up to date with the current endpoints for drives that are owned and may have been moved
+			// Also save the current tool for each machine state, the feed rate, and job file position (if any)
+			// It is convenient to use a RestorePoint to save these, however we don't make use of the coordinates in the RestorePoint when the simulation ends, so we could use a smaller struct instead
 			for (MovementState& ms : moveStates)
 			{
+				ms.SaveOwnDriveCoordinates();
 				ms.SavePosition(SimulationRestorePointNumber, numVisibleAxes, gb.LatestMachineState().feedRate, gb.GetJobFilePosition());
 			}
+
+			// Now that lastKnownEndpoints is up to date, save it
+			MovementState::RestoreEndpointsAfterSimulating();
+
+			// Pretend that all axes have been homed
+			axesVirtuallyHomed = AxesBitmap::MakeLowestNBits(numVisibleAxes);
 		}
 		simulationTime = 0.0;
 		exitSimulationWhenFileComplete = true;
@@ -337,8 +346,10 @@ GCodeResult GCodes::ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply
 				axesVirtuallyHomed = AxesBitmap::MakeLowestNBits(numVisibleAxes);	// pretend all axes are homed
 				for (MovementState& ms : moveStates)
 				{
+					ms.SaveOwnDriveCoordinates();
 					ms.SavePosition(SimulationRestorePointNumber, numVisibleAxes, gb.LatestMachineState().feedRate, gb.GetJobFilePosition());
 				}
+				MovementState::SaveEndpointsBeforeSimulating();
 			}
 			simulationTime = 0.0;
 		}
