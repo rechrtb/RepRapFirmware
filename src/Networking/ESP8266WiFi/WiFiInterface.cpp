@@ -1100,7 +1100,7 @@ void WiFiInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress 
 	gateway = p_gateway;
 }
 
-size_t WiFiInterface::CheckCredential(GCodeBuffer &gb, bool file)
+size_t WiFiInterface::CheckCredential(GCodeBuffer &gb, bool file) THROWS(GCodeException)
 {
 	static_assert(MaxCredentialChunkSize <= sizeof(bufferOut->data));
 	StringRef cred(reinterpret_cast<char*>(&(bufferOut->data)), MaxCredentialChunkSize);
@@ -1668,7 +1668,7 @@ GCodeResult WiFiInterface::HandleWiFiCode(int mcode, GCodeBuffer &gb, const Stri
 }
 
 // Set the DHCP hostname
-void WiFiInterface::UpdateHostname(const char *hostname) noexcept
+void WiFiInterface::UpdateHostname(const char *_ecv_array hostname) noexcept
 {
 	// Update the hostname if possible
 	if (GetState() == NetworkState::active)

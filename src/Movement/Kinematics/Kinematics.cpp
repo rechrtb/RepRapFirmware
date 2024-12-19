@@ -272,7 +272,7 @@ void Kinematics::LimitSpeedAndAcceleration(DDA& dda, const float *_ecv_array nor
 	}
 }
 
-/*static*/ Kinematics *Kinematics::Create(KinematicsType k) noexcept
+/*static*/ Kinematics *_ecv_from Kinematics::Create(KinematicsType k) noexcept
 {
 	switch (k)
 	{
