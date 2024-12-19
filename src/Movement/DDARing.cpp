@@ -92,18 +92,6 @@ void DDARing::Init2() noexcept
 {
 	numLookaheadUnderruns = numPrepareUnderruns = numNoMoveUnderruns = numLookaheadErrors = 0;
 	waitingForRingToEmpty = false;
-
-	// Put the origin on the lookahead ring with default velocity in the previous position to the first one that will be used.
-	// Do this by calling SetLiveCoordinates and SetPositions, so that the motor coordinates will be correct too even on a delta.
-	{
-		float pos[MaxAxesPlusExtruders];
-		for (size_t i = 0; i < MaxAxesPlusExtruders; i++)
-		{
-			pos[i] = 0.0;
-		}
-		SetPositions(reprap.GetMove(), pos, AxesBitmap::MakeLowestNBits(MaxAxesPlusExtruders));
-	}
-
 	simulationTime = 0.0;
 }
 
@@ -422,12 +410,9 @@ void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t return
 	logicalDrives.Iterate([this, returnedEndpoints](unsigned int drive, unsigned int count) { returnedEndpoints[drive] = addPointer->GetPrevious()->DriveCoordinates()[drive]; } );
 }
 
-// Set the initial machine coordinates for the next move to be added to the specified values, by setting the final coordinates of the last move in the queue
-// The last move in the queue must have already been set up by the Move process before this is called.
-void DDARing::SetPositions(Move& move, const float positions[MaxAxesPlusExtruders], AxesBitmap axes) noexcept
+int32_t DDARing::GetLastEndpoint(size_t drive) const noexcept
 {
-	AtomicCriticalSectionLocker lock;
-	addPointer->GetPrevious()->SetPositions(move, positions, axes);
+	return addPointer->GetPrevious()->DriveCoordinates()[drive];
 }
 
 // Set the endpoints of some drives that we have just allocated. The drives must not be owned in the previous move!
@@ -436,8 +421,13 @@ void DDARing::SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t 
 	DDA *prev = addPointer->GetPrevious();
 	logicalDrives.Iterate([prev, ep](unsigned int drive, unsigned int count)
 							{
-								prev->SetDriveCoordinate(ep[drive], drive);
+								prev->SetDriveCoordinate(drive, ep[drive]);
 							});
+}
+
+void DDARing::SetLastEndpoint(size_t drive, int32_t ep) noexcept
+{
+	addPointer->GetPrevious()->SetDriveCoordinate(drive, ep);
 }
 
 // Get the DDA that should currently be executing, or nullptr if no move from this ring should be executing

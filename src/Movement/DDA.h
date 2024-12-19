@@ -98,10 +98,9 @@ public:
 #endif
 
 	const int32_t *_ecv_array DriveCoordinates() const noexcept { return endPoint; }				// Get endpoints of a move in machine coordinates
-	void SetDriveCoordinate(int32_t a, size_t drive) noexcept;										// Force an end point
+	void SetDriveCoordinate(size_t drive, int32_t ep) noexcept;										// Force an end point
 	void SetFeedRate(float rate) noexcept { requestedSpeed = rate; }
 	void GetEndCoordinates(float returnedCoords[MaxAxes], bool disableMotorMapping) noexcept;		// Calculate the machine axis coordinates (after bed and skew correction) at the end of this move
-	void SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axesMoved) noexcept;	// Force the endpoints to be these
 
 	FilePosition GetFilePosition() const noexcept { return filePos; }
 	float GetRequestedSpeedMmPerClock() const noexcept { return requestedSpeed; }

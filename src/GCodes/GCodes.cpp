@@ -5233,6 +5233,23 @@ bool GCodes::CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply,
 	return true;
 }
 
+// Get the movement system that owns a particular axis
+MovementState *_ecv_null GCodes::GetMovementStateOwningAxis(size_t axis) noexcept
+{
+#if SUPPORT_ASYNC_MOVES
+	for (MovementState& ms : moveStates)
+	{
+		if (ms.axesAndExtrudersOwned.IsBitSet(axis))
+		{
+			return &ms;
+		}
+	}
+	return nullptr;
+#else
+	return &moveStates[0];
+#endif
+}
+
 #if SUPPORT_ASYNC_MOVES
 
 // Get a reference to the movement state associated with the specified GCode buffer

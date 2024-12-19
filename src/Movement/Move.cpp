@@ -1182,6 +1182,23 @@ void Move::GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap l
 	rings[msNumber].GetLastEndpoints(logicalDrives, returnedEndpoints);
 }
 
+int32_t Move::GetLastEndpoint(MovementSystemNumber msNumber, size_t drive) const noexcept
+{
+	return rings[msNumber].GetLastEndpoint(drive);
+}
+
+void Move::ChangeEndpointsAfterHoming(MovementSystemNumber msNumber, LogicalDrivesBitmap drives, const int32_t endpoints[MaxAxes]) noexcept
+{
+	rings[msNumber].SetLastEndpoints(drives, endpoints);
+	SetMotorPositions(drives, endpoints);
+}
+
+void Move::ChangeSingleEndpointAfterHoming(MovementSystemNumber msNumber, size_t drive, int32_t ep) noexcept
+{
+	rings[msNumber].SetLastEndpoint(drive, ep);
+	SetMotorPosition(drive, ep);
+}
+
 // Enter or leave simulation mode
 void Move::Simulate(SimulationMode simMode) noexcept
 {
@@ -1959,12 +1976,6 @@ void Move::AddLinearSegments(const DDA& dda, size_t logicalDrive, uint32_t start
 	}
 }
 
-// Store the DDA that is executing a homing move involving this drive. Called from DDA::Prepare.
-void Move::SetHomingDda(size_t drive, DDA *dda) noexcept
-{
-	dms[drive].homingDda = dda;
-}
-
 // Return true if none of the drives passed has any movement pending
 bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 {
@@ -2394,18 +2405,19 @@ void Move::CheckEndstops(bool executingMove) noexcept
 				const size_t axis = hitDetails.axis;
 				if (axis != NO_AXIS)
 				{
-					DDA *_ecv_null homingDda = dms[axis].homingDda;
-					if (homingDda != nullptr && homingDda->IsCommitted() && homingDda->IsCheckingEndstops())
+					GCodes& gCodes = reprap.GetGCodes();
+					MovementState *_ecv_null homingMs = gCodes.GetMovementStateOwningAxis(axis);
+					if (homingMs != nullptr)
 					{
 						if (hitDetails.setAxisLow)
 						{
-							kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingDda);
-							reprap.GetGCodes().SetAxisIsHomed(hitDetails.axis);
+							kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingMs);
+							gCodes.SetAxisIsHomed(hitDetails.axis);
 						}
 						else if (hitDetails.setAxisHigh)
 						{
-							kinematics->OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingDda);
-							reprap.GetGCodes().SetAxisIsHomed(hitDetails.axis);
+							kinematics->OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
+							gCodes.SetAxisIsHomed(hitDetails.axis);
 						}
 					}
 				}
@@ -2429,19 +2441,20 @@ void Move::CheckEndstops(bool executingMove) noexcept
 			StopAxisOrExtruder(executingMove, hitDetails.axis);
 #endif
 			{
-				// Get the DDA associated with the axis that has triggered
-				DDA *_ecv_null homingDda = dms[hitDetails.axis].homingDda;
-				if (homingDda != nullptr && homingDda->IsCommitted() && homingDda->IsCheckingEndstops())
+				// Get the MS associated with the axis that has triggered
+				GCodes& gCodes = reprap.GetGCodes();
+				MovementState *_ecv_null homingMs = gCodes.GetMovementStateOwningAxis(hitDetails.axis);
+				if (homingMs != nullptr)
 				{
 					if (hitDetails.setAxisLow)
 					{
-						kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingDda);
-						reprap.GetGCodes().SetAxisIsHomed(hitDetails.axis);
+						kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingMs);
+						gCodes.SetAxisIsHomed(hitDetails.axis);
 					}
 					else if (hitDetails.setAxisHigh)
 					{
-						GetKinematics().OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingDda);
-						reprap.GetGCodes().SetAxisIsHomed(hitDetails.axis);
+						GetKinematics().OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
+						gCodes.SetAxisIsHomed(hitDetails.axis);
 					}
 				}
 			}
@@ -2754,7 +2767,7 @@ bool Move::StopAxisOrExtruder(bool executingMove, size_t logicalDrive) noexcept
 {
 	DriveMovement& dm = dms[logicalDrive];
 	int32_t netStepsTaken;
-	const bool wasMoving = dm.StopDriver(netStepsTaken);
+	const bool wasMoving = dm.StopLogicalDrive(netStepsTaken);
 	bool wakeAsyncSender = false;
 #if SUPPORT_CAN_EXPANSION
 	if (wasMoving)

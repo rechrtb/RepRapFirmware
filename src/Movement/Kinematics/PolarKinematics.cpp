@@ -268,22 +268,22 @@ AxesBitmap PolarKinematics::GetHomingFileName(AxesBitmap toBeHomed, AxesBitmap a
 
 // This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
 // Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate() and return false.
-void PolarKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], DDA& dda) const noexcept
+void PolarKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept
 {
 	switch(axis)
 	{
 	case X_AXIS:	// radius
-		dda.SetDriveCoordinate(lrintf(homedRadius * stepsPerMm[axis]), axis);
+		ms.ChangeSingleEndpointAfterHoming(axis, lrintf(homedRadius * stepsPerMm[axis]));
 		break;
 
 	case Y_AXIS:	// bed
-		dda.SetDriveCoordinate(0, axis);
+		ms.ChangeSingleEndpointAfterHoming(axis, 0);
 		break;
 
 	default:
 		{
 			const float hitPoint = (highEnd) ? reprap.GetMove().AxisMaximum(axis) : reprap.GetMove().AxisMinimum(axis);
-			dda.SetDriveCoordinate(lrintf(hitPoint * stepsPerMm[axis]), axis);
+			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
 		}
 		break;
 	}

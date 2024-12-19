@@ -336,6 +336,18 @@ void MovementState::SaveOwnDriveCoordinates() noexcept
 	move.GetLastEndpoints(msNumber, logicalDrivesOwned, lastKnownEndpoints);
 }
 
+void MovementState::ChangeEndpointsAfterHoming(LogicalDrivesBitmap drives, const int32_t endpoints[MaxAxes]) noexcept
+{
+	reprap.GetMove().ChangeEndpointsAfterHoming(GetNumber(), drives, endpoints);
+	drives.Iterate([endpoints](unsigned int drive, unsigned int count) { lastKnownEndpoints[drive] = endpoints[drive]; });
+}
+
+void MovementState::ChangeSingleEndpointAfterHoming(size_t drive, int32_t ep) noexcept
+{
+	reprap.GetMove().ChangeSingleEndpointAfterHoming(GetNumber(), drive, ep);
+	lastKnownEndpoints[drive] = ep;
+}
+
 #if SUPPORT_ASYNC_MOVES
 
 // This is how we handle axis and extruder allocation and release:

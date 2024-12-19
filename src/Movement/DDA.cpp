@@ -1083,30 +1083,10 @@ void DDA::MatchSpeeds() noexcept
 	}
 }
 
-// This may be called from an ISR, e.g. via Kinematics::OnHomingSwitchTriggered
-void DDA::SetPositions(Move& move, const float position[MaxAxes], AxesBitmap axesMoved) noexcept
-{
-	if (move.CartesianToMotorSteps(position, endPoint, true))
-	{
-		LogicalDrivesBitmap drivesMoved;
-		const Kinematics& kin = move.GetKinematics();
-		axesMoved.Iterate([this, position, &kin, &drivesMoved](unsigned int axis, unsigned int)->void
-							{
-								drivesMoved |= kin.GetControllingDrives(axis, false);
-#if SUPPORT_ASYNC_MOVES
-								MovementState::SetLastKnownMachinePosition(axis, position[axis]);
-#endif
-							}
-						 );
-		drivesMoved.Iterate([&move, this](unsigned int driver, unsigned int)->void { move.SetMotorPosition(driver, this->endPoint[driver]); });
-	}
-}
-
 // Force an end point. Called when a homing switch is triggered.
-void DDA::SetDriveCoordinate(int32_t a, size_t drive) noexcept
+void DDA::SetDriveCoordinate(size_t drive, int32_t ep) noexcept
 {
-	endPoint[drive] = a;
-	reprap.GetMove().SetMotorPosition(drive, a);
+	endPoint[drive] = ep;
 }
 
 // Get a Cartesian end coordinate from this move
@@ -1242,10 +1222,6 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 						}
 
 						delta = move.ApplyBacklashCompensation(drive, delta);
-						if (flags.checkEndstops)
-						{
-							move.SetHomingDda(drive, this);
-						}
 
 						// We generate segments even for nonlocal drivers so that the final position is correct and to track the position in near real time
 						move.AddLinearSegments(*this, drive, afterPrepare.moveStartTime, params, (motioncalc_t)delta, segFlags);

@@ -64,7 +64,7 @@ Special situations:
    We adjust those endpoints as instructed by the calibration (MovementState::AdjustMotorPositions)
    We also store the new endpoints in our DDARing and in the motor positions in the DMs (MovementState::AdjustMotorPositions)
 
-- When we complete a simulation and restore the user and machine positions: ********* TODO **********
+- When we complete a simulation and restore the user and machine positions: DONE
    Currently we save the user position of each MS in its restore point, then try to restore endpoints based on them.
    A problem with that is that any axes that are unowned wont get restored.
    Maybe it's better instead at the start of the simulation to have all MSs save the endpoints of their owned drives to lastKnownEndPoints and save their current tool numbers, release all drives, and then save lastKnownEndpoints.

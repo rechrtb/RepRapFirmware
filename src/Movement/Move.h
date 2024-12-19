@@ -260,12 +260,15 @@ public:
 		pre(msNumber < NumMovementSystems);
 	void GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
 		pre(msNumber < NumMovementSystems);
+	int32_t GetLastEndpoint(MovementSystemNumber msNumber, size_t drive) const noexcept
+		pre(msNumber < NumMovementSystems; drive < MaxAxesPlusExtruders);
 	void SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
 		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
+	void ChangeEndpointsAfterHoming(MovementSystemNumber msNumber, LogicalDrivesBitmap drives, const int32_t endpoints[MaxAxes]) noexcept
+		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
+	void ChangeSingleEndpointAfterHoming(MovementSystemNumber msNumber, size_t drive, int32_t ep) noexcept
+		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
 
-//	void SetRawPosition(const float positions[MaxAxes], AxesBitmap axes) noexcept
-//			pre(msNumber < NumMovementSystems);							// Set the current position to be this without transforming them first
-//	void AdjustMotorPositions(MovementState& ms, const float adjustment[], size_t numMotors) noexcept;		// Perform motor endpoint adjustment after auto calibration
 	void GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, uint8_t moveType, const Tool *tool) const noexcept;
 																			// Return the position (after all queued moves have been executed) in transformed coords
 	int32_t GetLiveMotorPosition(size_t driver) const noexcept pre(driver < MaxAxesPlusExtruders);
@@ -349,7 +352,6 @@ public:
 
 	// Functions called by DDA::Prepare to generate segments for executing DDAs
 	void AddLinearSegments(const DDA& dda, size_t logicalDrive, uint32_t startTime, const PrepParams& params, motioncalc_t steps, MovementFlags moveFlags) noexcept;
-	void SetHomingDda(size_t drive, DDA *dda) noexcept pre(drive < MaxAxesPlusExtruders);
 
 	bool AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept;						// return true if none of the drives passed has any movement pending
 
