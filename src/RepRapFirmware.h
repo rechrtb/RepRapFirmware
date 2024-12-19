@@ -90,7 +90,7 @@ enum class PinAccess : int
 
 enum class PinUsedBy : uint8_t
 {
-	unused = 0,
+	notUsed = 0,
 	heater,
 	fan,
 	endstop,
