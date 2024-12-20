@@ -827,7 +827,7 @@ void Move::MoveAvailable() noexcept
 // Tell the lookahead ring we are waiting for it to empty and return true if it is
 bool Move::WaitingForAllMovesFinished(MovementSystemNumber msNumber
 #if SUPPORT_ASYNC_MOVES
-										, AxesBitmap axesAndExtrudersOwned
+										, LogicalDrivesBitmap logicalDrivesOwned
 #endif
 									 ) noexcept
 {
@@ -838,14 +838,8 @@ bool Move::WaitingForAllMovesFinished(MovementSystemNumber msNumber
 
 	// If input shaping is enabled then movement may continue for a little while longer
 #if SUPPORT_ASYNC_MOVES
-	return axesAndExtrudersOwned.IterateWhile([this](unsigned int axisOrExtruder, unsigned int)->bool
+	return logicalDrivesOwned.IterateWhile([this](unsigned int axisOrExtruder, unsigned int)->bool
 												{
-													if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
-													{
-														//TODO the following is OK for CoreXY but not for deltas, Scara etc.
-														const LogicalDrivesBitmap driversUsed = kinematics->GetControllingDrives(axisOrExtruder, false);
-														return driversUsed.IterateWhile([this](unsigned int drive, unsigned int)->bool { return !dms[drive].MotionPending(); });
-													}
 													return !dms[axisOrExtruder].MotionPending();
 												}
 											 );

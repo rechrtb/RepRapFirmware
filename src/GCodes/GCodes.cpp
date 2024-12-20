@@ -1746,7 +1746,7 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 	default:
 		if (!reprap.GetMove().WaitingForAllMovesFinished(msNumber
 #if SUPPORT_ASYNC_MOVES
-															, ms.GetAxesAndExtrudersOwned()
+															, ms.logicalDrivesOwned
 #endif
 														)
 		   )

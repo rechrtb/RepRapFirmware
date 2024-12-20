@@ -278,7 +278,7 @@ public:
 	void MoveAvailable() noexcept;											// Called from GCodes to tell the Move task that a move is available
 	bool WaitingForAllMovesFinished(MovementSystemNumber msNumber
 #if SUPPORT_ASYNC_MOVES
-									, AxesBitmap axesAndExtrudersOwned
+									, LogicalDrivesBitmap logicalDrivesOwned
 #endif
 								   ) noexcept
 		pre(msNumber < rings.upb);											// Tell the lookahead ring we are waiting for it to empty and return true if it is
