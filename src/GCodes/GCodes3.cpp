@@ -428,8 +428,6 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 
 	bool seen = false, seenExtrude = false;
 	GCodeResult rslt = GCodeResult::ok;
-
-	const size_t originalVisibleAxes = numVisibleAxes;
 	const char *_ecv_array lettersToTry = AllowedAxisLetters;
 
 #if SUPPORT_CAN_EXPANSION
@@ -583,24 +581,6 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 	if (seen || seenExtrude)
 	{
 		reprap.MoveUpdated();
-		if (numVisibleAxes > originalVisibleAxes)
-		{
-			// In the DDA ring, the axis positions for invisible non-moving axes are not always copied over from previous moves.
-			// So if we have more visible axes than before, then we need to update their positions to get them in sync.
-			//TODO for multiple motion systems, is this correct? Other input channel must wait until we have finished.
-			for (MovementState& ms : moveStates)
-			{
-				ToolOffsetTransform(ms);										// ensure that the position of any new axes are updated in moveBuffer
-				if (ms.GetNumber() == 0)
-				{
-					ms.SetNewPositionOfAllAxes(true);								// tell the Move system where the axes are
-				}
-				else
-				{
-					ms.SetNewPositionOfOwnedAxes(true);								// tell the Move system where the axes are
-				}
-			}
-		}
 #if SUPPORT_CAN_EXPANSION
 		rslt = max(rslt, move.UpdateRemoteStepsPerMmAndMicrostepping(axesToUpdate, reply));
 #endif

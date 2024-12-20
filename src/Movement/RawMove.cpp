@@ -314,18 +314,10 @@ void MovementState::InitObjectCancellation() noexcept
 	currentObjectCancelled = printingJustResumed = false;
 }
 
-void MovementState::SetNewPositionOfAllAxes(bool doBedCompensation) noexcept
-{
-	int32_t endpoints[MaxAxes];
-	Move& move = reprap.GetMove();
-	move.CartesianToMotorSteps(coords, endpoints, false);
-	move.SetLastEndpoints(msNumber, allLogicalDrives, endpoints);
-	move.SetMotorPositions(allLogicalDrives, endpoints);
-}
-
 void MovementState::SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept
 {
-	int32_t endpoints[MaxAxes];
+	int32_t endpoints[MaxAxesPlusExtruders];
+	memcpyi32(endpoints, lastKnownEndpoints, ARRAY_SIZE(endpoints));
 	Move& move = reprap.GetMove();
 	move.CartesianToMotorSteps(coords, endpoints, false);
 	move.SetLastEndpoints(msNumber, logicalDrivesOwned, endpoints);
