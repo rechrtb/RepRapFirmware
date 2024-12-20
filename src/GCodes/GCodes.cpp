@@ -1806,6 +1806,7 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 #if SUPPORT_ASYNC_MOVES
 		ms.SaveOwnDriveCoordinates();
 		move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
+		move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
 		move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
 		UpdateUserPositionFromMachinePosition(gb, ms);
 		collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());

@@ -430,6 +430,13 @@ void DDARing::SetLastEndpoint(size_t drive, int32_t ep) noexcept
 	addPointer->GetPrevious()->SetDriveCoordinate(drive, ep);
 }
 
+// Update the start coordinates for the next move.
+// Called after a raw motor move has changed the endpoints.
+void DDARing::UpdateStartCoordinates(const float coords[MaxAxes]) noexcept
+{
+	memcpyf(startCoordinates, coords, MaxAxes);
+}
+
 // Get the DDA that should currently be executing, or nullptr if no move from this ring should be executing
 DDA *DDARing::GetCurrentDDA() const noexcept
 {

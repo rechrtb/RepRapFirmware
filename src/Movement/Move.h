@@ -269,6 +269,10 @@ public:
 	void ChangeSingleEndpointAfterHoming(MovementSystemNumber msNumber, size_t drive, int32_t ep) noexcept
 		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
 
+	void UpdateStartCoordinates(MovementSystemNumber msNumber, const float *coords) noexcept
+		pre(msNumber < NumMovementSystems)
+		{ rings[msNumber].UpdateStartCoordinates(coords); }
+
 	void GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, bool doBedCompensation, const Tool *tool) const noexcept;
 																			// Return the position (after all queued moves have been executed) in transformed coords
 	int32_t GetLiveMotorPosition(size_t driver) const noexcept pre(driver < MaxAxesPlusExtruders);
