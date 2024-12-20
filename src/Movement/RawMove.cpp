@@ -504,4 +504,14 @@ void MovementState::AdjustMotorPositions(const float adjustment[], size_t numMot
 	memcpyi32(lastKnownEndpoints, endpointsAtSimulationStart, ARRAY_SIZE(lastKnownEndpoints));
 }
 
+/*static*/ void MovementState::DebugPrintLastKnownEndpoints(const char *_ecv_array str) noexcept
+{
+	debugPrintf(str);
+	for (int32_t ep : lastKnownEndpoints)
+	{
+		debugPrintf(" %" PRIi32, ep);
+	}
+	debugPrintf("\n");
+}
+
 // End

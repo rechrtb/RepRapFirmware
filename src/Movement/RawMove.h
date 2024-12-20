@@ -227,6 +227,7 @@ public:
 	static void RestoreEndpointsAfterSimulating() noexcept;
 	static const int32_t *_ecv_array GetLastKnownEndpoints() noexcept { return lastKnownEndpoints; }
 	static void AdjustEndpoint(size_t drive, float ratio) noexcept pre(drive < MaxAxesPlusExtruders) { lastKnownEndpoints[drive] = lrintf((float)lastKnownEndpoints[drive] * ratio); }
+	static void DebugPrintLastKnownEndpoints(const char *_ecv_array str) noexcept;
 
 private:
 	MovementSystemNumber msNumber;
