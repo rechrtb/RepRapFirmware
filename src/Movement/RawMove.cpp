@@ -68,7 +68,7 @@ int32_t MovementState::endpointsAtSimulationStart[MaxAxesPlusExtruders];	// what
 LogicalDrivesBitmap MovementState::allLogicalDrivesOwned;					// logical drives that are owned by any movement system
 #endif
 
-/*static*/ void MovementState::GlobalInit(const float initialPosition[MaxAxesPlusExtruders]) noexcept
+/*static*/ void MovementState::SetInitialMotorPositions(const float initialPosition[MaxAxesPlusExtruders]) noexcept
 {
 #if SUPPORT_ASYNC_MOVES
 	allLogicalDrivesOwned.Clear();
@@ -85,7 +85,7 @@ float MovementState::GetProportionDone() const noexcept
 }
 
 // Initialise this MovementState. If SUPPORT_ASYNC_MOVES is set then must call MovementState::GlobalInit before calling this to initialise lastKnownMachinePositions.
-void MovementState::Init(MovementSystemNumber p_msNumber, const float initialPosition[MaxAxesPlusExtruders]) noexcept
+void MovementState::Init(MovementSystemNumber p_msNumber) noexcept
 {
 	msNumber = p_msNumber;
 	ClearMove();
@@ -93,8 +93,6 @@ void MovementState::Init(MovementSystemNumber p_msNumber, const float initialPos
 	codeQueue->Clear();
 	currentCoordinateSystem = 0;
 	pausedInMacro = false;
-	memcpyf(coords, initialPosition, MaxAxesPlusExtruders);
-	reprap.GetMove().SetLastEndpoints(msNumber, allLogicalDrives, lastKnownEndpoints);
 
 #if SUPPORT_ASYNC_MOVES
 	axesAndExtrudersOwned.Clear();
@@ -127,6 +125,12 @@ void MovementState::Init(MovementSystemNumber p_msNumber, const float initialPos
 		rp.Init();
 	}
 	InitObjectCancellation();
+}
+
+void MovementState::SetInitialMachineCoordinates(const float initialPosition[MaxAxesPlusExtruders]) noexcept
+{
+	memcpyf(coords, initialPosition, MaxAxesPlusExtruders);
+	reprap.GetMove().SetLastEndpoints(msNumber, allLogicalDrives, lastKnownEndpoints);
 }
 
 // Reset the laser parameters (also resets iobits because that is shared with laser)
@@ -315,9 +319,8 @@ void MovementState::SetNewPositionOfAllAxes(bool doBedCompensation) noexcept
 	int32_t endpoints[MaxAxes];
 	Move& move = reprap.GetMove();
 	move.CartesianToMotorSteps(coords, endpoints, false);
-	const LogicalDrivesBitmap allDrives = LogicalDrivesBitmap::MakeLowestNBits(MaxAxes);
-	move.SetLastEndpoints(msNumber, allDrives, endpoints);
-	move.SetMotorPositions(allDrives, endpoints);
+	move.SetLastEndpoints(msNumber, allLogicalDrives, endpoints);
+	move.SetMotorPositions(allLogicalDrives, endpoints);
 }
 
 void MovementState::SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept
@@ -330,7 +333,7 @@ void MovementState::SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept
 }
 
 // Fetch the positions of currently owned drives and save them to lastKnownEndpoints
-void MovementState::SaveOwnDriveCoordinates() noexcept
+void MovementState::SaveOwnDriveCoordinates() const noexcept
 {
 	Move& move = reprap.GetMove();
 	move.GetLastEndpoints(msNumber, logicalDrivesOwned, lastKnownEndpoints);

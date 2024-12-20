@@ -400,9 +400,9 @@ bool DDARing::SetWaitingToEmpty() noexcept
 }
 
 // Return the untransformed machine coordinates
-void DDARing::GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept
+void DDARing::GetCurrentMachinePosition(float m[MaxAxes]) const noexcept
 {
-	addPointer->GetPrevious()->GetEndCoordinates(m, disableMotorMapping);
+	addPointer->GetPrevious()->GetEndCoordinates(m);
 }
 
 void DDARing::GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
@@ -539,7 +539,7 @@ bool DDARing::PauseMoves(MovementState& ms) noexcept
 	// We may be going to skip some moves. Get the end coordinate of the previous move.
 	DDA * const prevDda = addPointer->GetPrevious();
 	RestorePoint& rp = ms.GetPauseRestorePoint();
-	prevDda->GetEndCoordinates(rp.moveCoords, false);
+	prevDda->GetEndCoordinates(rp.moveCoords);
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
@@ -638,7 +638,7 @@ bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
 
 	// Get the end coordinates of the last move that was or will be completed, or the coordinates of the current move when we aborted it.
 	DDA * const prevDda = addPointer->GetPrevious();
-	prevDda->GetEndCoordinates(rp.moveCoords, false);
+	prevDda->GetEndCoordinates(rp.moveCoords);
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 	// Free the DDAs for the moves we are going to skip

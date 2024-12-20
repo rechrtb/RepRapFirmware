@@ -540,7 +540,7 @@ void GCodes::ClearBedMapping() noexcept
 	reprap.GetMove().SetIdentityTransform();
 	for (MovementState& ms : moveStates)
 	{
-		reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), 0, ms.currentTool);
+		reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), true, ms.currentTool);
 		ToolOffsetInverseTransform(ms);		// update user coordinates to remove any height map offset there was at the current position
 	}
 }

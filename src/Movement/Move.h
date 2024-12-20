@@ -241,22 +241,22 @@ public:
 #endif
 
 	float DriveStepsPerMm(size_t axisOrExtruder) const noexcept pre(axisOrExtruder < MaxAxesPlusExtruders) { return driveStepsPerMm[axisOrExtruder]; }
-	void SetDriveStepsPerMm(size_t axisOrExtruder, float value, uint32_t requestedMicrostepping) noexcept pre(axisOrExtruder < MaxAxesPlusExtruders);
+	float SetDriveStepsPerMm(size_t axisOrExtruder, float value, uint32_t requestedMicrostepping) noexcept pre(axisOrExtruder < MaxAxesPlusExtruders);
 
 	void SetAsExtruder(size_t drive, bool isExtruder) noexcept pre(drive < MaxAxesPlusExtruders) { dms[drive].SetAsExtruder(isExtruder); }
 
-	bool SetMicrostepping(size_t axisOrExtruder, unsigned int microsteps, bool mode, const StringRef& reply) noexcept pre(axisOrExtruder < MaxAxesPlusExtruders);
-	unsigned int GetMicrostepping(size_t axisOrExtruder, bool& interpolation) const noexcept pre(axisOrExtruder < MaxAxesPlusExtruders);
-	unsigned int GetMicrostepping(size_t axisOrExtruder) const noexcept pre(axisOrExtruder < MaxAxesPlusExtruders) { return microstepping[axisOrExtruder] & 0x7FFF; }
-	bool GetMicrostepInterpolation(size_t axisOrExtruder) const noexcept pre(axisOrExtruder < MaxAxesPlusExtruders) { return (microstepping[axisOrExtruder] & 0x8000) != 0; }
-	uint16_t GetRawMicrostepping(size_t axisOrExtruder) const noexcept pre(axisOrExtruder < MaxAxesPlusExtruders) { return microstepping[axisOrExtruder]; }
+	bool SetMicrostepping(size_t drive, unsigned int microsteps, bool mode, const StringRef& reply) noexcept pre(drive < MaxAxesPlusExtruders);
+	unsigned int GetMicrostepping(size_t drive, bool& interpolation) const noexcept pre(drive < MaxAxesPlusExtruders);
+	unsigned int GetMicrostepping(size_t drive) const noexcept pre(drive < MaxAxesPlusExtruders) { return microstepping[drive] & 0x7FFF; }
+	bool GetMicrostepInterpolation(size_t drive) const noexcept pre(drive < MaxAxesPlusExtruders) { return (microstepping[drive] & 0x8000) != 0; }
+	uint16_t GetRawMicrostepping(size_t drive) const noexcept pre(drive < MaxAxesPlusExtruders) { return microstepping[drive]; }
 
 #if SUPPORT_CAN_EXPANSION
 	GCodeResult UpdateRemoteStepsPerMmAndMicrostepping(AxesBitmap axesAndExtruders, const StringRef& reply) noexcept;
 #endif
 
 	// Various functions called from GCodes module
-	void GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, bool disableMotorMapping) const noexcept // Get the current position in untransformed coords
+	void GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber) const noexcept // Get the current position in untransformed coords
 		pre(msNumber < NumMovementSystems);
 	void GetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept
 		pre(msNumber < NumMovementSystems);
@@ -269,7 +269,7 @@ public:
 	void ChangeSingleEndpointAfterHoming(MovementSystemNumber msNumber, size_t drive, int32_t ep) noexcept
 		pre(msNumber < NumMovementSystems);									// Set the current position to be this without transforming them first
 
-	void GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, uint8_t moveType, const Tool *tool) const noexcept;
+	void GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, bool doBedCompensation, const Tool *tool) const noexcept;
 																			// Return the position (after all queued moves have been executed) in transformed coords
 	int32_t GetLiveMotorPosition(size_t driver) const noexcept pre(driver < MaxAxesPlusExtruders);
 	void SetMotorPosition(size_t drive, int32_t pos) noexcept pre(drive < MaxAxesPlusExtruders);
@@ -909,9 +909,9 @@ inline float Move::AxisTotalLength(size_t axis) const noexcept
 }
 
 // Get the current position in untransformed coords
-inline void Move::GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber, bool disableMotorMapping) const noexcept
+inline void Move::GetCurrentMachinePosition(float m[MaxAxes], MovementSystemNumber msNumber) const noexcept
 {
-	rings[msNumber].GetCurrentMachinePosition(m, disableMotorMapping);
+	rings[msNumber].GetCurrentMachinePosition(m);
 }
 
 // Update the min and max extrusion pending values. These are reported by M122 to assist with debugging print quality issues.

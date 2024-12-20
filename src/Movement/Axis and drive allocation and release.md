@@ -53,6 +53,10 @@ Special situations:
    We store the assumed initial machine position and the corresponding user position in all MSs (MovementState::Init)
    We also store the endpoints in the DDA rings (MovementState::Init)
 
+- When steps/mm or microstepping is changed (M92 and M350):
+   We need to adjust lastKnownEndpoints, the motor positions and the endpoints in the DDA ring by the ration of new to old steps/mm.
+   This matters especially on a delta where the assumed initial position does not correspond to the endpoints all being zero.
+
 - When we execute G92: DONE
    We allocate the axes (and extruders) that the G92 command refers to, and hence the drives affected (GCodes::SetPositions)
    We transform the G92 coordinates to machine coordinates and store them in the current MS (GCodes::SetPositions)

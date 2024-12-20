@@ -92,8 +92,6 @@ constexpr size_t ResumeObjectRestorePointNumber = NumVisibleRestorePoints + 1;
 class MovementState : public RawMove
 {
 public:
-	static void GlobalInit(const float initialPosition[MaxAxesPlusExtruders]) noexcept;
-
 #if SUPPORT_ASYNC_MOVES
 	AxesBitmap GetAxesAndExtrudersOwned() const noexcept { return axesAndExtrudersOwned; }	// Get the axes and extruders that this movement system owns
 	ParameterLettersBitmap GetOwnedAxisLetters() const noexcept { return ownedAxisLetters; } // Get the letters denoting axes that this movement system owns
@@ -106,7 +104,7 @@ public:
 	void UpdateCoordinatesFromLastKnownEndpoints() noexcept;								// update our coordinates from the saved endpoints
 #endif
 
-	void SaveOwnDriveCoordinates() noexcept;												// fetch and save the endpoints of logical drives we own to lastKnownEndpoints
+	void SaveOwnDriveCoordinates() const noexcept;											// fetch and save the endpoints of logical drives we own to lastKnownEndpoints
 	void SetNewPositionOfAllAxes(bool doBedCompensation) noexcept;
 	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
 	void ChangeEndpointsAfterHoming(LogicalDrivesBitmap drives, const int32_t endpoints[MaxAxes]) noexcept;
@@ -117,7 +115,10 @@ public:
 
 	MovementSystemNumber GetNumber() const noexcept { return msNumber; }
 	float GetProportionDone() const noexcept;												// get the proportion of this whole move that has been completed, based on segmentsLeft and totalSegments
-	void Init(MovementSystemNumber p_msNumber, const float initialPosition[MaxAxesPlusExtruders]) noexcept;
+
+	void Init(MovementSystemNumber p_msNumber) noexcept;
+	void SetInitialMachineCoordinates(const float initialPosition[MaxAxesPlusExtruders]) noexcept;
+
 	void ResetLaser() noexcept;																// reset the laser parameters
 	void ChangeExtrusionFactor(unsigned int extruder, float multiplier) noexcept;			// change the extrusion factor of an extruder
 	const RestorePoint& GetRestorePoint(size_t n) const pre(n < NumTotalRestorePoints) { return restorePoints[n]; }
@@ -222,9 +223,11 @@ public:
 	SegmentedMoveState segMoveState;
 	bool pausedInMacro;												// if we are paused then this is true if we paused while fileGCode was executing a macro
 
+	static void SetInitialMotorPositions(const float initialPosition[MaxAxesPlusExtruders]) noexcept;
 	static void SaveEndpointsBeforeSimulating() noexcept;
 	static void RestoreEndpointsAfterSimulating() noexcept;
 	static const int32_t *_ecv_array GetLastKnownEndpoints() noexcept { return lastKnownEndpoints; }
+	static void AdjustEndpoint(size_t drive, float ratio) noexcept pre(drive < MaxAxesPlusExtruders) { lastKnownEndpoints[drive] = lrintf((float)lastKnownEndpoints[drive] * ratio); }
 
 private:
 	MovementSystemNumber msNumber;

@@ -1089,21 +1089,10 @@ void DDA::SetDriveCoordinate(size_t drive, int32_t ep) noexcept
 }
 
 // Get a Cartesian end coordinate from this move
-void DDA::GetEndCoordinates(float returnedCoords[MaxAxes], bool disableMotorMapping) noexcept
+void DDA::GetEndCoordinates(float returnedCoords[MaxAxes]) noexcept
 {
-	Move& move = reprap.GetMove();
 	const size_t totalAxes = reprap.GetGCodes().GetTotalAxes();
-	if (disableMotorMapping)
-	{
-		for (size_t axis = 0; axis < totalAxes; ++axis)
-		{
-			returnedCoords[axis] = move.MotorStepsToMovement(axis, endPoint[axis]);
-		}
-	}
-	else
-	{
-		move.MotorStepsToCartesian(endPoint, reprap.GetGCodes().GetVisibleAxes(), totalAxes, returnedCoords);
-	}
+	reprap.GetMove().MotorStepsToCartesian(endPoint, reprap.GetGCodes().GetVisibleAxes(), totalAxes, returnedCoords);
 }
 
 // Dispatch this DDA to the move segment queue for execution.

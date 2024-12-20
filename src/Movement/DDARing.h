@@ -50,7 +50,7 @@ public:
 	float GetDecelerationMmPerSecSquared() const noexcept;								// Get the (peak) deceleration for reporting in the object model
 	float GetTotalExtrusionRate() const noexcept;
 
-	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept;	// Get the position at the end of the last queued move in untransformed coords
+	void GetCurrentMachinePosition(float m[MaxAxes]) const noexcept;					// Get the position at the end of the last queued move in untransformed coords
 	void GetLastEndpoints(LogicalDrivesBitmap logicalDrives, int32_t returnedEndpoints[MaxAxesPlusExtruders]) const noexcept;
 	int32_t GetLastEndpoint(size_t drive) const noexcept;
 	void SetLastEndpoints(LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept;

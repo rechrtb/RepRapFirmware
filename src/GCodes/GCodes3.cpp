@@ -516,8 +516,10 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 						--numExtruders;
 					}
 					numVisibleAxes = numTotalAxes;						// assume any new axes are visible unless there is a P parameter
+
+					// Set the initial coordinates of the new drive
 					float initialCoords[MaxAxes];
-					reprap.GetMove().GetKinematics().GetAssumedInitialPosition(drive + 1, initialCoords);
+					reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numTotalAxes, initialCoords);
 					for (MovementState& ms : moveStates)
 					{
 						ms.coords[drive] = initialCoords[drive];		// user has defined a new axis, so set its position

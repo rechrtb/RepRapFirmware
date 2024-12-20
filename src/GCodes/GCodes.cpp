@@ -244,20 +244,14 @@ void GCodes::Reset() noexcept
 	g68Angle = g68Centre[0] = g68Centre[1] = 0.0;				// no coordinate rotation
 #endif
 
+	// Initialise each movement system, except for the initial positions
+	for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
 	{
-		float initialPosition[MaxAxesPlusExtruders];
-		memsetf(initialPosition, 0.0, ARRAY_SIZE(initialPosition));
-		reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, initialPosition);
-
-		MovementState::GlobalInit(initialPosition);
-
-		for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
-		{
-			MovementState& ms = moveStates[i];
-			ms.Init(i, initialPosition);
-			ToolOffsetInverseTransform(ms);
-		}
+		MovementState& ms = moveStates[i];
+		ms.Init(i);
 	}
+
+	SetInitialAxisAndDrivePositions();
 
 	for (float& f : currentBabyStepOffsets)
 	{
@@ -302,6 +296,41 @@ void GCodes::Reset() noexcept
 	for (const GCodeBuffer *_ecv_null & gbp : resourceOwners)
 	{
 		gbp = nullptr;
+	}
+}
+
+// Set the initial coordinates and motor positions
+void GCodes::SetInitialAxisAndDrivePositions() noexcept
+{
+	// Determine the initial machine coordinates assumes for this kinematics
+	float initialPosition[MaxAxesPlusExtruders];
+	memsetf(initialPosition, 0.0, ARRAY_SIZE(initialPosition));
+	reprap.GetMove().GetKinematics().GetAssumedInitialPosition(numVisibleAxes, initialPosition);
+	(void)reprap.GetMove().GetKinematics().LimitPosition(initialPosition, nullptr, numVisibleAxes, AxesBitmap::MakeLowestNBits(numVisibleAxes), false, false);
+
+	// Convert those coordinates to endpoints, store then in lastKnownEndpoints, and set the motor positions to those endpoints
+	MovementState::SetInitialMotorPositions(initialPosition);
+
+	// Copy those endpoints into each DDARing, copy the machine coordinates into each MS, and convert them to user coordinates
+	for (MovementSystemNumber i = 0; i < NumMovementSystems; ++i)
+	{
+		MovementState& ms = moveStates[i];
+		ms.SetInitialMachineCoordinates(initialPosition);
+		ToolOffsetInverseTransform(ms);
+	}
+}
+
+// Adjust an endpoint following a change to steps/mm
+void GCodes::AdjustEndpoint(size_t drive, float ratio) const noexcept
+{
+	for (const MovementState& ms : moveStates)
+	{
+		ms.SaveOwnDriveCoordinates();
+	}
+	MovementState::AdjustEndpoint(drive, ratio);
+	for (size_t i = 0; i < NumMovementSystems; ++i)
+	{
+		reprap.GetMove().ChangeSingleEndpointAfterHoming(i, drive, MovementState::GetLastKnownEndpoints()[drive]);
 	}
 }
 
@@ -1737,6 +1766,7 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 		return false;								// if no
 	}
 
+	Move& move = reprap.GetMove();
 	switch (gb.GetChannel().ToBaseType())
 	{
 	case GCodeChannel::Queue:
@@ -1744,7 +1774,7 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 		break;
 
 	default:
-		if (!reprap.GetMove().WaitingForAllMovesFinished(msNumber
+		if (!move.WaitingForAllMovesFinished(msNumber
 #if SUPPORT_ASYNC_MOVES
 															, ms.logicalDrivesOwned
 #endif
@@ -1774,8 +1804,9 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 		// Get the current positions. These may not be the same as the ones we remembered from last time if we just did a special move.
 		//TODO only do this is we did a special move
 #if SUPPORT_ASYNC_MOVES
-		// Get the position of all axes by combining positions from the queues
 		ms.SaveOwnDriveCoordinates();
+		move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.initialCoords);
+		move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
 		UpdateUserPositionFromMachinePosition(gb, ms);
 		collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
 
@@ -2178,9 +2209,22 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 	if (ms.moveType != 0)
 	{
 		// This may be a raw motor move, in which case we need the current raw motor positions in moveBuffer.coords.
-		// If it isn't a raw motor move, it will still be applied without axis or bed transform applied,
-		// so make sure the initial coordinates don't have those either to avoid unwanted Z movement.
-		reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), ms.moveType, ms.currentTool);
+		Move& move = reprap.GetMove();
+		if (move.IsRawMotorMove(ms.moveType))
+		{
+			int32_t endPoints[MaxAxesPlusExtruders];
+			move.GetLastEndpoints(ms.GetNumber(), MovementState::allLogicalDrives, endPoints);
+			for (size_t axis = 0; axis < numTotalAxes; ++axis)
+			{
+				ms.coords[axis] = move.MotorStepsToMovement(axis, endPoints[axis]);
+			}
+		}
+		else
+		{
+			// It isn't a raw motor move, but it will still be applied without axis or bed transform applied,
+			// so make sure the initial coordinates don't have those either to avoid unwanted Z movement.
+			reprap.GetMove().GetCurrentMachinePosition(ms.coords, ms.GetNumber());
+		}
 	}
 
 	// Set up the initial coordinates
@@ -3934,15 +3978,16 @@ void GCodes::DisableDrives() noexcept
 	SetAllAxesNotHomed();
 }
 
-bool GCodes::ChangeMicrostepping(size_t axisOrExtruder, unsigned int microsteps, bool interp, const StringRef& reply) const noexcept
+bool GCodes::ChangeMicrostepping(size_t drive, unsigned int microsteps, bool interp, const StringRef& reply) const noexcept
 {
 	Move& move = reprap.GetMove();
-	const unsigned int oldSteps = move.GetMicrostepping(axisOrExtruder);
-	const bool success = move.SetMicrostepping(axisOrExtruder, microsteps, interp, reply);
+	const unsigned int oldSteps = move.GetMicrostepping(drive);
+	const bool success = move.SetMicrostepping(drive, microsteps, interp, reply);
 	if (success)
 	{
 		// We changed the microstepping, so adjust the steps/mm to compensate
-		move.SetDriveStepsPerMm(axisOrExtruder, move.DriveStepsPerMm(axisOrExtruder), oldSteps);
+		const float ratio = move.SetDriveStepsPerMm(drive, move.DriveStepsPerMm(drive), oldSteps);
+		AdjustEndpoint(drive, ratio);
 	}
 	return success;
 }
@@ -4558,7 +4603,7 @@ bool GCodes::ToolHeatersAtSetTemperatures(const Tool *_ecv_null tool, bool waitW
 void GCodes::UpdateCurrentUserPosition(const GCodeBuffer& gb) noexcept
 {
 	MovementState& ms = GetMovementState(gb);
-	reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), 0, ms.currentTool);
+	reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), true, ms.currentTool);
 	UpdateUserPositionFromMachinePosition(gb, ms);
 }
 
@@ -5204,7 +5249,7 @@ void GCodes::ActivateHeightmap(bool activate) noexcept
 		// Update the current position to allow for any bed compensation at the current XY coordinates
 		for (MovementState& ms : moveStates)
 		{
-			reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), 0, ms.currentTool);
+			reprap.GetMove().GetCurrentUserPosition(ms.coords, ms.GetNumber(), true, ms.currentTool);
 			ToolOffsetInverseTransform(ms);							// update user coordinates to reflect any height map offset at the current position
 		}
 	}

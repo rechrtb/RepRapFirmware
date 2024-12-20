@@ -464,7 +464,7 @@ void Move::Init() noexcept
 			const float stepsPerMm = (drv >= MaxAxes) ? DefaultEDriveStepsPerUnit
 										: (drv == Z_AXIS) ? DefaultZDriveStepsPerUnit
 											: DefaultAxisDriveStepsPerUnit;
-			SetDriveStepsPerMm(drv, stepsPerMm, 0);
+			driveStepsPerMm[drv] = stepsPerMm;
 		}
 	}
 
@@ -1119,10 +1119,10 @@ float Move::MotorStepsToMovement(size_t drive, int32_t endpoint) const noexcept
 }
 
 // Return the transformed machine coordinates
-void Move::GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, uint8_t moveType, const Tool *tool) const noexcept
+void Move::GetCurrentUserPosition(float m[MaxAxes], MovementSystemNumber msNumber, bool doBedCompensation, const Tool *tool) const noexcept
 {
-	GetCurrentMachinePosition(m, msNumber, IsRawMotorMove(moveType));
-	if (moveType == 0)
+	GetCurrentMachinePosition(m, msNumber);
+	if (doBedCompensation)
 	{
 		InverseAxisAndBedTransform(m, tool);
 	}

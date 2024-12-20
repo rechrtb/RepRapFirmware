@@ -367,6 +367,9 @@ private:
 	void UnlockMovementFrom(const GCodeBuffer& gb, MovementSystemNumber firstMsNumber) noexcept;	// Release movement locks greater or equal to than the specified one
 #endif
 
+	void SetInitialAxisAndDrivePositions() noexcept;							// Called at initialisation and when new axes are added
+	void AdjustEndpoint(size_t drive, float ratio) const noexcept;				// Adjust an endpoint following a change to steps/mm
+
 	bool SpinGCodeBuffer(GCodeBuffer& gb) noexcept;								// Do some work on an input channel
 	bool StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Fetch a new or old GCode and process it
 	void RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Execute a step of the state machine

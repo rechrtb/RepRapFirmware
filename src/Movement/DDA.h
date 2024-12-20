@@ -100,7 +100,7 @@ public:
 	const int32_t *_ecv_array DriveCoordinates() const noexcept { return endPoint; }				// Get endpoints of a move in machine coordinates
 	void SetDriveCoordinate(size_t drive, int32_t ep) noexcept;										// Force an end point
 	void SetFeedRate(float rate) noexcept { requestedSpeed = rate; }
-	void GetEndCoordinates(float returnedCoords[MaxAxes], bool disableMotorMapping) noexcept;		// Calculate the machine axis coordinates (after bed and skew correction) at the end of this move
+	void GetEndCoordinates(float returnedCoords[MaxAxes]) noexcept;					// Calculate the machine axis coordinates (after bed and skew correction) at the end of this move
 
 	FilePosition GetFilePosition() const noexcept { return filePos; }
 	float GetRequestedSpeedMmPerClock() const noexcept { return requestedSpeed; }

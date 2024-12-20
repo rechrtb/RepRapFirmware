@@ -1572,20 +1572,21 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 					bool seen = false;
 #if SUPPORT_CAN_EXPANSION
-					AxesBitmap axesToUpdate;
+					LogicalDrivesBitmap drivesToUpdate;
 #endif
 					Move& move = reprap.GetMove();
-					for (size_t axis = 0; axis < numTotalAxes; axis++)
+					for (size_t drive = 0; drive < numTotalAxes; drive++)
 					{
-						if (gb.Seen(axisLetters[axis]))
+						if (gb.Seen(axisLetters[drive]))
 						{
 							if (!LockAllMovementSystemsAndWaitForStandstill(gb))
 							{
 								return false;
 							}
-							move.SetDriveStepsPerMm(axis, gb.GetPositiveFValue(), ustepMultiplier);
+							const float ratio = move.SetDriveStepsPerMm(drive, gb.GetPositiveFValue(), ustepMultiplier);
+							AdjustEndpoint(drive, ratio);
 #if SUPPORT_CAN_EXPANSION
-							axesToUpdate.SetBit(axis);
+							drivesToUpdate.SetBit(drive);
 #endif
 							seen = true;
 						}
@@ -1612,9 +1613,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						{
 							const size_t drive = ExtruderToLogicalDrive(e);
 #if SUPPORT_CAN_EXPANSION
-							axesToUpdate.SetBit(drive);
+							drivesToUpdate.SetBit(drive);
 #endif
-							move.SetDriveStepsPerMm(drive, eVals[e], ustepMultiplier);
+							const float ratio = move.SetDriveStepsPerMm(drive, eVals[e], ustepMultiplier);
+							AdjustEndpoint(drive, ratio);
 						}
 					}
 
@@ -1639,7 +1641,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							}
 						}
 #if SUPPORT_CAN_EXPANSION
-						result = move.UpdateRemoteStepsPerMmAndMicrostepping(axesToUpdate, reply);
+						result = move.UpdateRemoteStepsPerMmAndMicrostepping(drivesToUpdate, reply);
 #endif
 					}
 					else
@@ -3965,11 +3967,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					const bool changed = move.GetKinematics().Configure(code, gb, reply, error);
 					if (changedMode)
 					{
-						for (MovementState& ms : moveStates)
-						{
-							move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, ms.coords);
-							ToolOffsetInverseTransform(ms);
-						}
+						SetInitialAxisAndDrivePositions();
 					}
 					if (changed || changedMode)
 					{
@@ -4048,27 +4046,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					if (seen)
 					{
 						// We changed something significant, so reset the positions and set all axes not homed
-						for (MovementState& ms : moveStates)
-						{
-							if (move.GetKinematics().GetKinematicsType() != oldK)
-							{
-								move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, ms.coords);
-								ToolOffsetInverseTransform(ms);
-							}
-							if (move.GetKinematics().LimitPosition(ms.coords, nullptr, numVisibleAxes, axesVirtuallyHomed, false, false) != LimitPositionResult::ok)
-							{
-								ToolOffsetInverseTransform(ms);				// make sure the limits are reflected in the user position
-							}
-							if (ms.GetNumber() == 0)
-							{
-								ms.SetNewPositionOfAllAxes(true);
-							}
-							else
-							{
-								ms.SetNewPositionOfOwnedAxes(true);
-							}
-						}
 						SetAllAxesNotHomed();
+						if (move.GetKinematics().GetKinematicsType() != oldK)
+						{
+							SetInitialAxisAndDrivePositions();
+						}
 						reprap.MoveUpdated();
 					}
 				}
