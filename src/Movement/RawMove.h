@@ -105,7 +105,7 @@ public:
 #endif
 
 	void SaveOwnDriveCoordinates() const noexcept;											// fetch and save the endpoints of logical drives we own to lastKnownEndpoints
-	void SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept;
+	void SetNewPositionOfOwnedAxes(float ncoords[MaxAxes]) noexcept;
 	void ChangeEndpointsAfterHoming(LogicalDrivesBitmap drives, const int32_t endpoints[MaxAxes]) noexcept;
 	void ChangeSingleEndpointAfterHoming(size_t drive, int32_t ep) noexcept;
 	void AdjustMotorPositions(const float adjustment[], size_t numMotors) noexcept;			// adjust the endpoints following delta calibration

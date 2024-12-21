@@ -9,6 +9,7 @@ The overall movement scheme is:
 - Each move generated in a particular MS is put into a DDA in the corresponding DDA ring
 - When a move is committed, MoveSegments for the logical drives concerned are generated from the DDA. These segments are attached to the DMs in the common set
 - After a DDA is committed, the DDA is used only for tracking when the move should complete, reporting on its parameters (acceleration, top speed etc.)
+- The DDA no longer stores the Cartesian coordinates of the end of each move. Instead we store the cartesian coordinates of the end of each move in the DDARing.
 
 Objectives
 - A MS must 'own' a logical drive before it can move it. At most one MS can own a logical drive at any one time.
@@ -53,8 +54,8 @@ Special situations:
    We store the assumed initial machine position and the corresponding user position in all MSs (MovementState::Init)
    We also store the endpoints in the DDA rings (MovementState::Init)
 
-- When steps/mm or microstepping is changed (M92 and M350):
-   We need to adjust lastKnownEndpoints, the motor positions and the endpoints in the DDA ring by the ration of new to old steps/mm.
+- When steps/mm or microstepping is changed (M92 and M350): DONE
+   We need to adjust all sets of endpoints (lastKnownEndpoints, the motor positions and the endpoints in the DDA ring) by the ratio of new to old steps/mm.
    This matters especially on a delta where the assumed initial position does not correspond to the endpoints all being zero.
 
 - When we execute G92: DONE

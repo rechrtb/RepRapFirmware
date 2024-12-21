@@ -314,14 +314,15 @@ void MovementState::InitObjectCancellation() noexcept
 	currentObjectCancelled = printingJustResumed = false;
 }
 
-void MovementState::SetNewPositionOfOwnedAxes(bool doBedCompensation) noexcept
+void MovementState::SetNewPositionOfOwnedAxes(float ncoords[MaxAxes]) noexcept
 {
 	int32_t endpoints[MaxAxesPlusExtruders];
 	memcpyi32(endpoints, lastKnownEndpoints, ARRAY_SIZE(endpoints));
 	Move& move = reprap.GetMove();
-	move.CartesianToMotorSteps(coords, endpoints, false);
+	move.CartesianToMotorSteps(ncoords, endpoints, false);
 	move.SetLastEndpoints(msNumber, logicalDrivesOwned, endpoints);
 	move.SetMotorPositions(logicalDrivesOwned, endpoints);
+	move.UpdateStartCoordinates(msNumber, ncoords);
 }
 
 // Fetch the positions of currently owned drives and save them to lastKnownEndpoints

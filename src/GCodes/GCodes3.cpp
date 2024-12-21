@@ -120,15 +120,15 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb, const StringRef& reply) THROWS
 	{
 		ToolOffsetTransform(ms);
 
-		if (reprap.GetMove().GetKinematics().LimitPosition(ms.coords, nullptr, numVisibleAxes, axesIncluded, false, limitAxes) != LimitPositionResult::ok)
+		Move& move = reprap.GetMove();
+		if (move.GetKinematics().LimitPosition(ms.coords, nullptr, numVisibleAxes, axesIncluded, false, limitAxes) != LimitPositionResult::ok)
 		{
 			ToolOffsetInverseTransform(ms);					// make sure the limits are reflected in the user position
 		}
-#if SUPPORT_ASYNC_MOVES
-		ms.SetNewPositionOfOwnedAxes(true);
-#else
-		ms.SetNewPositionOfAllAxes(true);
-#endif
+		float ncoords[MaxAxes];
+		memcpyf(ncoords, ms.coords, ARRAY_SIZE(ncoords));
+		move.AxisAndBedTransform(ncoords, ms.currentTool, true);
+		ms.SetNewPositionOfOwnedAxes(ncoords);
 		if (!IsSimulating())
 		{
 			axesHomed |= reprap.GetMove().GetKinematics().AxesAssumedHomed(axesIncluded);
