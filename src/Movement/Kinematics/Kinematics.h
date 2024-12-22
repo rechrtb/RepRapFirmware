@@ -13,7 +13,7 @@
 
 template<class T> class MathMatrix;
 
-inline floatc_t fcsquare(floatc_t a)
+inline floatc_t fcsquare(floatc_t a) noexcept
 {
 	return a * a;
 }
