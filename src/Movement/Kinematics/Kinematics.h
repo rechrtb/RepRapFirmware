@@ -46,7 +46,6 @@ enum class HomingMode : uint8_t
 {
 	homeCartesianAxes,
 	homeIndividualMotors,
-	homeSharedMotors
 };
 
 // Return value from limitPosition

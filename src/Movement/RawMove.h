@@ -195,6 +195,10 @@ public:
 	RestorePoint& GetSimulationRestorePoint() noexcept { return restorePoints[SimulationRestorePointNumber]; }		// The position and feed rate when we started simulating
 	RestorePoint& GetResumeObjectRestorePoint() noexcept { return restorePoints[ResumeObjectRestorePointNumber]; }	// The position and feed rate when we resumed printing objects
 
+	AxesBitmap axesToSenseLength;									// The axes on which we are performing axis length sensing
+	AxesBitmap axesToHome;											// The axes or logical drives we are homing
+	LogicalDrivesBitmap endstopsTriggered;							// The axis or drives for which endstops were triggered
+
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE || HAS_EMBEDDED_FILES
 	FilePosition fileOffsetToPrint;									// the offset to start printing from
 # if SUPPORT_ASYNC_MOVES

@@ -2094,7 +2094,8 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 	ms.scanningProbeMove = false;
 #endif
 
-	axesToSenseLength.Clear();
+	ms.axesToSenseLength.Clear();
+	ms.axesToHome.Clear();
 
 	// Check to see if the move is a 'homing' move that endstops are checked on and for which X and Y axis mapping is not applied
 	{
@@ -2327,32 +2328,30 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 			gb.ThrowGCodeException("insufficient axes homed");
 		}
 	}
-	else
+	else if (ms.moveType != 2)
 	{
 		switch (ms.moveType)
 		{
 		case 3:
-			axesToSenseLength = axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes);
-			// no break
-		case 1:
-		case 4:
-			{
-				bool reduceAcceleration;
-				if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), ms.moveType == 1, reduceAcceleration))
-				{
-					gb.ThrowGCodeException("Failed to enable endstops");
-				}
-				ms.reduceAcceleration = reduceAcceleration;
-			}
-			ms.checkEndstops = true;
+			ms.axesToSenseLength = axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes);
 			break;
 
-		case 2:
+		case 1:
+			ms.axesToHome = axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes);
 			break;
 
 		default:
 			break;
 		}
+
+		bool reduceAcceleration;
+		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), ms.moveType == 1, reduceAcceleration))
+		{
+			gb.ThrowGCodeException("Failed to enable endstops");
+		}
+		ms.reduceAcceleration = reduceAcceleration;
+		ms.checkEndstops = true;
+		ms.endstopsTriggered.Clear();
 	}
 
 	LoadExtrusionAndFeedrateFromGCode(gb, ms, axesMentioned.IsNonEmpty());	// for type 1 moves, this must be called after calling EnableAxisEndstops, because EnableExtruderEndstop assumes that

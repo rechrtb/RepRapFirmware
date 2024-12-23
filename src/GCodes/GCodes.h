@@ -766,7 +766,6 @@ private:
 
 	// Misc
 	uint32_t lastWarningMillis;					// When we last sent a warning message for things that can happen very often
-	AxesBitmap axesToSenseLength;				// The axes on which we are performing axis length sensing
 
 #if SUPPORT_ASYNC_MOVES
 	CollisionAvoider collisionChecker;			// currently we support just one collision avoider

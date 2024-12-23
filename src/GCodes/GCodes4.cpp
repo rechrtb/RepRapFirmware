@@ -80,7 +80,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			}
 
 			// Check whether we made any G1 S3 moves and need to set the axis limits
-			axesToSenseLength.Iterate([this, &ms](unsigned int axis, unsigned int)
+			ms.axesToSenseLength.Iterate([this, &ms](unsigned int axis, unsigned int)
 										{
 											const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
 											if (stopType == EndStopPosition::highEndStop)

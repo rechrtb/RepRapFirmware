@@ -2447,7 +2447,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 					}
 					else if (hitDetails.setAxisHigh)
 					{
-						GetKinematics().OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
+						kinematics->OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
 						gCodes.SetAxisIsHomed(hitDetails.axis);
 					}
 				}
