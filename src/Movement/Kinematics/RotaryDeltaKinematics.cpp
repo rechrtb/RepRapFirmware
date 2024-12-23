@@ -666,24 +666,13 @@ AxesBitmap RotaryDeltaKinematics::GetHomingFileName(AxesBitmap toBeHomed, AxesBi
 	return Kinematics::GetHomingFileName(toBeHomed, alreadyHomed, numVisibleAxes, filename);
 }
 
-// This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
-// Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate().
-void RotaryDeltaKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept
+float RotaryDeltaKinematics::GetEndstopPosition(size_t drive, bool highEnd) noexcept
 {
-	if (axis < DELTA_AXES)
+	if (drive < DELTA_AXES && highEnd)
 	{
-		if (highEnd)
-		{
-			const float hitPoint = maxArmAngle + endstopAdjustments[axis];
-			ms.ChangeSingleEndpointAfterHoming(lrintf(hitPoint * stepsPerMm[axis]), axis);
-		}
+		return maxArmAngle + endstopAdjustments[drive];
 	}
-	else
-	{
-		// Assume that any additional axes are linear
-		const float hitPoint = (highEnd) ? reprap.GetMove().AxisMaximum(axis) : reprap.GetMove().AxisMinimum(axis);
-		ms.ChangeSingleEndpointAfterHoming(lrintf(hitPoint * stepsPerMm[axis]), axis);
-	}
+	return Kinematics::GetEndstopPosition(drive, highEnd);
 }
 
 // Return the drivers that control an axis or tower

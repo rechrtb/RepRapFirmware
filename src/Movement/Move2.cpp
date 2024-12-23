@@ -328,6 +328,12 @@ GCodeResult Move::ConfigureNonlinearExtrusion(GCodeBuffer& gb, const StringRef& 
 
 #endif
 
+// Return the position of an endstop in steps. Only called for kinematics that home drives individually.
+int32_t Move::GetEndstopPositionSteps(size_t drive, bool highEnd) noexcept
+{
+	return kinematics->GetEndstopPosition(drive, highEnd) * driveStepsPerMm[drive];
+}
+
 // This is called from the step ISR as well as other places, so keep it fast
 // If drive >= MaxAxesPlusExtruders then we are setting an individual motor direction
 // It is the responsibility of the caller to ensure that minimum timings between step pulses and direction changes are observed.

@@ -184,6 +184,8 @@ public:
 	void SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept;
 	float AxisTotalLength(size_t axis) const noexcept;
 
+	int32_t GetEndstopPositionSteps(size_t drive, bool highEnd) noexcept;
+
 	GCodeResult ConfigureBacklashCompensation(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// process M425
 	void UpdateBacklashSteps() noexcept;
 	int32_t ApplyBacklashCompensation(size_t drive, int32_t delta) noexcept;

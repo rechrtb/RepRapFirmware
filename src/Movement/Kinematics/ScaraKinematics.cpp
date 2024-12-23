@@ -15,6 +15,7 @@
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Movement/DDA.h>
 #include <Movement/Move.h>
+#include <Movement/RawMove.h>
 
 #include <limits>
 
@@ -397,42 +398,30 @@ AxesBitmap ScaraKinematics::GetHomingFileName(AxesBitmap toBeHomed, AxesBitmap a
 	return ret;
 }
 
-// This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
-// Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate().
-void ScaraKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept
+float ScaraKinematics::GetEndstopPosition(size_t drive, bool highEnd) noexcept
 {
-	switch (axis)
+	switch (drive)
 	{
 	case X_AXIS:	// proximal joint homing switch
-		{
-			const float hitPoint = (highEnd) ? thetaLimits[1] : thetaLimits[0];
-			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
-		}
-		break;
+		return (highEnd) ? thetaLimits[1] : thetaLimits[0];
 
 	case Y_AXIS:	// distal joint homing switch
 		{
-			const float hitPoint = ((highEnd) ? psiLimits[1] : psiLimits[0])
-									- ((reprap.GetMove().GetLastEndpoint(ms.GetNumber(), X_AXIS) * crosstalk[0])/stepsPerMm[X_AXIS]);
-			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
+			Move& move = reprap.GetMove();
+			return ((highEnd) ? psiLimits[1] : psiLimits[0])
+								- (MovementState::GetLastKnownEndpoints()[X_AXIS] * crosstalk[0] * move.DriveStepsPerMm(X_AXIS) / move.DriveStepsPerMm(Y_AXIS));
 		}
-		break;
 
 	case Z_AXIS:	// Z axis homing switch
 		{
-			const float hitPoint = ((highEnd) ? reprap.GetMove().AxisMaximum(axis) : reprap.GetMove().AxisMinimum(axis))
-									- ((reprap.GetMove().GetLastEndpoint(ms.GetNumber(), X_AXIS) * crosstalk[1])/stepsPerMm[X_AXIS])
-									- ((reprap.GetMove().GetLastEndpoint(ms.GetNumber(), Y_AXIS) * crosstalk[2])/stepsPerMm[Y_AXIS]);
-			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
+			Move& move = reprap.GetMove();
+			return ((highEnd) ? reprap.GetMove().AxisMaximum(drive) : reprap.GetMove().AxisMinimum(drive))
+										- (MovementState::GetLastKnownEndpoints()[X_AXIS] * crosstalk[1] * move.DriveStepsPerMm(X_AXIS) / move.DriveStepsPerMm(Z_AXIS))
+										- (MovementState::GetLastKnownEndpoints()[Y_AXIS] * crosstalk[2] * move.DriveStepsPerMm(Y_AXIS) / move.DriveStepsPerMm(Z_AXIS));
 		}
-		break;
 
 	default:		// Additional axis
-		{
-			const float hitPoint = (highEnd) ? reprap.GetMove().AxisMaximum(axis) : reprap.GetMove().AxisMinimum(axis);
-			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
-		}
-		break;
+		return Kinematics::GetEndstopPosition(drive, highEnd);
 	}
 }
 

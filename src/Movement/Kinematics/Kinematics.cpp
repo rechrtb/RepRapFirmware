@@ -203,6 +203,13 @@ AxesBitmap Kinematics::GetHomingFileName(AxesBitmap toBeHomed, AxesBitmap alread
 	return homeFirst & ~alreadyHomed;
 }
 
+// Return the position of a drive at which the homing switch is triggered
+// The default is to return the M208 limits.
+float Kinematics::GetEndstopPosition(size_t drive, bool highEnd) noexcept
+{
+	return (highEnd) ? reprap.GetMove().AxisMaximum(drive) : reprap.GetMove().AxisMinimum(drive);
+}
+
 // Return a bitmap of the drives that affect this axis or tower. Used for implementing stall detection endstops and energising additional motors.
 // For Cartesian kinematics it is just the corresponding motor, hence this default implementation.
 // Overridden in CoreXY and many other kinematics.

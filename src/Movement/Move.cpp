@@ -2395,26 +2395,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 			}
 			else
 			{
-				// Get the DDA associated with the axis that has triggered
-				const size_t axis = hitDetails.axis;
-				if (axis != NO_AXIS)
-				{
-					GCodes& gCodes = reprap.GetGCodes();
-					MovementState *_ecv_null homingMs = gCodes.GetMovementStateOwningAxis(axis);
-					if (homingMs != nullptr)
-					{
-						if (hitDetails.setAxisLow)
-						{
-							kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingMs);
-							gCodes.SetAxisIsHomed(hitDetails.axis);
-						}
-						else if (hitDetails.setAxisHigh)
-						{
-							kinematics->OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
-							gCodes.SetAxisIsHomed(hitDetails.axis);
-						}
-					}
-				}
+				reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis);
 			}
 
 			if (executingMove)
@@ -2434,24 +2415,8 @@ void Move::CheckEndstops(bool executingMove) noexcept
 #else
 			StopAxisOrExtruder(executingMove, hitDetails.axis);
 #endif
-			{
-				// Get the MS associated with the axis that has triggered
-				GCodes& gCodes = reprap.GetGCodes();
-				MovementState *_ecv_null homingMs = gCodes.GetMovementStateOwningAxis(hitDetails.axis);
-				if (homingMs != nullptr)
-				{
-					if (hitDetails.setAxisLow)
-					{
-						kinematics->OnHomingSwitchTriggered(hitDetails.axis, false, driveStepsPerMm, *homingMs);
-						gCodes.SetAxisIsHomed(hitDetails.axis);
-					}
-					else if (hitDetails.setAxisHigh)
-					{
-						kinematics->OnHomingSwitchTriggered(hitDetails.axis, true, driveStepsPerMm, *homingMs);
-						gCodes.SetAxisIsHomed(hitDetails.axis);
-					}
-				}
-			}
+			reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis);
+
 			if (executingMove && !emgr.AnyEndstopsActive())
 			{
 				WakeMoveTaskFromISR();					// wake move task so that it sets the move as finished promptly

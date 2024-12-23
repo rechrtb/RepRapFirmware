@@ -1016,23 +1016,13 @@ AxesBitmap LinearDeltaKinematics::GetHomingFileName(AxesBitmap toBeHomed, AxesBi
 	return Kinematics::GetHomingFileName(toBeHomed, alreadyHomed, numVisibleAxes, filename);
 }
 
-// This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
-// Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate().
-void LinearDeltaKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept
+float LinearDeltaKinematics::GetEndstopPosition(size_t drive, bool highEnd) noexcept
 {
-	if (axis < numTowers)
+	if (drive < numTowers && highEnd)
 	{
-		if (highEnd)
-		{
-			ms.ChangeSingleEndpointAfterHoming(axis, lrintf(homedCarriageHeights[axis] * stepsPerMm[axis]));
-		}
+		return homedCarriageHeights[drive];
 	}
-	else
-	{
-		// Assume that any additional axes are linear
-		const float hitPoint = (highEnd) ? reprap.GetMove().AxisMaximum(axis) : reprap.GetMove().AxisMinimum(axis);
-		ms.ChangeSingleEndpointAfterHoming(axis, lrintf(hitPoint * stepsPerMm[axis]));
-	}
+	return Kinematics::GetEndstopPosition(drive, highEnd);
 }
 
 // Return the drivers that control an axis or tower

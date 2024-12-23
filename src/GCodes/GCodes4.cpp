@@ -56,8 +56,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 #endif
 		   )
 		{
-			//debugPrintf("special move complete\n");
-			// Check for move aborted due to incorrectly configured stall detection
+			// Check for move aborted due to incorrectly configured stall detection endstops
 			uint8_t driver;
 			const EndstopValidationResult res = platform.GetEndstops().GetEndstopValidationResult(driver);
 			if (res != EndstopValidationResult::ok)
@@ -79,20 +78,87 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				break;
 			}
 
-			// Check whether we made any G1 S3 moves and need to set the axis limits
-			ms.axesToSenseLength.Iterate([this, &ms](unsigned int axis, unsigned int)
+			// Check whether we need to action any endstops
+			if (ms.axesToHome.IsNonEmpty())						// check whether we made any G1 H1 moves and need to set axis positions
+			{
+				Move& move = reprap.GetMove();
+				if (reprap.GetMove().GetKinematics().GetHomingMode() == HomingMode::homeCartesianAxes)
+				{
+					// Calculate the new motor endpoints and machine coordinates before we adjust the coordinates
+					move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
+					move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
+					move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
+
+					// Now change the machine coordinates corresponding to endpoints that triggered
+					(ms.axesToHome & ms.endstopsTriggered)
+						.Iterate([this, &move, &ms](unsigned int axis, unsigned int)
+									{
+										const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
+										if (stopType == EndStopPosition::highEndStop)
 										{
-											const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
-											if (stopType == EndStopPosition::highEndStop)
-											{
-												reprap.GetMove().SetAxisMaximum(axis, ms.coords[axis], true);
-											}
-											else if (stopType == EndStopPosition::lowEndStop)
-											{
-												reprap.GetMove().SetAxisMinimum(axis, ms.coords[axis], true);
-											}
+											ms.coords[axis] = move.AxisMaximum(axis);
 										}
-									);
+										else if (stopType == EndStopPosition::lowEndStop)
+										{
+											ms.coords[axis] = move.AxisMinimum(axis);
+										}
+										SetAxisIsHomed(axis);
+
+									}
+								);
+
+					// Update the user coordinates
+					ToolOffsetInverseTransform(ms);
+
+					// Update the endpoints and start coordinates
+					move.AxisAndBedTransform(ms.coords, ms.currentTool, true);
+					move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
+					int32_t endpoints[MaxAxes];
+					move.CartesianToMotorSteps(ms.coords, endpoints, false);
+					ms.ChangeEndpointsAfterHoming(ms.logicalDrivesOwned, endpoints);
+				}
+				else
+				{
+					// Adjust the endpoints to take account of the endstops that triggered
+					(ms.axesToHome & ms.endstopsTriggered)
+						.Iterate([this, &move, &ms](unsigned int drive, unsigned int)
+									{
+										const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(drive);
+										if (stopType == EndStopPosition::highEndStop)
+										{
+											ms.ChangeSingleEndpointAfterHoming(drive, move.GetEndstopPositionSteps(drive, true));
+										}
+										else if (stopType == EndStopPosition::lowEndStop)
+										{
+											ms.ChangeSingleEndpointAfterHoming(drive, move.GetEndstopPositionSteps(drive, false));
+										}
+										SetAxisIsHomed(drive);
+									}
+								);
+					// Calculate the new motor endpoints and machine coordinates
+					move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
+					move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
+					move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
+					ToolOffsetInverseTransform(ms);
+				}
+			}
+			else if (ms.axesToSenseLength.IsNonEmpty())			// check whether we made any G1 H3 moves and need to set the axis limits
+			{
+				(ms.axesToSenseLength & ms.endstopsTriggered)
+					.Iterate([this, &ms](unsigned int axis, unsigned int)
+								{
+									const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
+									if (stopType == EndStopPosition::highEndStop)
+									{
+										reprap.GetMove().SetAxisMaximum(axis, ms.coords[axis], true);
+									}
+									else if (stopType == EndStopPosition::lowEndStop)
+									{
+										reprap.GetMove().SetAxisMinimum(axis, ms.coords[axis], true);
+									}
+								}
+							);
+			}
 
 			if (gb.LatestMachineState().compatibility == Compatibility::NanoDLP && !DoingFileMacro())
 			{

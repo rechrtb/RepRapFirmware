@@ -5279,20 +5279,23 @@ bool GCodes::CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply,
 }
 
 // Get the movement system that owns a particular axis
-MovementState *_ecv_null GCodes::GetMovementStateOwningAxis(size_t axis) noexcept
+void GCodes::RecordEndstopTriggered(size_t axis) noexcept
 {
-#if SUPPORT_ASYNC_MOVES
-	for (MovementState& ms : moveStates)
+	if (axis != NO_AXIS)
 	{
-		if (ms.axesAndExtrudersOwned.IsBitSet(axis))
+#if SUPPORT_ASYNC_MOVES
+		for (MovementState& ms : moveStates)
 		{
-			return &ms;
+			if (ms.axesAndExtrudersOwned.IsBitSet(axis))
+			{
+				ms.endstopsTriggered.SetBit(axis);
+				return;
+			}
 		}
-	}
-	return nullptr;
 #else
-	return &moveStates[0];
+		moveStates[0].endstopsTriggered.SetBit(axis);
 #endif
+	}
 }
 
 #if SUPPORT_ASYNC_MOVES

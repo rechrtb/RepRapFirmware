@@ -45,7 +45,7 @@ enum class KinematicsType : uint8_t
 enum class HomingMode : uint8_t
 {
 	homeCartesianAxes,
-	homeIndividualMotors,
+	homeIndividualDrives,
 };
 
 // Return value from limitPosition
@@ -152,12 +152,11 @@ public:
 	// that some additional axes should be considered not homed.
 	virtual AxesBitmap GetHomingFileName(AxesBitmap toBeHomed, AxesBitmap alreadyHomed, size_t numVisibleAxes, const StringRef& filename) const noexcept;
 
-	// This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
-	// Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate() and return false.
-	virtual void OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept = 0;
-
 	// Return the type of homing we do
 	virtual HomingMode GetHomingMode() const noexcept = 0;
+
+	// Return the position of a drive at which the homing switch is triggered. Only called if the homing mode is HomingMode::homeIndividualDrives.
+	virtual float GetEndstopPosition(size_t drive, bool highEnd) noexcept;
 
 	// Return the axes that we can assume are homed after executing a G92 command to set the specified axis coordinates
 	// This default is good for Cartesian and Core printers, but not deltas or SCARA

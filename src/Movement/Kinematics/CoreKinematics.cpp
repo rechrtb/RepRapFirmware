@@ -383,18 +383,6 @@ void CoreKinematics::MotorStepsToCartesian(const int32_t motorPos[], const float
 	}
 }
 
-// This function is called from the step ISR when an endstop switch is triggered during homing after stopping just one motor or all motors.
-// Take the action needed to define the current position, normally by calling dda.SetDriveCoordinate().
-void CoreKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, const float stepsPerMm[], MovementState& ms) const noexcept
-{
-	Move& move = reprap.GetMove();
-	const float hitPoint = (highEnd) ? move.AxisMaximum(axis) : move.AxisMinimum(axis);
-	ms.coords[axis] = hitPoint;
-	int32_t tempEndpoints[MaxAxes];
-	move.CartesianToMotorSteps(ms.coords, tempEndpoints, false);
-	ms.ChangeEndpointsAfterHoming(controllingDrivers[axis], tempEndpoints);
-}
-
 // Limit the speed and acceleration of a move to values that the mechanics can handle
 // The speeds along individual Cartesian axes have already been limited before this is called, so we need only be concerned with shared motors
 void CoreKinematics::LimitSpeedAndAcceleration(DDA& dda, const float* normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const noexcept
