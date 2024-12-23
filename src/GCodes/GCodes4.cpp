@@ -84,11 +84,6 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				Move& move = reprap.GetMove();
 				if (reprap.GetMove().GetKinematics().GetHomingMode() == HomingMode::homeCartesianAxes)
 				{
-					// Calculate the new motor endpoints and machine coordinates before we adjust the coordinates
-					move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
-					move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
-					move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
-
 					// Now change the machine coordinates corresponding to endpoints that triggered
 					(ms.axesToHome & ms.endstopsTriggered)
 						.Iterate([this, &move, &ms](unsigned int axis, unsigned int)

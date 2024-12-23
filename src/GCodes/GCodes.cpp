@@ -1799,44 +1799,33 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 
 	gb.MotionStopped();									// must do this after we have finished waiting, so that we don't stop waiting when executing G4
 
-	if (RTOSIface::GetCurrentTask() == Tasks::GetMainTask())
-	{
-		// Get the current positions. These may not be the same as the ones we remembered from last time if we just did a special move.
-		//TODO only do this is we did a special move
-#if SUPPORT_ASYNC_MOVES
-		ms.SaveOwnDriveCoordinates();
-		move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
-		move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
-		move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
-		UpdateUserPositionFromMachinePosition(gb, ms);
-		collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
+	// Get the current positions. These may not be the same as the ones we remembered from last time if we just did a special move.
+	//TODO we only need to do most of this if we did a special move
+	ms.UpdateOwnedDriveEndpointsFromMotors();			// need to do this is the move was stopped prematurely e.g. due to an endstop switch or a Z probe
+	move.MotorStepsToCartesian(MovementState::GetLastKnownEndpoints(), numVisibleAxes, numTotalAxes, ms.coords);
+	move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
+	move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
+	UpdateUserPositionFromMachinePosition(gb, ms);
+	collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
 
-		// Release the axes and extruders that this movement system owns, except those used by the current tool
-		if (gb.AllStatesNormal())						// don't release them if we are in the middle of a state machine operation e.g. probing the bed
-		{
-# if PREALLOCATE_TOOL_AXES
-			if (ms.currentTool != nullptr)
-			{
-				const AxesBitmap currentToolAxes = ms.currentTool->GetXYAxesAndExtruders();
-				const AxesBitmap axesToRelease = ms.GetAxesAndExtrudersOwned() & ~currentToolAxes;
-				ms.ReleaseAxesAndExtruders(axesToRelease);
-			}
-			else
-# endif
-			{
-				ms.ReleaseAllOwnedAxesAndExtruders();
-			}
-		}
-#else
-		UpdateCurrentUserPosition(gb);
-#endif
-	}
-	else
+#if SUPPORT_ASYNC_MOVES
+	// Release the axes and extruders that this movement system owns, except those used by the current tool
+	if (gb.AllStatesNormal())							// don't release them if we are in the middle of a state machine operation e.g. probing the bed
 	{
-		// Cannot update the user position from external tasks. Do it later
-		//TODO when SbcInterface stops calling this from its own task, get rid of this, it isn't correct any more anyway
-		ms.updateUserPositionGb = &gb;
+# if PREALLOCATE_TOOL_AXES
+		if (ms.currentTool != nullptr)
+		{
+			const AxesBitmap currentToolAxes = ms.currentTool->GetXYAxesAndExtruders();
+			const AxesBitmap axesToRelease = ms.GetAxesAndExtrudersOwned() & ~currentToolAxes;
+			ms.ReleaseAxesAndExtruders(axesToRelease);
+		}
+		else
+# endif
+		{
+			ms.ReleaseAllOwnedAxesAndExtruders();
+		}
 	}
+#endif
 	ms.ForceLiveCoordinatesUpdate();							// make sure that immediately after e.g. M400 the machine position is fetched correctly (issue 921)
 	return true;
 }

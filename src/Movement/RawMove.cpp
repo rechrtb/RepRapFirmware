@@ -325,6 +325,18 @@ void MovementState::SetNewPositionOfOwnedAxes(float ncoords[MaxAxes]) noexcept
 	move.UpdateStartCoordinates(msNumber, ncoords);
 }
 
+// Fetch lastKnownEndpoints from the motors for our owned drives and update the endpoints in our DDA ring
+void MovementState::UpdateOwnedDriveEndpointsFromMotors() noexcept
+{
+	Move& move = reprap.GetMove();
+	logicalDrivesOwned.Iterate([&move](unsigned int drive, unsigned int count)
+								{
+									lastKnownEndpoints[drive] = move.GetLiveMotorPosition(drive);
+								}
+							  );
+	move.SetLastEndpoints(msNumber, logicalDrivesOwned, lastKnownEndpoints);
+}
+
 // Fetch the positions of currently owned drives and save them to lastKnownEndpoints
 void MovementState::SaveOwnDriveCoordinates() const noexcept
 {
