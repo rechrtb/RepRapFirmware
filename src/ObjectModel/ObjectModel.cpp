@@ -75,9 +75,9 @@ void ExpressionValue::AppendAsString(const StringRef& str) const noexcept
 
 	case TypeCode::DateTime_tc:
 		{
-			const time_t time = Get56BitValue();
+			const time_t tval = Get56BitValue();
 			tm timeInfo;
-			gmtime_r(&time, &timeInfo);
+			gmtime_r(&tval, &timeInfo);
 			str.catf("%04u-%02u-%02uT%02u:%02u:%02u",
 						timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
 		}
@@ -126,7 +126,7 @@ void ExpressionValue::AppendAsString(const StringRef& str) const noexcept
 	case TypeCode::ObjectModelArray:
 		str.cat('{');
 		{
-			const ObjectModelArrayTableEntry *entry = omVal->FindObjectModelArrayEntry(param & 0xFF);
+			const ObjectModelArrayTableEntry *_ecv_null entry = omVal->FindObjectModelArrayEntry(param & 0xFF);
 			if (entry == nullptr)
 			{
 				str.cat("error");
@@ -496,7 +496,7 @@ ObjectModel::ObjectModel() noexcept
 // ObjectExplorationContext members
 
 // Constructor used when reporting the OM as JSON
-ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null gbp, bool wal, const char *reportFlags, unsigned int initialMaxDepth, size_t initialBufferOffset) noexcept
+ObjectExplorationContext::ObjectExplorationContext(const GCodeBuffer *_ecv_null gbp, bool wal, const char *_ecv_array reportFlags, unsigned int initialMaxDepth, size_t initialBufferOffset) noexcept
 	: startMillis(millis()), initialBufOffset(initialBufferOffset), maxDepth(initialMaxDepth), currentDepth(0), startElement(0), nextElement(-1), numIndicesProvided(0), numIndicesCounted(0),
 	  line(-1), column(-1), gb(gbp),
 	  shortForm(false), wantArrayLength(wal), wantExists(false),
@@ -603,12 +603,12 @@ bool ObjectExplorationContext::ShouldReport(const ObjectModelEntryFlags f) const
 	return wanted && ((uint8_t)f & (uint8_t)excludedFlags) == 0;
 }
 
-GCodeException ObjectExplorationContext::ConstructParseException(const char *msg) const noexcept
+GCodeException ObjectExplorationContext::ConstructParseException(const char *_ecv_array msg) const noexcept
 {
 	return GCodeException(line, column, msg);
 }
 
-GCodeException ObjectExplorationContext::ConstructParseException(const char *msg, const char *sparam) const noexcept
+GCodeException ObjectExplorationContext::ConstructParseException(const char *_ecv_array msg, const char *_ecv_array sparam) const noexcept
 {
 	return GCodeException(line, column, msg, sparam);
 }
@@ -648,10 +648,10 @@ void ObjectModel::ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& cont
 		// Loop doing this object followed by its ancestors
 		while (classDescriptor != nullptr)
 		{
-			const uint8_t * const descriptor = classDescriptor->omd;
+			const uint8_t *_ecv_array const descriptor = classDescriptor->omd;
 			if (tableNumber < descriptor[0])
 			{
-				const ObjectModelTableEntry *tbl = classDescriptor->omt;
+				const ObjectModelTableEntry *_ecv_array tbl = classDescriptor->omt;
 				for (size_t i = 0; i < tableNumber; ++i)
 				{
 					tbl += descriptor[i + 1];
@@ -716,7 +716,7 @@ void ObjectModel::ReportArrayLengthAsJson(OutputBuffer *buf, ObjectExplorationCo
 	{
 	case TypeCode::ObjectModelArray:
 		{
-			const ObjectModelArrayTableEntry *const entry = val.omVal->GetObjectModelArrayEntry(val.param & 0xFF);
+			const ObjectModelArrayTableEntry *const entry = _ecv_not_null(val.omVal->GetObjectModelArrayEntry(val.param & 0xFF));
 			buf->catf("%u", entry->GetNumElements(this, context));
 		}
 		break;
@@ -763,7 +763,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 	{
 	case TypeCode::ObjectModelArray:
 		{
-			const ObjectModelArrayTableEntry *const entry = val.omVal->GetObjectModelArrayEntry(val.param & 0xFF);
+			const ObjectModelArrayTableEntry *const entry = _ecv_not_null(val.omVal->GetObjectModelArrayEntry(val.param & 0xFF));
 			if (*filter == '[')
 			{
 				++filter;
@@ -773,7 +773,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 				}
 				else
 				{
-					const char *endptr;
+					const char *_ecv_array endptr;
 					const int32_t index = StrToI32(filter, &endptr);
 					if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= entry->GetNumElements(this, context))
 					{
@@ -819,7 +819,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 			}
 			else
 			{
-				const char *endptr;
+				const char *_ecv_array endptr;
 				const int32_t index = StrToI32(filter, &endptr);
 				ExpressionValue element;
 				{
@@ -866,7 +866,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 			}
 			else
 			{
-				const char *endptr;
+				const char *_ecv_array endptr;
 				const int32_t index = StrToI32(filter, &endptr);
 				const auto bm = Bitmap<uint32_t>::MakeFromRaw(val.uVal);
 				int bitNumber;
@@ -1142,15 +1142,15 @@ void ObjectModel::ReportHeapArrayAsJson(OutputBuffer *buf, ObjectExplorationCont
 }
 
 // Find the requested entry
-const ObjectModelTableEntry* ObjectModel::FindObjectModelTableEntry(const ObjectModelClassDescriptor *classDescriptor, uint8_t tableNumber, const char *_ecv_array idString) const noexcept
+const ObjectModelTableEntry *_ecv_null ObjectModel::FindObjectModelTableEntry(const ObjectModelClassDescriptor *classDescriptor, uint8_t tableNumber, const char *_ecv_array idString) const noexcept
 {
-	const uint8_t * const descriptor = classDescriptor->omd;
+	const uint8_t *_ecv_array const descriptor = classDescriptor->omd;
 	if (tableNumber >= descriptor[0])
 	{
 		return nullptr;
 	}
 
-	const ObjectModelTableEntry *tbl = classDescriptor->omt;
+	const ObjectModelTableEntry *_ecv_array tbl = classDescriptor->omt;
 	for (size_t i = 0; i < tableNumber; ++i)
 	{
 		tbl += descriptor[i + 1];
@@ -1191,7 +1191,7 @@ const ObjectModelTableEntry* ObjectModel::FindObjectModelTableEntry(const Object
 	return id;
 }
 
-bool ObjectModelTableEntry::Matches(const char* filterString, const ObjectExplorationContext& context) const noexcept
+bool ObjectModelTableEntry::Matches(const char *_ecv_array filterString, const ObjectExplorationContext& context) const noexcept
 {
 	return IdCompare(filterString) == 0 && context.ShouldReport(flags);
 }
@@ -1199,7 +1199,7 @@ bool ObjectModelTableEntry::Matches(const char* filterString, const ObjectExplor
 // Add the value of this element to the buffer, returning true if it matched and we did
 bool ObjectModelTableEntry::ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& context, const ObjectModelClassDescriptor *_ecv_null classDescriptor, const ObjectModel *_ecv_from self, const char *_ecv_array filter, bool first) const THROWS(GCodeException)
 {
-	const char * nextElement = ObjectModel::GetNextElement(filter);
+	const char *_ecv_array nextElement = ObjectModel::GetNextElement(filter);
 	const ExpressionValue val = func(self, context);
 	// We include nulls if either the "include nulls" flag is set or the "include important" flag is set and the field is flagged important.
 	// The latter is so that field state.messageBox gets reported to PanelDue even if null when the "important" flag is set, so that PanelDue knows when a message has been cleared.
@@ -1218,14 +1218,14 @@ bool ObjectModelTableEntry::ReportAsJson(OutputBuffer* buf, ObjectExplorationCon
 }
 
 // Compare an ID with the name of this object
-int ObjectModelTableEntry::IdCompare(const char *id) const noexcept
+int ObjectModelTableEntry::IdCompare(const char *_ecv_array id) const noexcept
 {
 	if (id[0] == 0 || id[0] == '*')
 	{
 		return 0;
 	}
 
-	const char *n = name;
+	const char *_ecv_array n = name;
 	while (*id == *n && *n != 0)
 	{
 		++id;
@@ -1248,7 +1248,7 @@ decrease(strlen(idString))	// recursion variant
 	// Loop through this class and its ancestors
 	while (classDescriptor != nullptr)
 	{
-		const ObjectModelTableEntry * const e = FindObjectModelTableEntry(classDescriptor, tableNumber, idString);
+		const ObjectModelTableEntry *_ecv_null const e = FindObjectModelTableEntry(classDescriptor, tableNumber, idString);
 		if (e != nullptr)
 		{
 			if (e->IsObsolete())
@@ -1292,7 +1292,7 @@ decrease(strlen(idString))	// recursion variant
 			{
 				if (context.WantArrayLength())
 				{
-					const ObjectModelArrayTableEntry *const entry = val.omVal->GetObjectModelArrayEntry(val.param & 0xFF);
+					const ObjectModelArrayTableEntry *const entry = _ecv_not_null(val.omVal->GetObjectModelArrayEntry(val.param & 0xFF));
 					ReadLocker lock(entry->lockPointer);
 					return ExpressionValue((int32_t)entry->GetNumElements(this, context));
 				}
@@ -1526,9 +1526,9 @@ decrease(strlen(idString))	// recursion variant
 // Separate function to avoid the tm object (44 bytes) being allocated on the stack frame of a recursive function
 void ObjectModel::ReportDateTime(OutputBuffer *buf, const ExpressionValue& val) noexcept
 {
-	const time_t time = val.Get56BitValue();
+	const time_t tval = val.Get56BitValue();
 	tm timeInfo;
-	gmtime_r(&time, &timeInfo);
+	gmtime_r(&tval, &timeInfo);
 	buf->catf("\"%04u-%02u-%02uT%02u:%02u:%02u\"",
 				timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
 }

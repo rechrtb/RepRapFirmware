@@ -94,7 +94,7 @@ struct SoftwareResetData
 	static constexpr uint16_t versionValue = 9;		// increment this whenever this struct changes
 	static constexpr uint16_t magicValue = 0x7D00 | versionValue;	// value we use to recognise that all the flash data has been written
 
-	static const char *const ReasonText[];
+	static const char *_ecv_array const ReasonText[];
 	static uint8_t extraDebugInfo;				// 3 bits of extra info for debugging can be stored here
 };
 

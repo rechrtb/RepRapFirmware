@@ -48,7 +48,7 @@ const size_t ESP_BODY_LENGTHS[] = {0, 2, 4, 4};
 const char *_ecv_array const ESP_NAMES[] = {"unknown", "ESP8266", "ESP32", "ESP32+"};
 
 // Following address contains unique per device type id used to confirm ESP8266 and identify original ESP32
-const uint32_t CHIP_DETECT_MAGIC_REG_ADDR = 0x40001000;
+const uint32_t CHIP_DETECT_MAGIC_REG_ADDR = 0x40001000u;
 
 // value stored at the above address (values taken from the esptool.py source)
 const uint32_t ESP_IDS[] = {0xffffffffu, 0xfff0c101u, 0x00f01d83u, 0x0000000u};
