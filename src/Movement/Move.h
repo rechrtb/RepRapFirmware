@@ -383,7 +383,7 @@ public:
 
 	bool PausePrint(MovementState& ms) noexcept;											// Pause the print as soon as we can, returning true if we were able to
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
-	bool LowPowerOrStallPause(unsigned int queueNumber, RestorePoint& rp) noexcept;			// Pause the print immediately, returning true if we were able to
+	bool LowPowerOrStallPause(MovementState& ms) noexcept;									// Pause the print immediately, returning true if we were able to
 	void CancelStepping() noexcept;															// Stop generating steps
 #endif
 

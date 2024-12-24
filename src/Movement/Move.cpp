@@ -911,9 +911,9 @@ bool Move::PausePrint(MovementState& ms) noexcept
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
 
 // Pause the print immediately, returning true if we were able to skip or abort any moves and setting up to the move we aborted
-bool Move::LowPowerOrStallPause(unsigned int queueNumber, RestorePoint& rp) noexcept
+bool Move::LowPowerOrStallPause(MovementState& ms) noexcept
 {
-	return rings[queueNumber].LowPowerOrStallPause(rp);
+	return rings[ms.GetNumber()].LowPowerOrStallPause(ms);
 }
 
 // Stop generating steps

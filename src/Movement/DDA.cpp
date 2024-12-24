@@ -127,7 +127,7 @@ void PrepParams::SetFromDDA(const DDA& dda) noexcept
 	// We need to make sure that accelDistance <= decelStartDistance for subsequent calculations to work.
 	accelDistance = min<float>(dda.beforePrepare.accelDistance, decelStartDistance);
 	const float steadyDistance = decelStartDistance - accelDistance;
-	steadyClocks = (steadyDistance <= 0.0) ? 0.0 : lrintf(steadyDistance/dda.topSpeed);
+	steadyClocks = (steadyDistance <= 0.0) ? 0 : lrintf(steadyDistance/dda.topSpeed);
 	acceleration = dda.acceleration;
 	deceleration = dda.deceleration;
 	accelClocks = lrintf((dda.topSpeed - dda.startSpeed)/dda.acceleration);
@@ -185,7 +185,7 @@ uint32_t DDA::GetTimeLeft() const noexcept
 	}
 }
 
-void DDA::DebugPrintVector(const char *name, const float *vec, size_t len) const noexcept
+void DDA::DebugPrintVector(const char *_ecv_array name, const float *_ecv_array vec, size_t len) const noexcept
 {
 	debugPrintf("%s=", name);
 	for (size_t i = 0; i < len; ++i)
@@ -204,7 +204,7 @@ void DDA::DebugPrintVector(const char *name, const float *vec, size_t len) const
 }
 
 // Print the text followed by the DDA only
-void DDA::DebugPrint(const char *tag) const noexcept
+void DDA::DebugPrint(const char *_ecv_array tag) const noexcept
 {
 	debugPrintf("%s %u ts=%" PRIu32 " DDA: s=%.4g", tag, (unsigned int)state, afterPrepare.moveStartTime, (double)totalDistance);
 	DebugPrintVector(" vec", directionVector, MaxAxesPlusExtruders);
@@ -404,7 +404,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	// 4. Normalise the direction vector and compute the amount of motion.
 	// NIST standard section 2.1.2.5 rule A: if any of XYZ is moving then the feed rate specifies the linear XYZ movement
 	// We treat additional linear axes the same as XYZ
-	const Kinematics& k = move.GetKinematics();
+	const Kinematics &_ecv_from k = move.GetKinematics();
 	if (linearAxesMoving)
 	{
 		// There is some linear axis movement, so normalise the direction vector so that the total linear movement has unit length and 'totalDistance' is the linear distance moved.
@@ -764,7 +764,7 @@ bool DDA::IsAccelerationMove() const noexcept
 // Try to increase the ending speed of this move to allow the next move to start at targetNextSpeed.
 // Only called if this move and the next one are both printing moves.
 /*static*/ void DDA::DoLookahead(DDARing& ring, DDA *laDDA) noexcept
-pre(state == provisional)
+//pre(state == provisional)
 {
 //	if (reprap.Debug(moduleDda)) debugPrintf("Adjusting, %f\n", laDDA->targetNextSpeed);
 	unsigned int laDepth = 0;
@@ -851,7 +851,7 @@ pre(state == provisional)
 		if (goingUp)
 		{
 			// Still going up
-			laDDA = laDDA->prev;
+			laDDA = _ecv_not_null(laDDA->prev);
 			++laDepth;
 #if 0
 			if (reprap.Debug(moduleDda))
@@ -896,7 +896,7 @@ LA_DEBUG;
 				return;
 			}
 
-			laDDA = laDDA->next;
+			laDDA = _ecv_not_null(laDDA->next);
 			--laDepth;
 		}
 	}
@@ -915,7 +915,7 @@ float DDA::AdvanceBabyStepping(DDARing& ring, size_t axis, float amount) noexcep
 	DDA *cdda = this;
 	while (cdda->prev->state == DDAState::provisional)
 	{
-		cdda = cdda->prev;
+		cdda = _ecv_not_null(cdda->prev);
 	}
 
 	// cdda addresses the earliest un-prepared move, which is the first one we can apply babystepping to
@@ -941,7 +941,7 @@ float DDA::AdvanceBabyStepping(DDARing& ring, size_t axis, float amount) noexcep
 		cdda->endPoint[Z_AXIS] += (int32_t)(babySteppingDone * reprap.GetMove().DriveStepsPerMm(Z_AXIS));
 
 		// Now do the next move
-		cdda = cdda->next;
+		cdda = _ecv_not_null(cdda->next);
 	}
 
 	return babySteppingDone;
@@ -1103,7 +1103,7 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 	if (topSpeed < requestedSpeed && reprap.GetGCodes().GetMachineType() == MachineType::laser)
 	{
 		// Scale back the laser power according to the actual speed
-		laserPwmOrIoBits.laserPwm = (laserPwmOrIoBits.laserPwm * topSpeed)/requestedSpeed;
+		laserPwmOrIoBits.laserPwm = (Pwm_t)((laserPwmOrIoBits.laserPwm * topSpeed)/requestedSpeed);
 	}
 #endif
 
@@ -1239,7 +1239,7 @@ void DDA::Prepare(DDARing& ring, SimulationMode simMode) noexcept
 
 						// Check for cold extrusion/retraction. Do this now because we can't read temperatures from within the step ISR, also this works for CAN-connected extruders.
 						// Don't check if it is a special move (indicated by flags.checkEndstops) because the 'tool' variable isn't valid for those moves
-						if (simMode != SimulationMode::off || flags.checkEndstops || Tool::ExtruderMovementAllowed(tool, directionVector[drive] > 0, extruder))
+						if (simMode != SimulationMode::off || flags.checkEndstops || Tool::ExtruderMovementAllowed(tool, directionVector[drive] > 0.0, extruder))
 						{
 							move.EnableDrivers(drive, false);
 
@@ -1420,7 +1420,7 @@ float DDA::NormaliseLinearMotion(AxesBitmap linearAxes) noexcept
 	unsigned int numXaxes = 0, numYaxes = 0;
 	const AxesBitmap xAxes = Tool::GetXAxes(tool);
 	const AxesBitmap yAxes = Tool::GetYAxes(tool);
-	const float * const dv = directionVector;
+	const float *_ecv_array const dv = directionVector;
 	linearAxes.Iterate([&xMagSquared, &yMagSquared, &magSquared, &numXaxes, &numYaxes, xAxes, yAxes, dv](unsigned int axis, unsigned int count)
 						{
 							const float dv2 = fsquare(dv[axis]);
@@ -1575,13 +1575,13 @@ uint32_t DDA::ManageLaserPower() const noexcept
 
 	// We must be in the constant speed phase
 	platform.SetLaserPwm(laserPwmOrIoBits.laserPwm);
-	const uint32_t decelClocks = (topSpeed - endSpeed)/deceleration;
+	const uint32_t decelClocks = (uint32_t)((topSpeed - endSpeed)/deceleration);
 	if (clocksLeft <= decelClocks)
 	{
 		return LaserPwmIntervalMillis;
 	}
 	const uint32_t clocksToDecel = clocksLeft - decelClocks;
-	return lrintf((float)clocksToDecel * StepClocksToMillis) + LaserPwmIntervalMillis;
+	return (uint32_t)lrintf((float)clocksToDecel * StepClocksToMillis) + LaserPwmIntervalMillis;
 }
 
 #endif

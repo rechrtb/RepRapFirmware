@@ -112,6 +112,7 @@ public:
 	float LiveMachineCoordinate(unsigned int axisOrExtruder) const noexcept;				// Get a single coordinate for reporting e.g.in the OM
 	void ForceLiveCoordinatesUpdate() noexcept { forceLiveCoordinatesUpdate = true; }		// Force the stored coordinates to be updated next time LiveMachineCoordinate is called
 	void UpdateOwnedDriveEndpointsFromMotors() noexcept;									// fetch lastKnownEndpoints from the motors for our owned drives and update the endpoints in our DDA ring
+	void UpdateOwnedDriveLastEndpoints(const int32_t endPoints[MaxAxes]) noexcept;			// update lastKnownEndpoints for our owned drives
 
 	MovementSystemNumber GetNumber() const noexcept { return msNumber; }
 	float GetProportionDone() const noexcept;												// get the proportion of this whole move that has been completed, based on segmentsLeft and totalSegments

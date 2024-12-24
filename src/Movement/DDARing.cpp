@@ -122,24 +122,25 @@ GCodeResult DDARing::ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& re
 		if (numDdasWanted > numDdasInRing)
 		{
 			// Use int64_t for the multiplication to guard against overflow (issue 939)
-			int64_t memoryNeeded = (int64_t)(numDdasWanted - numDdasInRing) * (sizeof(DDA) + 8);
+			int64_t memoryNeeded = (int64_t)((numDdasWanted - numDdasInRing) * (sizeof(DDA) + 8));
 			memoryNeeded += 1024;					// allow some margin
 			const ptrdiff_t memoryAvailable = Tasks::GetNeverUsedRam();
 			if (memoryNeeded >= memoryAvailable)
 			{
-				reply.printf("insufficient RAM (available %d, needed %" PRIi64 ")", memoryAvailable, memoryNeeded);
+				reply.printf("insufficient RAM (available %d, needed %" PRIu64 ")", memoryAvailable, memoryNeeded);
 				return GCodeResult::error;
 			}
 
 			// Allocate the extra DDAs and put them in the ring.
-			// We must be careful that addPointer->next points to the same DDA as before.
+			// We must be careful that addPointer->prev points to the same DDA as before because we fetch the endpoints from there.
 			//TODO can we combine this with the code in Init1?
 			while (numDdasWanted > numDdasInRing)
 			{
-				DDA * const newDda = new DDA(addPointer);
-				newDda->SetPrevious(addPointer->GetPrevious());
-				addPointer->GetPrevious()->SetNext(newDda);
-				addPointer->SetPrevious(newDda);
+				TaskCriticalSectionLocker lock;
+				DDA * const newDda = new DDA(addPointer->GetNext());
+				addPointer->GetNext()->SetPrevious(newDda);
+				addPointer->SetNext(newDda);
+				newDda->SetPrevious(addPointer);
 				++numDdasInRing;
 			}
 		}
@@ -288,7 +289,7 @@ uint32_t DDARing::Spin(SimulationMode simulationMode, bool signalMoveCompletion,
 				return 0;
 			}
 
-			const uint32_t moveTime = moveTicksLeft/(StepClockRate/1000) + 1;	// 1ms ticks until the move finishes plus 1ms
+			const uint32_t moveTime = (uint32_t)moveTicksLeft/(StepClockRate/1000) + 1;	// 1ms ticks until the move finishes plus 1ms
 			if (moveTime < ret)
 			{
 				return moveTime;
@@ -322,7 +323,7 @@ uint32_t DDARing::Spin(SimulationMode simulationMode, bool signalMoveCompletion,
 					return 0;
 				}
 
-				const uint32_t moveTime = moveTicksLeft/(StepClockRate/1000) + 1;	// 1ms ticks until the move finishes plus 1ms
+				const uint32_t moveTime = (uint32_t)moveTicksLeft/(StepClockRate/1000) + 1;	// 1ms ticks until the move finishes plus 1ms
 				if (moveTime < ret)
 				{
 					return moveTime;
@@ -344,8 +345,8 @@ uint32_t DDARing::PrepareMoves(DDA *firstUnpreparedMove, uint32_t moveTimeLeft, 
 	// If the already-prepared moves will execute in less than the minimum time, prepare another move.
 	// Try to avoid preparing deceleration-only moves too early
 	while (	  firstUnpreparedMove->GetState() == DDA::provisional
-		   && moveTimeLeft < (int32_t)MoveTiming::UsualMinimumPreparedTime	// prepare moves one tenth of a second ahead of when they will be needed
-		   && alreadyPrepared * 2 < numDdasInRing						// but don't prepare more than half the ring, to handle accelerate/decelerate moves in small segments
+		   && moveTimeLeft < MoveTiming::UsualMinimumPreparedTime	// prepare moves one tenth of a second ahead of when they will be needed
+		   && alreadyPrepared * 2 < numDdasInRing					// but don't prepare more than half the ring, to handle accelerate/decelerate moves in small segments
 #if SUPPORT_CAN_EXPANSION
 		   && CanMotion::CanPrepareMove()
 #endif
@@ -438,7 +439,7 @@ void DDARing::UpdateStartCoordinates(const float coords[MaxAxes]) noexcept
 }
 
 // Get the DDA that should currently be executing, or nullptr if no move from this ring should be executing
-DDA *DDARing::GetCurrentDDA() const noexcept
+DDA *_ecv_null DDARing::GetCurrentDDA() const noexcept
 {
 	TaskCriticalSectionLocker lock;
 	DDA *cdda = getPointer;
@@ -456,33 +457,33 @@ DDA *DDARing::GetCurrentDDA() const noexcept
 // Get various data for reporting in the OM
 float DDARing::GetRequestedSpeedMmPerSec() const noexcept
 {
-	const DDA* const cdda = GetCurrentDDA();
+	const DDA *_ecv_null const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetRequestedSpeedMmPerSec() : 0.0;
 }
 
 float DDARing::GetTopSpeedMmPerSec() const noexcept
 {
-	const DDA* const cdda = GetCurrentDDA();
+	const DDA *_ecv_null const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetTopSpeedMmPerSec() : 0.0;
 }
 
 // Get the (peak) acceleration for reporting in the object model
 float DDARing::GetAccelerationMmPerSecSquared() const noexcept
 {
-	const DDA* const cdda = GetCurrentDDA();
+	const DDA *_ecv_null const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetAccelerationMmPerSecSquared() : 0.0;
 }
 
 // Get the (peak) deceleration for reporting in the object model
 float DDARing::GetDecelerationMmPerSecSquared() const noexcept
 {
-	const DDA* const cdda = GetCurrentDDA();
+	const DDA *_ecv_null const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetDecelerationMmPerSecSquared() : 0.0;
 }
 
 float DDARing::GetTotalExtrusionRate() const noexcept
 {
-	const DDA* const cdda = GetCurrentDDA();
+	const DDA *_ecv_null const cdda = GetCurrentDDA();
 	return (cdda != nullptr) ? cdda->GetTotalExtrusionRate() : 0.0;
 }
 
@@ -507,10 +508,10 @@ bool DDARing::PauseMoves(MovementState& ms) noexcept
 	//    If we can't, then the last move in the queue must be part of a multi-segment move and GCodes has the rest. We must finish that move and then pause.
 	//
 	// So on return we need to signal one of the following to GCodes:
-	// 1. We have skipped some moves in the queue. Pass back the file address of the first move we have skipped, the feed rate at the start of that move
-	//    and the iobits at the start of that move, and return true.
+	// 1. We have skipped some moves in the queue. Update the pause restore point with the end coordinates of the last move we executed, the file address of the first move we have skipped
+	// the feed rate at the start of that move, and the iobits at the start of that move, and return true.
 	// 2. All moves in the queue need to be executed. Also any move held by GCodes needs to be completed it is it not the first segment.
-	//    Update the restore point with the coordinates and iobits as at the end of the previous move and return false.
+	//    Update the pause restore point with the coordinates and iobits as at the end of the previous move and return false.
 	//    The extruder position, file position and feed rate are not filled in.
 	//
 	// In general, we can pause after a move if it is the last segment and its end speed is slow enough.
@@ -545,8 +546,10 @@ bool DDARing::PauseMoves(MovementState& ms) noexcept
 
 	// We may be going to skip some moves. Get the end coordinate of the previous move.
 	DDA * const prevDda = addPointer->GetPrevious();
+	ms.UpdateOwnedDriveLastEndpoints(prevDda->DriveCoordinates());
+	prevDda->GetEndCoordinates(startCoordinates);
 	RestorePoint& rp = ms.GetPauseRestorePoint();
-	prevDda->GetEndCoordinates(rp.moveCoords);
+	memcpyf(rp.moveCoords, startCoordinates, ARRAY_SIZE(rp.moveCoords));
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
@@ -582,7 +585,7 @@ bool DDARing::PauseMoves(MovementState& ms) noexcept
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
 
 // Pause the print immediately, returning true if we were able to
-bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
+bool DDARing::LowPowerOrStallPause(MovementState& ms) noexcept
 {
 	TaskCriticalSectionLocker lock;						// prevent the Move task changing data while we look at it
 
@@ -590,7 +593,7 @@ bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
 	bool abortedMove = false;
 
 	IrqDisable();
-	DDA *dda = GetCurrentDDA();
+	DDA *_ecv_null dda = GetCurrentDDA();
 	if (dda != nullptr && dda->GetFilePosition() != noFilePosition)
 	{
 		// We are executing a move that has a file address, so we can interrupt it
@@ -630,6 +633,7 @@ bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
 
 	// We are going to skip some moves, or part of a move.
 	// Store the parameters of the first move we are going to execute when we resume
+	RestorePoint& rp = ms.GetPauseRestorePoint();
 	rp.feedRate = dda->GetRequestedSpeedMmPerClock();
 	rp.virtualExtruderPosition = dda->GetVirtualExtruderPosition();
 	rp.filePos = dda->GetFilePosition();
@@ -641,11 +645,13 @@ bool DDARing::LowPowerOrStallPause(RestorePoint& rp) noexcept
 	rp.laserPwmOrIoBits = dda->GetLaserPwmOrIoBits();
 #endif
 
-	addPointer = (abortedMove) ? dda->GetNext() : dda;
+	addPointer = (abortedMove) ? dda->GetNext() : _ecv_not_null(dda);
 
 	// Get the end coordinates of the last move that was or will be completed, or the coordinates of the current move when we aborted it.
 	DDA * const prevDda = addPointer->GetPrevious();
-	prevDda->GetEndCoordinates(rp.moveCoords);
+	ms.UpdateOwnedDriveLastEndpoints(prevDda->DriveCoordinates());
+	prevDda->GetEndCoordinates(startCoordinates);
+	memcpyf(rp.moveCoords, startCoordinates, ARRAY_SIZE(rp.moveCoords));
 	reprap.GetMove().InverseAxisAndBedTransform(rp.moveCoords, prevDda->GetTool());
 
 	// Free the DDAs for the moves we are going to skip
@@ -675,7 +681,7 @@ void DDARing::Diagnostics(MessageType mtype, unsigned int ringNumber) noexcept
 uint32_t DDARing::ManageLaserPower() noexcept
 {
 	SetBasePriority(NvicPriorityStep);							// lock out step interrupts
-	const DDA * const cdda = GetCurrentDDA();					// capture volatile variable
+	const DDA *_ecv_null const cdda = GetCurrentDDA();					// capture volatile variable
 	if (cdda != nullptr)
 	{
 		const uint32_t ret = cdda->ManageLaserPower();

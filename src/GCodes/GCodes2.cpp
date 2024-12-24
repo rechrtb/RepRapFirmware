@@ -3902,6 +3902,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 
 			case 595:	// Configure movement queue size
+				if (!LockAllMovementSystemsAndWaitForStandstill(gb))
+				{
+					return false;
+				}
 				result = reprap.GetMove().ConfigureMovementQueue(gb, reply);
 				break;
 

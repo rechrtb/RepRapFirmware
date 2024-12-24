@@ -337,6 +337,16 @@ void MovementState::UpdateOwnedDriveEndpointsFromMotors() noexcept
 	move.SetLastEndpoints(msNumber, logicalDrivesOwned, lastKnownEndpoints);
 }
 
+// Update lastKnownEndpoints for our owned drives. Called when pausing.
+void MovementState::UpdateOwnedDriveLastEndpoints(const int32_t endpoints[MaxAxes]) noexcept
+{
+	logicalDrivesOwned.Iterate([this, endpoints](unsigned int drive, unsigned int count)
+								{
+									lastKnownEndpoints[drive] = endpoints[drive];
+								}
+							  );
+}
+
 // Fetch the positions of currently owned drives and save them to lastKnownEndpoints
 void MovementState::SaveOwnDriveCoordinates() const noexcept
 {

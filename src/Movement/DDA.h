@@ -43,7 +43,7 @@ struct PrepParams
 };
 
 // This defines a single coordinated movement of one or several motors
-class DDA
+class DDA final
 {
 	friend class DriveMovement;
 	friend class ExtruderShaper;
@@ -158,7 +158,7 @@ public:
 	IoBits_t GetIoBits() const noexcept { return laserPwmOrIoBits.ioBits; }
 #endif
 
-	void DebugPrint(const char *tag) const noexcept;								// print the DDA only
+	void DebugPrint(const char *_ecv_array tag) const noexcept;						// print the DDA only
 
 	static void PrintMoves() noexcept;												// print saved moves for debugging
 
@@ -179,7 +179,7 @@ private:
 	void MatchSpeeds() noexcept SPEED_CRITICAL;
 	bool IsDecelerationMove() const noexcept;								// return true if this move is or have been might have been intended to be a deceleration-only move
 	bool IsAccelerationMove() const noexcept;								// return true if this move is or have been might have been intended to be an acceleration-only move
-	void DebugPrintVector(const char *name, const float *vec, size_t len) const noexcept;
+	void DebugPrintVector(const char *_ecv_array name, const float *_ecv_array vec, size_t len) const noexcept;
 
 #if SUPPORT_CAN_EXPANSION
 	int32_t PrepareRemoteExtruder(size_t drive, float& extrusionPending, float speedChange) const noexcept;
@@ -196,8 +196,8 @@ private:
     static void Scale(float v[], float scale) noexcept;						// Multiply a vector by a scalar
     static float VectorBoxIntersection(const float v[], const float box[]) noexcept;	// Compute the length that a vector would have to have to just touch the surface of a hyperbox of MaxAxesPlusExtruders dimensions.
 
-    DDA *next;										// The next one in the ring
-	DDA *prev;										// The previous one in the ring
+    DDA *_ecv_null next;							// The next one in the ring
+	DDA *_ecv_null prev;							// The previous one in the ring
 
 	volatile DDAState state;						// What state this DDA is in
 

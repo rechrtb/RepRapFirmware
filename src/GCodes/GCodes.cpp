@@ -1216,7 +1216,7 @@ bool GCodes::DoEmergencyPause() noexcept
 		// but before the gcode buffer has been re-initialised ready for the next command. So start a critical section.
 		TaskCriticalSectionLocker lock;
 
-		const bool movesSkipped = reprap.GetMove().LowPowerOrStallPause(ms.GetNumber(), ms.GetPauseRestorePoint());
+		const bool movesSkipped = reprap.GetMove().LowPowerOrStallPause(ms);
 		if (movesSkipped)
 		{
 			// The LowPowerOrStallPause call has filled in the restore point with machine coordinates
@@ -1806,9 +1806,10 @@ bool GCodes::LockMovementSystemAndWaitForStandstill(GCodeBuffer& gb, MovementSys
 	move.UpdateStartCoordinates(ms.GetNumber(), ms.coords);
 	move.InverseAxisAndBedTransform(ms.coords, ms.currentTool);
 	UpdateUserPositionFromMachinePosition(gb, ms);
-	collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
 
 #if SUPPORT_ASYNC_MOVES
+	collisionChecker.ResetPositions(ms.coords, ms.GetAxesAndExtrudersOwned());
+
 	// Release the axes and extruders that this movement system owns, except those used by the current tool
 	if (gb.AllStatesNormal())							// don't release them if we are in the middle of a state machine operation e.g. probing the bed
 	{

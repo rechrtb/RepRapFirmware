@@ -14,7 +14,7 @@
 
 class MovementState;
 
-class DDARing INHERIT_OBJECT_MODEL
+class DDARing final INHERIT_OBJECT_MODEL
 {
 public:
 	DDARing() noexcept;
@@ -34,7 +34,7 @@ public:
 	bool IsIdle() const noexcept;														// Return true if this DDA ring is idle
 	uint32_t GetGracePeriod() const noexcept { return gracePeriod; }					// Return the minimum idle time, before we should start a move. Better to have a few moves in the queue so that we can do lookahead
 
-	DDA *GetCurrentDDA() const noexcept;												// If a move from this ring should be executing now, fetch its DDA
+	DDA *_ecv_null GetCurrentDDA() const noexcept;										// If a move from this ring should be executing now, fetch its DDA
 	float PushBabyStepping(size_t axis, float amount) noexcept;							// Try to push some babystepping through the lookahead queue, returning the amount pushed
 
 	uint32_t GetScheduledMoves() const noexcept { return scheduledMoves; }				// How many moves have been scheduled?
@@ -62,7 +62,7 @@ public:
 
 	bool PauseMoves(MovementState& ms) noexcept;										// Pause the print as soon as we can, returning true if we were able to skip any moves in the queue
 #if HAS_VOLTAGE_MONITOR || HAS_STALL_DETECT
-	bool LowPowerOrStallPause(RestorePoint& rp) noexcept;								// Pause the print immediately, returning true if we were able to
+	bool LowPowerOrStallPause(MovementState& ms) noexcept;								// Pause the print immediately, returning true if we were able to
 #endif
 
 #if SUPPORT_LASER
