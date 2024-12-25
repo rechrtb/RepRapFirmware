@@ -98,7 +98,6 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 											ms.coords[axis] = move.AxisMinimum(axis);
 										}
 										SetAxisIsHomed(axis);
-
 									}
 								);
 
