@@ -1884,65 +1884,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 
 			case 111: // Debug level
-				{
-					bool seen = false;
-					if (gb.Seen('B'))
-					{
-						seen = true;
-						if (!Platform::SetDebugBufferSize(gb.GetUIValue()))
-						{
-							// We don't bother with an error message here because this is a debugging function, but we do report that there has been an error
-							result = GCodeResult::error;
-							break;
-						}
-					}
-					uint32_t flags = 0;
-					Module module = Module::none;
-					if (gb.Seen('S'))
-					{
-						flags = gb.GetUIValue();
-						if (flags != 0)
-						{
-							flags = 0xFFFFFFFFu;
-						}
-						seen = true;
-					}
-					else if (gb.Seen('D'))
-					{
-						flags = gb.GetUIValue();
-						seen = true;
-					}
-					if (gb.Seen('P'))
-					{
-						module = static_cast<Module>(gb.GetLimitedUIValue('P', NumRealModules));
-						seen = true;
-					}
-					if (seen)
-					{
-						if (module != Module::none)
-						{
-							reprap.SetDebug(module, flags);
-							reprap.PrintDebug(gb.GetResponseMessageType());
-							return true;
-						}
-						else if (flags != 0)
-						{
-							// Repetier Host sends M111 with various S parameters to enable echo and similar features, which used to turn on all out debugging.
-							// But it's not useful to enable all debugging anyway. So we no longer allow debugging to be enabled without a P parameter.
-							reply.copy("Use P parameter to specify which module to debug");
-						}
-						else
-						{
-							// M111 S0 still clears all debugging
-							reprap.ClearDebug();
-						}
-					}
-					else
-					{
-						reprap.PrintDebug(gb.GetResponseMessageType());
-						return true;
-					}
-				}
+				result = reprap.ProcessM111(gb, reply);
 				break;
 
 			case 112: // Emergency stop - acted upon in Webserver, but also here in case it comes from USB etc.
