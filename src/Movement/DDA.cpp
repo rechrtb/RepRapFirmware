@@ -314,7 +314,15 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 		for (size_t drive = numVisibleAxes; drive < numTotalAxes; ++drive)
 		{
 			endPoint[drive] = prev->endPoint[drive];
+			directionVector[drive] = 0.0;
 		}
+	}
+
+	// Clear out unused logical drives
+	for (size_t drive = numTotalAxes; drive < MaxAxesPlusExtruders - reprap.GetGCodes().GetNumExtruders(); ++drive)
+	{
+		directionVector[drive] = 0.0;
+		endPoint[drive] = prev->endPoint[drive];
 	}
 
 	// Deal with extruder movement
@@ -350,6 +358,11 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 					}
 				}
 			}
+		}
+		else
+		{
+			// This is an extruder we don't own, so make sure we don't move it
+			directionVector[drive] = 0.0;
 		}
 	}
 
