@@ -359,11 +359,13 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 				}
 			}
 		}
+#if SUPPORT_ASYNC_MOVES
 		else
 		{
 			// This is an extruder we don't own, so make sure we don't move it
 			directionVector[drive] = 0.0;
 		}
+#endif
 	}
 
 	// 2. Throw it away if there's no real movement.
