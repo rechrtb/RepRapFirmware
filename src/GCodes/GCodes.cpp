@@ -1708,11 +1708,6 @@ void GCodes::Diagnostics(MessageType mtype) noexcept
 			gb->Diagnostics(mtype);
 		}
 	}
-
-	for (MovementState& ms : moveStates)
-	{
-		ms.Diagnostics(mtype);
-	}
 }
 
 #if SUPPORT_ASYNC_MOVES
