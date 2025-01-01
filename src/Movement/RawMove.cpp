@@ -14,7 +14,7 @@
 #include <Movement/Move.h>
 #include <Movement/Kinematics/Kinematics.h>
 
-// Set up some default values in the move buffer for special moves, e.g. for Z probing and firmware retraction
+// Set up some default values in the move buffer for special moves, e.g. for Z probing and firmware retraction. The movement tool is set to null.
 void MovementState::SetDefaults(size_t firstDriveToZero) noexcept
 {
 	moveType = 0;
