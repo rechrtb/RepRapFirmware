@@ -31,7 +31,6 @@ struct RawMove
 	static constexpr LogicalDrivesBitmap allLogicalDrives = LogicalDrivesBitmap::MakeLowestNBits(MaxAxesPlusExtruders);
 
 #if SUPPORT_ASYNC_MOVES
-	AxesBitmap axesAndExtrudersOwned;								// axes and extruders that this movement system has moved since the last sync, or owns for other reasons
 	LogicalDrivesBitmap logicalDrivesOwned;							// logical drives that this movement system owns
 #else
 	static constexpr LogicalDrivesBitmap logicalDrivesOwned = allLogicalDrives;
@@ -245,6 +244,7 @@ private:
 	static int32_t endpointsAtSimulationStart[MaxAxesPlusExtruders];	// the endpoints when we started a simulation
 
 #if SUPPORT_ASYNC_MOVES
+	AxesBitmap axesAndExtrudersOwned;								// axes and extruders that this movement system has moved since the last sync, or owns for other reasons
 	ParameterLettersBitmap ownedAxisLetters;						// cache of letters denoting user axes for which the corresponding machine axes for the current tool are definitely owned
 
 	static LogicalDrivesBitmap allLogicalDrivesOwned;				// logical drives owned by any movement system

@@ -404,13 +404,18 @@ void MovementState::ReleaseAllOwnedAxesAndExtruders() noexcept
 }
 
 // Release some of the axes that we own. We must also clear the cache of owned axis letters.
+// Called when we release a tool and when we release all axes and extruders.
 void MovementState::ReleaseAxesAndExtruders(AxesBitmap axesToRelease) noexcept
 {
 	SaveOwnDriveCoordinates();										// save the positions of the drives we own before we release them, otherwise we will get the wrong positions when we allocate them again
-	axesAndExtrudersOwned &= ~axesToRelease;						// clear the axes/extruders we have been asked to release
-	const LogicalDrivesBitmap drivesStillOwned = reprap.GetMove().GetKinematics().GetAllDrivesUsed(axesAndExtrudersOwned);
+	Move& move = reprap.GetMove();
+	const LogicalDrivesBitmap drivesStillOwned = move.GetKinematics().GetAllDrivesUsed(axesAndExtrudersOwned);
 	const LogicalDrivesBitmap drivesToRelease = logicalDrivesOwned & ~drivesStillOwned;
 	logicalDrivesOwned = drivesStillOwned;
+
+	// We must not release any axes that are affected by the logical drives that we still own
+	const AxesBitmap additionalAxesOwned = move.GetKinematics().GetAffectedAxes(drivesStillOwned, reprap.GetGCodes().GetVisibleAxes());
+	axesAndExtrudersOwned = (axesAndExtrudersOwned & ~axesToRelease) | additionalAxesOwned;	// clear the axes/extruders we have been released
 	allLogicalDrivesOwned.ClearBits(drivesToRelease);
 	ownedAxisLetters.Clear();										// clear the cache of owned axis letters
 }
@@ -443,12 +448,21 @@ LogicalDrivesBitmap MovementState::AllocateAxes(AxesBitmap axes, ParameterLetter
 	const LogicalDrivesBitmap unavailableDrives = drivesNeeded & allLogicalDrivesOwned;
 	if (unavailableDrives.IsEmpty())
 	{
+		// Update the cache of axis letters that we own
 		ownedAxisLetters |= axisLetters;
+
+		// Update the set of logical drives that we own
 		move.GetLastEndpoints(msNumber, logicalDrivesOwned, lastKnownEndpoints);
 		allLogicalDrivesOwned |= drivesNeeded;
 		logicalDrivesOwned |= drivesNeeded;
+
+		// Update the set of axes and extruders that we own
+		const AxesBitmap axesMask = AxesBitmap::MakeLowestNBits(MaxAxesPlusExtruders - reprap.GetGCodes().GetNumExtruders());
+		const AxesBitmap extrudersMask = ~axesMask;
 		const AxesBitmap axesAffected = move.GetKinematics().GetAffectedAxes(drivesNeeded, reprap.GetGCodes().GetVisibleAxes());
-		axesAndExtrudersOwned |= axesAffected;
+		axesAndExtrudersOwned |= axesAffected | (axesNeeded & extrudersMask);
+
+		// If we allocated any logical drives, get the last endpoints for those drives and update our Cartesian coordinates
 		if (!drivesNeeded.IsEmpty())
 		{
 			move.SetLastEndpoints(msNumber, drivesNeeded, lastKnownEndpoints);
