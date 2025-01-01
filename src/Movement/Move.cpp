@@ -2395,7 +2395,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 			}
 			else
 			{
-				reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis);
+				reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis, kinematics->GetHomingMode());
 			}
 
 			if (executingMove)
@@ -2415,7 +2415,7 @@ void Move::CheckEndstops(bool executingMove) noexcept
 #else
 			StopAxisOrExtruder(executingMove, hitDetails.axis);
 #endif
-			reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis);
+			reprap.GetGCodes().RecordEndstopTriggered(hitDetails.axis, kinematics->GetHomingMode());
 
 			if (executingMove && !emgr.AnyEndstopsActive())
 			{

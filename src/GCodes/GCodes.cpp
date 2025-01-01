@@ -2108,7 +2108,7 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 #if SUPPORT_ASYNC_MOVES
 	// We need to check for moving unowned axes right at the start in case we need to fetch axis positions before processing the command
 	ParameterLettersBitmap axisLettersMentioned = gb.AllParameters() & allAxisLetters;
-	bool meshCompensationInUse = (ms.moveType == 0) && IsUsingMeshCompensation(ms, axisLettersMentioned);
+	const bool meshCompensationInUse = (ms.moveType == 0) && IsUsingMeshCompensation(ms, axisLettersMentioned);
 	if (ms.moveType == 0 || !reprap.GetMove().IsRawMotorMove(ms.moveType))
 	{
 		if (meshCompensationInUse)
@@ -2123,7 +2123,7 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 	}
 	else
 	{
-		AllocateLogicLDrivesFromLetters(gb, ms, axisLettersMentioned);
+		AllocateLogicalDrivesFromLetters(gb, ms, axisLettersMentioned);
 	}
 #endif
 
@@ -5269,14 +5269,16 @@ bool GCodes::CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply,
 }
 
 // Get the movement system that owns a particular axis
-void GCodes::RecordEndstopTriggered(size_t axis) noexcept
+void GCodes::RecordEndstopTriggered(size_t axis, HomingMode hmode) noexcept
 {
 	if (axis != NO_AXIS)
 	{
 #if SUPPORT_ASYNC_MOVES
 		for (MovementState& ms : moveStates)
 		{
-			if (ms.axesAndExtrudersOwned.IsBitSet(axis))
+			if (   (hmode == HomingMode::homeCartesianAxes && ms.GetAxesAndExtrudersOwned().IsBitSet(axis))
+				|| (hmode == HomingMode::homeIndividualDrives && ms.logicalDrivesOwned.IsBitSet(axis))
+			   )
 			{
 				ms.endstopsTriggered.SetBit(axis);
 				return;
@@ -5402,7 +5404,7 @@ void GCodes::AllocateAxesDirectFromLetters(const GCodeBuffer& gb, MovementState&
 }
 
 // Allocate drivers by letter for a raw motor move
-void GCodes::AllocateLogicLDrivesFromLetters(const GCodeBuffer& gb, MovementState& ms, ParameterLettersBitmap axLetters) THROWS(GCodeException)
+void GCodes::AllocateLogicalDrivesFromLetters(const GCodeBuffer& gb, MovementState& ms, ParameterLettersBitmap axLetters) THROWS(GCodeException)
 {
 	LogicalDrivesBitmap newDrives;
 	for (size_t axis = 0; axis < numVisibleAxes; ++axis)

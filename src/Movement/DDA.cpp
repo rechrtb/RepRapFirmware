@@ -334,7 +334,7 @@ bool DDA::InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorM
 	for (size_t drive = MaxAxesPlusExtruders - reprap.GetGCodes().GetNumExtruders(); drive < MaxAxesPlusExtruders; ++drive)
 	{
 #if SUPPORT_ASYNC_MOVES
-		if (nextMove.axesAndExtrudersOwned.IsBitSet(drive))
+		if (ownedDrives.IsBitSet(drive))
 #endif
 		{
 			// It's an extruder drive. We defer calculating the steps because they may be affected by nonlinear extrusion, which we can't calculate until we
