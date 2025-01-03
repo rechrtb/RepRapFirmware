@@ -657,7 +657,7 @@ void RepRap::Init() noexcept
 }
 
 // Run a startup file
-bool RepRap::RunStartupFile(const char *_ecv_array filename, bool isMainConfigFile) noexcept
+bool RepRap::RunStartupFile(c_string filename, bool isMainConfigFile) noexcept
 {
 	const bool rslt = gCodes->RunConfigFile(filename, isMainConfigFile);
 	if (rslt)
@@ -829,7 +829,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	// Print the firmware version, board type etc.
 
 #ifdef DUET_NG
-	const char *_ecv_array _ecv_null const expansionName = DuetExpansion::GetExpansionBoardName();
+	c_string _ecv_null const expansionName = DuetExpansion::GetExpansionBoardName();
 #endif
 
 	platform->MessageF(mtype,
@@ -987,12 +987,84 @@ void RepRap::EmergencyStop() noexcept
 	platform->StopLogging();
 }
 
-void RepRap::SetDebug(Module m, uint32_t flags) noexcept
+GCodeResult RepRap::ProcessM111(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
-	if (m.ToBaseType() < NumRealModules)
+	bool seen = false;
+	if (gb.Seen('B'))
 	{
-		debugMaps[m.ToBaseType()].SetFromRaw(flags);
+		if (!Platform::SetDebugBufferSize(gb.GetUIValue()))
+		{
+			reply.copy("B must be a power of 2");
+			return GCodeResult::error;
+		}
+		seen = true;
 	}
+
+	// Debug flags are as set by the D parameter. If D is not specified then S0 means all off, S1 means lower 8 bits on.
+	uint32_t flags;
+	if (gb.TryGetLimitedUIValue('D', flags, seen, 0x00010000))
+	{
+		// nothing to do here
+	}
+	else if (gb.Seen('S'))
+	{
+		flags = (gb.GetUIValue() != 0) ? DefaultDebugFlags : 0;
+		seen = true;
+	}
+	else
+	{
+		flags = 0;
+	}
+
+	uint8_t module = Module::none;
+	if (gb.Seen('P'))
+	{
+		module = gb.GetLimitedUIValue('P', NumRealModules);
+		seen = true;
+	}
+
+	if (seen)
+	{
+		if (module != Module::none)
+		{
+			debugMaps[module].SetFromRaw(flags);
+		}
+		else if (flags != 0)
+		{
+			// Repetier Host sends M111 with various S parameters to enable echo and similar features, which used to turn on all our debugging.
+			// But it's not useful to enable all debugging anyway. So we no longer allow debugging to be enabled without a P parameter.
+			reply.copy("Use P parameter to specify which module to debug");
+			return GCodeResult::error;
+		}
+		else
+		{
+			// M111 S0 with no P parameter still clears all debugging
+			ClearDebug();
+		}
+	}
+
+	// Print the current debug settings
+	const MessageType mt = (MessageType)((uint32_t)gb.GetResponseMessageType() | (uint32_t)PushFlag);
+	platform->Message(mt, "Debugging on for modules:");
+	for (size_t i = 0; i < NumRealModules; i++)
+	{
+		if (debugMaps[i].IsNonEmpty())
+		{
+			platform->MessageF(mt, " %s(%u - %#" PRIx16 ")", Module(i).ToString(), i, debugMaps[i].GetRaw());
+		}
+	}
+
+	platform->Message(mt, "\nDebugging off for modules:");
+	for (size_t i = 0; i < NumRealModules; i++)
+	{
+		if (debugMaps[i].IsEmpty())
+		{
+			platform->MessageF(mt, " %s(%u)", Module(i).ToString(), i);
+		}
+	}
+	platform->Message(mt, "\n");
+
+	return GCodeResult::ok;
 }
 
 void RepRap::ClearDebug() noexcept
@@ -1001,28 +1073,6 @@ void RepRap::ClearDebug() noexcept
 	{
 		dm.Clear();
 	}
-}
-
-void RepRap::PrintDebug(MessageType mt) noexcept
-{
-	platform->Message((MessageType)((uint32_t)mt | (uint32_t)PushFlag), "Debugging enabled for modules:");
-	for (size_t i = 0; i < NumRealModules; i++)
-	{
-		if (debugMaps[i].IsNonEmpty())
-		{
-			platform->MessageF((MessageType)((uint32_t)mt | (uint32_t)PushFlag), " %s(%u - %#" PRIx32 ")", Module(i).ToString(), i, debugMaps[i].GetRaw());
-		}
-	}
-
-	platform->Message((MessageType)(mt | PushFlag), "\nDebugging disabled for modules:");
-	for (size_t i = 0; i < NumRealModules; i++)
-	{
-		if (debugMaps[i].IsEmpty())
-		{
-			platform->MessageF((MessageType)((uint32_t)mt | (uint32_t)PushFlag), " %s(%u)", Module(i).ToString(), i);
-		}
-	}
-	platform->Message(mt, "\n");
 }
 
 void RepRap::Tick() noexcept
@@ -1061,7 +1111,7 @@ void RepRap::Tick() noexcept
 					const uint32_t *_ecv_array stackPtr = _ecv_undefined(const uint32_t *_ecv_array);
 #else
 					__asm volatile("mrs r2, psp");
-					register const uint32_t * stackPtr asm ("r2");				// we want the PSP not the MSP
+					register const uint32_t *_ecv_array stackPtr asm ("r2");	// we want the PSP not the MSP
 #endif
 					relevantStackPtr = stackPtr + 5;							// discard uninteresting registers, keep LR PC PSR
 				}
@@ -1565,12 +1615,12 @@ OutputBuffer *_ecv_null RepRap::GetConfigResponse() noexcept
 	// Firmware details
 	response->catf(",\"firmwareElectronics\":\"%.s", platform->GetElectronicsString());
 #ifdef DUET_NG
-	const char *_ecv_array _ecv_null expansionName = DuetExpansion::GetExpansionBoardName();
+	c_string _ecv_null expansionName = DuetExpansion::GetExpansionBoardName();
 	if (expansionName != nullptr)
 	{
 		response->catf(" + %.s", expansionName);
 	}
-	const char *_ecv_array _ecv_null additionalExpansionName = DuetExpansion::GetAdditionalExpansionBoardName();
+	c_string _ecv_null additionalExpansionName = DuetExpansion::GetAdditionalExpansionBoardName();
 	if (additionalExpansionName != nullptr)
 	{
 		response->catf(" + %.s", additionalExpansionName);
@@ -1784,7 +1834,7 @@ OutputBuffer *_ecv_null RepRap::GetLegacyStatusResponse(uint8_t type, int seq) c
 
 // Get the list of files in the specified directory in JSON format. PanelDue uses this one, so include a newline at the end.
 // If flagDirs is true then we prefix each directory with a * character.
-OutputBuffer *_ecv_null RepRap::GetFilesResponse(const char *_ecv_array dir, unsigned int startAt, int maxItems, bool flagsDirs) noexcept
+OutputBuffer *_ecv_null RepRap::GetFilesResponse(c_string dir, unsigned int startAt, int maxItems, bool flagsDirs) noexcept
 {
 	// Need something to write to...
 	OutputBuffer *_ecv_null response;
@@ -1863,7 +1913,7 @@ OutputBuffer *_ecv_null RepRap::GetFilesResponse(const char *_ecv_array dir, uns
 }
 
 // Get a JSON-style filelist including file types and sizes
-OutputBuffer *_ecv_null RepRap::GetFilelistResponse(const char *_ecv_array dir, unsigned int startAt, int maxItems) noexcept
+OutputBuffer *_ecv_null RepRap::GetFilelistResponse(c_string dir, unsigned int startAt, int maxItems) noexcept
 {
 	// Need something to write to...
 	OutputBuffer *response;
@@ -1963,7 +2013,7 @@ OutputBuffer *_ecv_null RepRap::GetFilelistResponse(const char *_ecv_array dir, 
 // 'offset' is the offset into the file of the thumbnail data that the caller wants.
 // It is up to the caller to get the offset right, however we must fail gracefully if the caller passes us a bad offset.
 // The offset should always be either the initial offset or the 'next' value passed in a previous call, so it should always be the start of a line.
-OutputBuffer *_ecv_null RepRap::GetThumbnailResponse(const char *_ecv_array filename, FilePosition offset, bool forM31point1) noexcept
+OutputBuffer *_ecv_null RepRap::GetThumbnailResponse(c_string filename, FilePosition offset, bool forM31point1) noexcept
 {
 	constexpr unsigned int ThumbnailMaxDataSizeM31 = 1024;			// small enough for PanelDue to buffer
 	constexpr unsigned int ThumbnailMaxDataSizeRr = 2600;			// about two TCP messages
@@ -2007,7 +2057,7 @@ OutputBuffer *_ecv_null RepRap::GetThumbnailResponse(const char *_ecv_array file
 				const FilePosition posOld = offset;
 				offset = f->Position();
 
-				const char *_ecv_array p = lineBuffer;
+				c_string p = lineBuffer;
 
 				// Skip white spaces
 				while ((p - lineBuffer <= charsRead) && (*p == ';' || *p == ' ' || *p == '\t'))
@@ -2068,7 +2118,7 @@ OutputBuffer *_ecv_null RepRap::GetThumbnailResponse(const char *_ecv_array file
 
 // Get information for the specified file, or the currently printing file (if 'filename' is null or empty), in JSON format
 // Return GCodeResult::Warning if the file doesn't exist, else GCodeResult::ok or GCodeResult::notFinished
-GCodeResult RepRap::GetFileInfoResponse(const char *_ecv_array _ecv_null filename, OutputBuffer *_ecv_null &response, bool quitEarly) noexcept
+GCodeResult RepRap::GetFileInfoResponse(c_string _ecv_null filename, OutputBuffer *_ecv_null &response, bool quitEarly) noexcept
 {
 	const bool specificFile = (filename != nullptr && filename[0] != 0);
 	GCodeFileInfo info;
@@ -2172,7 +2222,7 @@ GCodeResult RepRap::GetFileInfoResponse(const char *_ecv_array _ecv_null filenam
 
 // Helper functions to write JSON arrays
 // Append float array using the specified number of decimal places
-void RepRap::AppendFloatArray(OutputBuffer *buf, const char *_ecv_array _ecv_null name, size_t numValues, function_ref_noexcept<float(size_t) noexcept> func, unsigned int numDecimalDigits) noexcept
+void RepRap::AppendFloatArray(OutputBuffer *buf, c_string _ecv_null name, size_t numValues, function_ref_noexcept<float(size_t) noexcept> func, unsigned int numDecimalDigits) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2191,7 +2241,7 @@ void RepRap::AppendFloatArray(OutputBuffer *buf, const char *_ecv_array _ecv_nul
 	buf->cat(']');
 }
 
-void RepRap::AppendIntArray(OutputBuffer *buf, const char *_ecv_array _ecv_null name, size_t numValues, function_ref_noexcept<int(size_t) noexcept> func) noexcept
+void RepRap::AppendIntArray(OutputBuffer *buf, c_string _ecv_null name, size_t numValues, function_ref_noexcept<int(size_t) noexcept> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2209,7 +2259,7 @@ void RepRap::AppendIntArray(OutputBuffer *buf, const char *_ecv_array _ecv_null 
 	buf->cat(']');
 }
 
-void RepRap::AppendStringArray(OutputBuffer *buf, const char *_ecv_array _ecv_null name, size_t numValues, function_ref_noexcept<const char *(size_t) noexcept> func) noexcept
+void RepRap::AppendStringArray(OutputBuffer *buf, c_string _ecv_null name, size_t numValues, function_ref_noexcept<const char *(size_t) noexcept> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2229,7 +2279,7 @@ void RepRap::AppendStringArray(OutputBuffer *buf, const char *_ecv_array _ecv_nu
 
 // Return a query into the object model, or return nullptr if no buffer available
 // We append a newline to help PanelDue resync after receiving corrupt or incomplete data. DWC ignores it.
-OutputBuffer *RepRap::GetModelResponse(const GCodeBuffer *_ecv_null gb, const char *_ecv_array _ecv_null key, const char *_ecv_array _ecv_null flags) const THROWS(GCodeException)
+OutputBuffer *RepRap::GetModelResponse(const GCodeBuffer *_ecv_null gb, c_string _ecv_null key, c_string _ecv_null flags) const THROWS(GCodeException)
 {
 	OutputBuffer *outBuf;
 	if (OutputBuffer::Allocate(outBuf))
@@ -2300,7 +2350,7 @@ void RepRap::Beep(unsigned int freq, unsigned int ms) noexcept
 }
 
 // Send a short message. We send it to both PanelDue and the web interface.
-void RepRap::SetMessage(const char *_ecv_array msg) noexcept
+void RepRap::SetMessage(c_string msg) noexcept
 {
 	message.copy(msg);
 #if SUPPORT_DIRECT_LCD
@@ -2349,9 +2399,9 @@ char RepRap::GetStatusCharacter() const noexcept
 	return "CFHODRSAMPTBI"[GetStatusIndex()];
 }
 
-const char *_ecv_array RepRap::GetStatusString() const noexcept
+c_string RepRap::GetStatusString() const noexcept
 {
-	static const char *_ecv_array const StatusStrings[] =
+	static c_string const StatusStrings[] =
 	{
 		"starting",
 		"updating",
@@ -2375,24 +2425,24 @@ bool RepRap::NoPasswordSet() const noexcept
 	return (password[0] == 0 || CheckPassword(DEFAULT_PASSWORD));
 }
 
-bool RepRap::CheckPassword(const char *_ecv_array pw) const noexcept
+bool RepRap::CheckPassword(c_string pw) const noexcept
 {
 	String<RepRapPasswordLength> copiedPassword;
 	copiedPassword.CopyAndPad(pw);
 	return password.ConstantTimeEquals(copiedPassword);
 }
 
-void RepRap::SetPassword(const char *_ecv_array pw) noexcept
+void RepRap::SetPassword(c_string pw) noexcept
 {
 	password.CopyAndPad(pw);
 }
 
-const char *_ecv_array RepRap::GetName() const noexcept
+c_string RepRap::GetName() const noexcept
 {
 	return myName.c_str();
 }
 
-void RepRap::SetName(const char *_ecv_array nm) noexcept
+void RepRap::SetName(c_string nm) noexcept
 {
 	myName.copy(nm);
 
@@ -2464,7 +2514,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply, const Stri
 #if HAS_MASS_STORAGE
 
 // Update the firmware. Prerequisites should be checked before calling this.
-void RepRap::UpdateFirmware(const char *_ecv_array iapFilename, const char *_ecv_array iapParam) noexcept
+void RepRap::UpdateFirmware(c_string iapFilename, c_string iapParam) noexcept
 {
 	FileStore *_ecv_null iapFile = platform->OpenFile(FIRMWARE_DIRECTORY, iapFilename, OpenMode::read);
 	if (iapFile == nullptr)
@@ -2548,7 +2598,7 @@ void RepRap::PrepareToLoadIap() noexcept
 #endif
 }
 
-void RepRap::StartIap(const char *_ecv_array _ecv_null filename) noexcept
+void RepRap::StartIap(c_string _ecv_null filename) noexcept
 {
 	// Disable all interrupts, then reallocate the vector table and program entry point to the new IAP binary
 	// This does essentially what the Atmel AT02333 paper suggests (see 3.2.2 ff)
@@ -2664,7 +2714,7 @@ void RepRap::StartIap(const char *_ecv_array _ecv_null filename) noexcept
 }
 
 // Report an internal error
-void RepRap::ReportInternalError(const char *_ecv_array file, const char *_ecv_array func, int line) const noexcept
+void RepRap::ReportInternalError(c_string file, c_string func, int line) const noexcept
 {
 	platform->MessageF(ErrorMessage, "Internal Error in %s at %s(%d)\n", func, file, line);
 }
@@ -2677,7 +2727,7 @@ void RepRap::ReportInternalError(const char *_ecv_array file, const char *_ecv_a
 // sParam = 2 Display the message box with an OK button, wait for acknowledgement (waiting is set up by the caller)
 // sParam = 3 As for 2 but also display a Cancel button
 // Returns the message box sequence number
-uint32_t RepRap::SendAlert(MessageType mt, const char *_ecv_array msg, const char *_ecv_array title, int sParam, float tParam, AxesBitmap controls, MessageBoxLimits *_ecv_null limits) noexcept
+uint32_t RepRap::SendAlert(MessageType mt, c_string msg, c_string title, int sParam, float tParam, AxesBitmap controls, MessageBoxLimits *_ecv_null limits) noexcept
 {
 	WriteLocker lock(MessageBox::mboxLock);
 
@@ -2714,13 +2764,13 @@ uint32_t RepRap::SendAlert(MessageType mt, const char *_ecv_array msg, const cha
 	return seq;
 }
 
-void RepRap::SendSimpleAlert(MessageType mt, const char *_ecv_array msg, const char *_ecv_array title) noexcept
+void RepRap::SendSimpleAlert(MessageType mt, c_string msg, c_string title) noexcept
 {
 	(void)SendAlert(mt, msg, title, 1, 0.0, AxesBitmap());
 }
 
 // Save the first error message generated while running config.g
-void RepRap::SaveConfigError(const char *_ecv_array filename, unsigned int lineNumber, const char *_ecv_array errorMessage) noexcept
+void RepRap::SaveConfigError(c_string filename, unsigned int lineNumber, c_string errorMessage) noexcept
 {
 	if (configErrorMessage.IsNull())
 	{
@@ -2766,7 +2816,7 @@ void MemoryChecker::Report(uint32_t tag) noexcept
 
 #ifndef DUET_NG			// Duet 2 doesn't currently need this feature, so omit it to save memory
 
-void RepRap::LogDebugMessage(const char *_ecv_array msg, uint32_t data0, uint32_t data1, uint32_t data2, uint32_t data3) noexcept
+void RepRap::LogDebugMessage(c_string msg, uint32_t data0, uint32_t data1, uint32_t data2, uint32_t data3) noexcept
 {
 	// Log the debug event if we have space
 	for (DebugLogRecord& r : debugRecords)
@@ -2794,7 +2844,7 @@ void RepRap::LogDebugMessage(const char *_ecv_array msg, uint32_t data0, uint32_
 
 #if SUPPORT_DIRECT_LCD
 
-const char *_ecv_array RepRap::GetLatestMessage(uint16_t& sequence) const noexcept
+c_string RepRap::GetLatestMessage(uint16_t& sequence) const noexcept
 {
 	sequence = messageSequence;
 	return message.c_str();

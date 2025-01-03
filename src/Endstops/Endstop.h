@@ -40,14 +40,14 @@ public:
 	unsigned int GetAxis() const noexcept { return axis; }
 
 #if HAS_STALL_DETECT && (SUPPORT_TMC2660 || SUPPORT_TMC51xx)
-	static void SetDriversStalled(DriversBitmap drivers) noexcept;
-	static void SetDriversNotStalled(DriversBitmap drivers) noexcept;
+	static void SetDriversStalled(LocalDriversBitmap drivers) noexcept;
+	static void SetDriversNotStalled(LocalDriversBitmap drivers) noexcept;
 #endif
 
 protected:
 
 #if HAS_STALL_DETECT
-	static DriversBitmap GetStalledDrivers(DriversBitmap driversOfInterest) noexcept;
+	static LocalDriversBitmap GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept;
 #endif
 
 private:
@@ -55,7 +55,7 @@ private:
 	uint8_t axis;										// which axis this endstop is on
 
 #if HAS_STALL_DETECT && (SUPPORT_TMC2660 || SUPPORT_TMC51xx)
-	static DriversBitmap stalledDrivers;				// used to track which drivers are reported as stalled, for stall detect endstops and stall detect Z probes
+	static LocalDriversBitmap stalledDrivers;				// used to track which drivers are reported as stalled, for stall detect endstops and stall detect Z probes
 #endif
 };
 
@@ -64,19 +64,19 @@ private:
 # if SUPPORT_TMC2660 || SUPPORT_TMC51xx
 
 // This is called by the TMC driver to tell us which drivers are stalled or not stalled
-inline void EndstopOrZProbe::SetDriversStalled(DriversBitmap drivers) noexcept
+inline void EndstopOrZProbe::SetDriversStalled(LocalDriversBitmap drivers) noexcept
 {
 	stalledDrivers |= drivers;
 }
 
 // This is called by the TMC driver to tell us which drivers are stalled or not stalled
-inline void EndstopOrZProbe::SetDriversNotStalled(DriversBitmap drivers) noexcept
+inline void EndstopOrZProbe::SetDriversNotStalled(LocalDriversBitmap drivers) noexcept
 {
 	stalledDrivers &= ~drivers;
 }
 
 // Return which drivers out of the set of interest are stalled
-inline DriversBitmap EndstopOrZProbe::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept
+inline LocalDriversBitmap EndstopOrZProbe::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
 {
 	return stalledDrivers & driversOfInterest;
 }
@@ -84,7 +84,7 @@ inline DriversBitmap EndstopOrZProbe::GetStalledDrivers(DriversBitmap driversOfI
 # elif SUPPORT_TMC22xx
 
 // Return which drivers out of the set of interest are stalled
-inline DriversBitmap EndstopOrZProbe::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept
+inline LocalDriversBitmap EndstopOrZProbe::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
 {
 	return SmartDrivers::GetStalledDrivers(driversOfInterest);
 }
