@@ -38,7 +38,7 @@
 const uint32_t ADS131_Frequency = 15000000;				// maximum for ADS131A02 is 25MHz for a single device, using 1:1 mark-space ratio
 
 // The ADS131 samples input data on the falling edge and changes the output data on the rising edge. The clock is low when inactive.
-const SpiMode ADS131_SpiMode = SPI_MODE_1;
+const SpiMode ADS131_SpiMode = SpiMode::mode1;
 
 // Define the minimum interval between readings
 const uint32_t MinimumReadInterval = 3;					// minimum interval between reads, in milliseconds
@@ -209,7 +209,8 @@ GCodeResult AdcSensorADS131A02Chan0::FinishConfiguring(bool changed, const Strin
 
 		if (rslt != TemperatureError::ok)
 		{
-			reprap.GetPlatform().MessageF(ErrorMessage, "Failed to initialise daughter board ADC: %s\n", rslt.ToString());
+			reply.printf("Failed to initialise daughter board ADC: %s\n", rslt.ToString());
+			return GCodeResult::error;
 		}
 		else
 		{

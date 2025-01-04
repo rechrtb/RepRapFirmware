@@ -80,10 +80,19 @@ GCodeResult AdditionalOutputSensor::Configure(const CanMessageGenericParser& par
 		}
 	}
 
+	const auto parent = reprap.GetHeat().FindSensor(parentSensor);
+	if (parent.IsNotNull())
+	{
+		parent->ConfigureAdditionalOutput(parser, reply, changed, outputNumber);
+	}
 	ConfigureCommonParameters(parser, changed);
-	if (!changed)
+	if (!changed && !parser.HasParameter('Y'))
 	{
 		CopyBasicDetails(reply);
+		if (parent.IsNotNull())
+		{
+			parent->AppendAdditionalOutputParameters(reply, outputNumber);
+		}
 	}
 	return rslt;
 }
