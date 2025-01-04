@@ -215,7 +215,7 @@ constexpr ObjectModelArrayTableEntry RepRap::objectModelArrayTable[] =
 		OBJECT_MODEL_ARRAY_VALUE_NOSELF(MassStorage::GetVolume(context.GetLastIndex()))
 #else
 		OBJECT_MODEL_ARRAY_COUNT_NOSELF(0),
-		OBJECT_MODEL_ARRAY_VALUE(nullptr)
+		OBJECT_MODEL_ARRAY_VALUE_NOSELF(nullptr)
 #endif
 	},
 	// 6. GP outputs
@@ -829,7 +829,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	// Print the firmware version, board type etc.
 
 #ifdef DUET_NG
-	c_string _ecv_null const expansionName = DuetExpansion::GetExpansionBoardName();
+	c_string_or_null const expansionName = DuetExpansion::GetExpansionBoardName();
 #endif
 
 	platform->MessageF(mtype,
