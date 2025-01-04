@@ -132,6 +132,17 @@ GCodeResult AdditionalOutputSensor::ConfigurePort(const char *_ecv_array portNam
 			return GCodeResult::error;
 		}
 
+#if SUPPORT_CAN_EXPANSION
+		{
+			const CanAddress parentCanAddr = parent->GetBoardAddress();
+			if (parentCanAddr != CanInterface::GetCanAddress())
+			{
+				reply.printf("Specify parent sensor CAN address %u at the start of the port name", parentCanAddr);
+				return GCodeResult::error;
+			}
+		}
+#endif
+
 		if (enforcePollOrder && parentSensor > GetSensorNumber())
 		{
 			reply.copy("Parent sensor must be a lower sensor number than this one");
