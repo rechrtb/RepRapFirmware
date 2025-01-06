@@ -449,9 +449,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply,
 			{
 				switch (inputType.ToBaseType())
 				{
-// DC 2025-01-06: Temporarily remove " || SUPPORT_CAN_EXPANSION" until more work has been done because it prevents the MB6XD configuration building
-//#if HAS_STALL_DETECT || SUPPORT_CAN_EXPANSION
-#if HAS_STALL_DETECT
+#if HAS_STALL_DETECT || SUPPORT_CAN_EXPANSION
 				case EndStopType::motorStallAny:
 					// Asking for stall detection endstop, so we can delete any existing endstop(s) and create new ones
 					ReplaceObject(axisEndstops[axis], new StallDetectionEndstop(axis, pos, false));
