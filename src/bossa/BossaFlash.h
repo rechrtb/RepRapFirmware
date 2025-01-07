@@ -30,7 +30,7 @@
 #define _FLASH_H
 
 #define ORIGINAL_BOSSA_CODE (0)
-#include "General/Vector.h"
+#include "General/Vector.hpp"
 
 #include "Samba.h"
 #include "WordCopyApplet.h"

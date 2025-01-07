@@ -34,7 +34,7 @@
 
 #include <Platform/RepRap.h>
 #include <Platform/Platform.h>
-#include <General/Vector.h>
+#include <General/Vector.hpp>
 #if HAS_SBC_INTERFACE
 # include <SBC/SbcInterface.h>
 #endif
