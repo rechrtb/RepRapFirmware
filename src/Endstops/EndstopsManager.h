@@ -79,6 +79,7 @@ public:
 	void HandleRemoteEndstopChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state) noexcept;
 	void HandleRemoteZProbeChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state, uint32_t reading) noexcept;
 	void HandleRemoteAnalogZProbeValueChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, uint32_t reading) noexcept;
+	void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept;
 #endif
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE
@@ -108,7 +109,7 @@ private:
 	EndstopOrZProbe *_ecv_from _ecv_null volatile activeEndstops;	// linked list of endstops and Z probes that are active for the current move
 
 	Endstop *_ecv_from _ecv_null axisEndstops[MaxAxes];				// the endstops assigned to each axis (each one may have several switches), each may be null
-#if HAS_STALL_DETECT
+#if HAS_STALL_DETECT || SUPPORT_CAN_EXPANSION
 	StallDetectionEndstop *_ecv_null extrudersEndstop;				// the endstop used for extruder stall detection, one will do for all extruders
 #endif
 	ZProbe *_ecv_from _ecv_null zProbes[MaxZProbes];				// the Z probes used. The first one is always non-null.

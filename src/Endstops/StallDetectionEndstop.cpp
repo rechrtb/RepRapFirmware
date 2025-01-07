@@ -14,27 +14,24 @@
 #include <Movement/Kinematics/Kinematics.h>
 
 #if SUPPORT_CAN_EXPANSION
-# include <CanMessageFormats.h>
+# include <CAN/CanInterface.h>
 #endif
 
 // Stall detection endstop constructor, used for axis endstops
 StallDetectionEndstop::StallDetectionEndstop(uint8_t p_axis, EndStopPosition pos, bool p_individualMotors) noexcept
 	: Endstop(p_axis, pos),
 #if SUPPORT_CAN_EXPANSION
-	  numPendingRemoteStallNotifications(0),
+	  newStallReported(false),
 #endif
 	  individualMotors(p_individualMotors)
 {
-#if SUPPORT_CAN_EXPANSION
-	static_assert(RemoteDriversBitmap::MaxBits() >= MaxLinearDriversPerCanSlave);		// this needs to be within a member of StallDetectionEndstrop because RemoteDriversBitmap is private
-#endif
 }
 
 // Constructor used for extruder endstops
 StallDetectionEndstop::StallDetectionEndstop() noexcept
 	: Endstop(NO_AXIS, EndStopPosition::noEndStop),
 #if SUPPORT_CAN_EXPANSION
-	  numPendingRemoteStallNotifications(0),
+	  newStallReported(false),
 #endif
 	  individualMotors(false), stopAll(true)
 {
@@ -49,7 +46,7 @@ bool StallDetectionEndstop::Stopped() const noexcept
 # if HAS_STALL_DETECT
 		GetStalledDrivers(localDriversMonitored).IsNonEmpty() ||
 # endif
-		numPendingRemoteStallNotifications != 0;
+		newStallReported;
 #else		// must have HAS_STALL_DETECT
 	return GetStalledDrivers(localDriversMonitored).IsNonEmpty();
 #endif
@@ -97,18 +94,40 @@ bool StallDetectionEndstop::Prime(const Kinematics &_ecv_from kin, const AxisDri
 #endif
 
 #if SUPPORT_CAN_EXPANSION
-	numPendingRemoteStallNotifications = 0;
+	newStallReported = false;
 
 	// If there any remote stall endstops, set them up to report
-	remoteDriversMonitored.IterateWhile([](const RemoteDriversMonitored& entry, size_t index) noexcept -> bool
-										{
-											//TODO set up remote handle
-											return true;
-										}
-									   );
-#endif
-
+	size_t failedIndex;
+	const bool ok = remoteDriversMonitored.IterateWhile([&failedIndex](const RemoteDriversMonitored& entry, size_t index) noexcept -> bool
+														{
+															//TODO set up remote handle
+															RemoteInputHandle h;
+															h.Set(RemoteInputHandle::typeStallEndstop, 0, 0);
+															String<1> dummy;
+															bool dummyB;
+															const bool ok = CanInterface::CreateHandle(entry.boardId, h, "", entry.driversMonitored.GetRaw(), 0, dummyB, dummy.GetRef()) == GCodeResult::ok;
+															if (!ok)
+															{
+																failedIndex = index;
+															}
+															return ok;
+														}
+													   );
+	if (!ok)
+	{
+		// Delete any remote handles that we set up
+		RemoteInputHandle h;
+		h.Set(RemoteInputHandle::typeStallEndstop, 0, 0);
+		String<1> dummy;
+		for (size_t i = 0; i < failedIndex; ++i)
+		{
+			(void)CanInterface::DeleteHandle(remoteDriversMonitored[i].boardId, h, dummy.GetRef());
+		}
+	}
+	return ok;
+#else
 	return true;
+#endif
 }
 
 #if SUPPORT_CAN_EXPANSION
@@ -197,10 +216,8 @@ EndstopHitDetails StallDetectionEndstop::CheckTriggered() noexcept
 
 #if SUPPORT_CAN_EXPANSION
 	// Account for CAN-connected drivers
-	if (numPendingRemoteStallNotifications != 0)
+	if (newStallReported.exchange(false))
 	{
-		--numPendingRemoteStallNotifications;
-
 		// Find the board/driver that has stalled
 		for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
 		{
@@ -208,6 +225,7 @@ EndstopHitDetails StallDetectionEndstop::CheckTriggered() noexcept
 			const RemoteDriversBitmap stalledRemoteDrives = elem.driversMonitored & elem.driversStalled;
 			if (stalledRemoteDrives.IsNonEmpty())
 			{
+				newStallReported = true;					// there may be more than one stalled drive reported, so make sure we check again
 				return GetResult(elem.boardId, stalledRemoteDrives.LowestSetBit());
 			}
 		}
@@ -273,6 +291,30 @@ EndstopValidationResult StallDetectionEndstop::Validate(const DDA& dda, uint8_t&
 	return EndstopValidationResult::ok;
 #endif
 }
+
+#if SUPPORT_CAN_EXPANSION
+
+// Record any stalled remote drivers that are meant for us
+void StallDetectionEndstop::HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept
+{
+	for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
+	{
+		RemoteDriversMonitored& entry = remoteDriversMonitored[i];
+		if (boardAddress == entry.boardId)
+		{
+			const RemoteDriversBitmap pending = entry.driversMonitored & ~entry.driversStalled;
+			const RemoteDriversBitmap newStalls = pending & driversReportedStalled;
+			if (newStalls.IsNonEmpty())
+			{
+				entry.driversStalled |= newStalls;
+				newStallReported = true;
+			}
+			return;
+		}
+	}
+}
+
+#endif
 
 #endif
 

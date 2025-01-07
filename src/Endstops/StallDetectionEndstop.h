@@ -36,6 +36,10 @@ public:
 
 	void SetDrivers(LocalDriversBitmap extruderDrivers) noexcept;										// for setting which local extruder drives are active extruder endstops
 
+#if SUPPORT_CAN_EXPANSION
+	void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept override;	// record any stalled remote drivers that are meant for us
+#endif
+
 private:
 	EndstopHitDetails GetResult(
 #if SUPPORT_CAN_EXPANSION
@@ -46,7 +50,6 @@ private:
 	LocalDriversBitmap localDriversMonitored;
 #if SUPPORT_CAN_EXPANSION
 	static constexpr size_t MaxRemoteDrivers = max<size_t>(MaxDriversPerAxis, MaxExtrudersPerTool);		// the maximum number of drivers that we may have to monitor
-	typedef Bitmap<uint8_t> RemoteDriversBitmap;														// represents a set of drivers on a particular remote board
 	struct RemoteDriversMonitored																		// struct to represent a remote board and the drivers on it that we are interested in
 	{
 		CanAddress boardId;
@@ -54,12 +57,12 @@ private:
 		RemoteDriversBitmap driversStalled;
 
 		RemoteDriversMonitored(CanAddress p_boardId, RemoteDriversBitmap p_driversMonitored)
-			: boardId(p_boardId), driversMonitored(p_driversMonitored) { }								// driverStalled will be eared by its default constructor
+			: boardId(p_boardId), driversMonitored(p_driversMonitored) { }								// driverStalled will be cleared by its default constructor
 
 		RemoteDriversMonitored() { }
 	};
 	Vector<RemoteDriversMonitored, MaxRemoteDrivers> remoteDriversMonitored;							// list of relevant remote boards and the drivers we monitor on them
-	std::atomic<unsigned int> numPendingRemoteStallNotifications;
+	std::atomic<bool> newStallReported;																	// if this is true then a new remote stall may have been reported since we last reset it
 
 	void AddRemoteDriverToMonitoredList(DriverId did) noexcept;
 #endif

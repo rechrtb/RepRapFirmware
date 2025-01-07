@@ -785,6 +785,7 @@ void EndstopsManager::HandleRemoteEndstopChange(CanAddress src, uint8_t handleMa
 {
 	if (handleMajor < ARRAY_SIZE(axisEndstops))
 	{
+		TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
 		Endstop * const es = axisEndstops[handleMajor];
 		if (es != nullptr)
 		{
@@ -798,6 +799,7 @@ void EndstopsManager::HandleRemoteZProbeChange(CanAddress src, uint8_t handleMaj
 {
 	if (handleMajor < ARRAY_SIZE(zProbes))
 	{
+		TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
 		ZProbe * const zp = zProbes[handleMajor];
 		if (zp != nullptr)
 		{
@@ -810,11 +812,30 @@ void EndstopsManager::HandleRemoteAnalogZProbeValueChange(CanAddress src, uint8_
 {
 	if (handleMajor < ARRAY_SIZE(zProbes))
 	{
+		TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
 		ZProbe * const zp = zProbes[handleMajor];
 		if (zp != nullptr)
 		{
 			zp->UpdateRemoteReading(src, handleMinor, reading);
 		}
+	}
+}
+
+void EndstopsManager::HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept
+{
+	TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+
+	for (Endstop * es : axisEndstops)
+	{
+		if (es != nullptr)
+		{
+			es->HandleStalledRemoteDrivers(boardAddress, driversReportedStalled);
+		}
+	}
+
+	if (extrudersEndstop != nullptr)
+	{
+		extrudersEndstop->HandleStalledRemoteDrivers(boardAddress, driversReportedStalled);
 	}
 }
 
