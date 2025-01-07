@@ -40,7 +40,6 @@ StallDetectionEndstop::StallDetectionEndstop() noexcept
 // Test whether we are at or near the stop
 bool StallDetectionEndstop::Stopped() const noexcept
 {
-	//TODO account for CAN-connected stalled drivers
 #if SUPPORT_CAN_EXPANSION
 	return
 # if HAS_STALL_DETECT

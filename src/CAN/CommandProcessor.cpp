@@ -179,6 +179,11 @@ static void HandleInputStateChanged(const CanMessageInputChangedNew& msg, CanAdd
 			p.HandleRemoteGpInChange(src, handle.u.parts.major, handle.u.parts.minor, state);
 			break;
 
+		case RemoteInputHandle::typeStallEndstop:
+			// In this case there should be exactly one handle and the 'reading' is a bitmap of stalled drivers
+			p.GetEndstops().HandleStalledRemoteDrivers(src, RemoteDriversBitmap((RemoteDriversBitmap::BaseType)msg.results[i].reading));
+			break;
+
 		default:
 			break;
 		}
