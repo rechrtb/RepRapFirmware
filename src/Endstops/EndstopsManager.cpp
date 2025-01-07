@@ -449,8 +449,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply,
 			{
 				switch (inputType.ToBaseType())
 				{
-#if HAS_STALL_DETECT
-				// TODO: Reinstate "|| SUPPORT_CAN_EXPANSION" in above when we enable remote endstops
+#if HAS_STALL_DETECT || SUPPORT_CAN_EXPANSION
 				case EndStopType::motorStallAny:
 					// Asking for stall detection endstop, so we can delete any existing endstop(s) and create new ones
 					ReplaceObject(axisEndstops[axis], new StallDetectionEndstop(axis, pos, false));
