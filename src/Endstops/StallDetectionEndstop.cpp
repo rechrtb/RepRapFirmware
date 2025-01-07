@@ -13,15 +13,30 @@
 #include <Movement/Move.h>
 #include <Movement/Kinematics/Kinematics.h>
 
+#if SUPPORT_CAN_EXPANSION
+# include <CanMessageFormats.h>
+#endif
+
 // Stall detection endstop constructor, used for axis endstops
 StallDetectionEndstop::StallDetectionEndstop(uint8_t p_axis, EndStopPosition pos, bool p_individualMotors) noexcept
-	: Endstop(p_axis, pos), individualMotors(p_individualMotors)
+	: Endstop(p_axis, pos),
+#if SUPPORT_CAN_EXPANSION
+	  numPendingRemoteStallNotifications(0),
+#endif
+	  individualMotors(p_individualMotors)
 {
+#if SUPPORT_CAN_EXPANSION
+	static_assert(RemoteDriversBitmap::MaxBits() >= MaxLinearDriversPerCanSlave);		// this needs to be within a member of StallDetectionEndstrop because RemoteDriversBitmap is private
+#endif
 }
 
 // Constructor used for extruder endstops
 StallDetectionEndstop::StallDetectionEndstop() noexcept
-	: Endstop(NO_AXIS, EndStopPosition::noEndStop), individualMotors(false), stopAll(true)
+	: Endstop(NO_AXIS, EndStopPosition::noEndStop),
+#if SUPPORT_CAN_EXPANSION
+	  numPendingRemoteStallNotifications(0),
+#endif
+	  individualMotors(false), stopAll(true)
 {
 }
 
@@ -29,10 +44,14 @@ StallDetectionEndstop::StallDetectionEndstop() noexcept
 bool StallDetectionEndstop::Stopped() const noexcept
 {
 	//TODO account for CAN-connected stalled drivers
-#if HAS_STALL_DETECT
+#if SUPPORT_CAN_EXPANSION
+	return
+# if HAS_STALL_DETECT
+		GetStalledDrivers(localDriversMonitored).IsNonEmpty() ||
+# endif
+		numPendingRemoteStallNotifications != 0;
+#else		// must have HAS_STALL_DETECT
 	return GetStalledDrivers(localDriversMonitored).IsNonEmpty();
-#else
-	return false;
 #endif
 }
 
@@ -49,7 +68,7 @@ bool StallDetectionEndstop::Prime(const Kinematics &_ecv_from kin, const AxisDri
 	remoteDriversMonitored.Clear();
 #endif
 	numDriversLeft = 0;
-	logicalDrivesToMonitor.Iterate([this](unsigned int drive, unsigned int count)
+	logicalDrivesToMonitor.Iterate([this](unsigned int drive, unsigned int count) noexcept
 									{
 										const AxisDriversConfig& config = reprap.GetMove().GetAxisDriversConfig(drive);
 										for (size_t i = 0; i < config.numDrivers; ++i)
@@ -70,7 +89,24 @@ bool StallDetectionEndstop::Prime(const Kinematics &_ecv_from kin, const AxisDri
 									}
 								  );
 
-	//TODO if there any remote stall endstops, check they are set up to report
+#if !HAS_STALL_DETECT
+	if (localDriversMonitored.IsNonEmpty())
+	{
+		return false;					// a local driver is involved but it doesn't support stall detection
+	}
+#endif
+
+#if SUPPORT_CAN_EXPANSION
+	numPendingRemoteStallNotifications = 0;
+
+	// If there any remote stall endstops, set them up to report
+	remoteDriversMonitored.IterateWhile([](const RemoteDriversMonitored& entry, size_t index) noexcept -> bool
+										{
+											//TODO set up remote handle
+											return true;
+										}
+									   );
+#endif
 
 	return true;
 }
@@ -89,65 +125,95 @@ void StallDetectionEndstop::AddRemoteDriverToMonitoredList(DriverId did) noexcep
 		}
 	}
 
-	(void)remoteDriversMonitored.Add(RemoteDriversMonitored(did.boardAddress, Bitmap<uint8_t>::MakeFromBits(did.localDriver)));		// we don't expect the vector to overflow
+	(void)remoteDriversMonitored.Add(RemoteDriversMonitored(did.boardAddress, RemoteDriversBitmap::MakeFromBits(did.localDriver)));		// we don't expect the vector to overflow
 }
 
 #endif
+
+// Construct and return a result object
+EndstopHitDetails StallDetectionEndstop::GetResult(
+#if SUPPORT_CAN_EXPANSION
+													CanAddress boardAddress,
+#endif
+													unsigned int driverWithinBoard) noexcept
+{
+	EndstopHitDetails rslt;
+	rslt.axis = GetAxis();
+	if (rslt.axis == NO_AXIS)
+	{
+		rslt.SetAction(EndstopHitAction::stopAll);
+	}
+	else if (stopAll)
+	{
+		rslt.SetAction(EndstopHitAction::stopAll);
+		if (GetAtHighEnd())
+		{
+			rslt.setAxisHigh = true;
+		}
+		else
+		{
+			rslt.setAxisLow = true;
+		}
+	}
+	else if (individualMotors && numDriversLeft > 1)
+	{
+		rslt.SetAction(EndstopHitAction::stopDriver);
+#if SUPPORT_CAN_EXPANSION
+		rslt.driver.boardAddress = boardAddress;
+#endif
+		rslt.driver.localDriver = driverWithinBoard;
+	}
+	else
+	{
+		rslt.SetAction(EndstopHitAction::stopAxis);
+		if (GetAtHighEnd())
+		{
+			rslt.setAxisHigh = true;
+		}
+		else
+		{
+			rslt.setAxisLow = true;
+		}
+	}
+	return rslt;
+}
 
 // Check whether the endstop is triggered and return the action that should be performed. Called from the step ISR.
 // Note, the result will not necessarily be acted on because there may be a higher priority endstop!
 EndstopHitDetails StallDetectionEndstop::CheckTriggered() noexcept
 {
-	EndstopHitDetails rslt;				// initialised by default constructor
 #if HAS_STALL_DETECT
+	// Check for local stalled drivers first
 	const LocalDriversBitmap relevantStalledDrivers = GetStalledDrivers(localDriversMonitored);
 	if (relevantStalledDrivers.IsNonEmpty())
 	{
-		rslt.axis = GetAxis();
-		if (rslt.axis == NO_AXIS)
-		{
-			rslt.SetAction(EndstopHitAction::stopAll);
-		}
-		else if (stopAll)
-		{
-			rslt.SetAction(EndstopHitAction::stopAll);
-			if (GetAtHighEnd())
-			{
-				rslt.setAxisHigh = true;
-			}
-			else
-			{
-				rslt.setAxisLow = true;
-			}
-		}
-		else if (individualMotors && numDriversLeft > 1)
-		{
-			rslt.SetAction(EndstopHitAction::stopDriver);
-# if SUPPORT_CAN_EXPANSION
-			rslt.driver.boardAddress = 0;
-# endif
-			rslt.driver.localDriver = relevantStalledDrivers.LowestSetBit();
-		}
-		else
-		{
-			rslt.SetAction(EndstopHitAction::stopAxis);
-			if (GetAtHighEnd())
-			{
-				rslt.setAxisHigh = true;
-			}
-			else
-			{
-				rslt.setAxisLow = true;
-			}
-		}
-		return rslt;
+		return GetResult(
+#if SUPPORT_CAN_EXPANSION
+							CanInterface::GetCanAddress(),
+#endif
+							relevantStalledDrivers.LowestSetBit());
 	}
 #endif
 
 #if SUPPORT_CAN_EXPANSION
-	//TODO account for CAN-connected drivers
+	// Account for CAN-connected drivers
+	if (numPendingRemoteStallNotifications != 0)
+	{
+		--numPendingRemoteStallNotifications;
+
+		// Find the board/driver that has stalled
+		for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
+		{
+			const RemoteDriversMonitored& elem = remoteDriversMonitored[i];
+			const RemoteDriversBitmap stalledRemoteDrives = elem.driversMonitored & elem.driversStalled;
+			if (stalledRemoteDrives.IsNonEmpty())
+			{
+				return GetResult(elem.boardId, stalledRemoteDrives.LowestSetBit());
+			}
+		}
+	}
 #endif
-	return rslt;
+	return EndstopHitDetails();
 }
 
 // This is called by the ISR to acknowledge that it is acting on the return from calling CheckTriggered. Called from the step ISR.
@@ -161,7 +227,24 @@ bool StallDetectionEndstop::Acknowledge(EndstopHitDetails what) noexcept
 		return true;
 
 	case EndstopHitAction::stopDriver:
-		localDriversMonitored.ClearBit(what.driver.localDriver);
+#if SUPPORT_CAN_EXPANSION
+		if (what.driver.boardAddress != CanInterface::GetCanAddress())
+		{
+			for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
+			{
+				RemoteDriversMonitored& elem = remoteDriversMonitored[i];
+				if (elem.boardId == what.driver.boardAddress)
+				{
+					elem.driversMonitored.ClearBit(what.driver.localDriver);
+					break;
+				}
+			}
+		}
+		else
+#endif
+		{
+			localDriversMonitored.ClearBit(what.driver.localDriver);
+		}
 		--numDriversLeft;
 		return false;
 

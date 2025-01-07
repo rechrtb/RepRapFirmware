@@ -37,20 +37,29 @@ public:
 	void SetDrivers(LocalDriversBitmap extruderDrivers) noexcept;										// for setting which local extruder drives are active extruder endstops
 
 private:
+	EndstopHitDetails GetResult(
+#if SUPPORT_CAN_EXPANSION
+								CanAddress boardAddress,
+#endif
+								unsigned int driverWithinBoard) noexcept;
+
 	LocalDriversBitmap localDriversMonitored;
 #if SUPPORT_CAN_EXPANSION
 	static constexpr size_t MaxRemoteDrivers = max<size_t>(MaxDriversPerAxis, MaxExtrudersPerTool);		// the maximum number of drivers that we may have to monitor
+	typedef Bitmap<uint8_t> RemoteDriversBitmap;														// represents a set of drivers on a particular remote board
 	struct RemoteDriversMonitored																		// struct to represent a remote board and the drivers on it that we are interested in
 	{
 		CanAddress boardId;
-		Bitmap<uint8_t> driversMonitored;
+		RemoteDriversBitmap driversMonitored;
+		RemoteDriversBitmap driversStalled;
 
-		RemoteDriversMonitored(CanAddress p_boardId, Bitmap<uint8_t> p_driversMonitored)
-			: boardId(p_boardId), driversMonitored(p_driversMonitored) { }
+		RemoteDriversMonitored(CanAddress p_boardId, RemoteDriversBitmap p_driversMonitored)
+			: boardId(p_boardId), driversMonitored(p_driversMonitored) { }								// driverStalled will be eared by its default constructor
 
 		RemoteDriversMonitored() { }
 	};
 	Vector<RemoteDriversMonitored, MaxRemoteDrivers> remoteDriversMonitored;							// list of relevant remote boards and the drivers we monitor on them
+	std::atomic<unsigned int> numPendingRemoteStallNotifications;
 
 	void AddRemoteDriverToMonitoredList(DriverId did) noexcept;
 #endif

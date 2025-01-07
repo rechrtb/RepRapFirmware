@@ -98,7 +98,7 @@ public:
 	virtual EndStopType GetEndstopType() const noexcept = 0;
 	virtual bool IsZProbe() const noexcept { return false; }
 	virtual int GetZProbeNumber() const noexcept { return -1; }
-	virtual bool Prime(const Kinematics &_ecv_from kin, const AxisDriversConfig& axisDrivers) noexcept = 0;
+	virtual bool Prime(const Kinematics &_ecv_from kin, const AxisDriversConfig& axisDrivers) noexcept = 0;		// Prime an endstop to report when triggered returning true if successful
 	virtual void AppendDetails(const StringRef& str) noexcept = 0;
 	virtual bool ShouldReduceAcceleration() const noexcept { return false; }
 
