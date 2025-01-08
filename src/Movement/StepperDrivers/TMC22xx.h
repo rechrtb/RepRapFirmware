@@ -68,6 +68,10 @@ namespace SmartDrivers
 	EndstopValidationResult CheckStallDetectionEnabled(size_t driver, float speed) noexcept;
 	LocalDriversBitmap GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept;
 #endif
+#if SUPPORT_REMOTE_COMMANDS
+	GCodeResult SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept;
+	GCodeResult CancelStallEndstopReporting() noexcept;
+#endif
 #if SUPPORT_TMC2240 && !(SUPPORT_TMC2208 || SUPPORT_TMC2209)
 	float GetDriverTemperature(size_t driver) noexcept;
 #endif

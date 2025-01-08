@@ -546,13 +546,33 @@ void CommandProcessor::ProcessReceivedMessage(CanMessageBuffer *buf) noexcept
 				break;
 
 			case CanMessageType::createInputMonitorNew:
-				requestId = buf->msg.createInputMonitorNew.requestId;
-				rslt = InputMonitor::Create(buf->msg.createInputMonitorNew, buf->dataLength, replyRef, extra);
+				{
+					const CanMessageCreateInputMonitorNew& msg = buf->msg.createInputMonitorNew;
+					requestId = msg.requestId;
+					if (msg.handle.u.parts.type == RemoteInputHandle::typeStallEndstop)
+					{
+						rslt = reprap.GetMove().SetStallEndstopReporting(msg, replyRef);
+					}
+					else
+					{
+						rslt = InputMonitor::Create(msg, buf->dataLength, replyRef, extra);
+					}
+				}
 				break;
 
 			case CanMessageType::changeInputMonitorNew:
-				requestId = buf->msg.changeInputMonitorNew.requestId;
-				rslt = InputMonitor::Change(buf->msg.changeInputMonitorNew, replyRef, extra);
+				{
+					const CanMessageChangeInputMonitorNew& msg = buf->msg.changeInputMonitorNew;
+					requestId = msg.requestId;
+					if (msg.handle.u.parts.type == RemoteInputHandle::typeStallEndstop)
+					{
+						rslt = reprap.GetMove().ChangeStallEndstopReporting(msg);
+					}
+					else
+					{
+						rslt = InputMonitor::Change(msg, replyRef, extra);
+					}
+				}
 				break;
 
 			case CanMessageType::readInputsRequest:

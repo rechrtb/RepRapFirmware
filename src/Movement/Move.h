@@ -352,6 +352,10 @@ public:
 		return axisShaper.EutSetInputShaping(msg, dataLength, reply);
 	}
 
+	// Stall endstops
+	GCodeResult SetStallEndstopReporting(const CanMessageCreateInputMonitorNew& msg, const StringRef& reply) noexcept;
+	GCodeResult ChangeStallEndstopReporting(const CanMessageChangeInputMonitorNew& msg) noexcept;
+
 	void AppendDiagnostics(const StringRef& reply) noexcept;
 #endif
 

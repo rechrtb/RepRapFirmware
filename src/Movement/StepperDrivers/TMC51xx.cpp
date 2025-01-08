@@ -2090,6 +2090,22 @@ EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, 
 	return (driver < numTmc51xxDrivers) ? driverStates[driver].CheckStallDetectionEnabled(speed) : EndstopValidationResult::stallDetectionNotSupported;
 }
 
+#if SUPPORT_REMOTE_COMMANDS
+
+GCodeResult SmartDrivers::SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept
+{
+	//TODO
+	return GCodeResult::error;
+}
+
+GCodeResult SmartDrivers::CancelStallEndstopReporting() noexcept
+{
+	//TODO
+	return GCodeResult::ok;
+}
+
+#endif
+
 #endif
 
 // End

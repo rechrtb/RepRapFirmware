@@ -2587,7 +2587,7 @@ static void InitStallDetectionLogic() noexcept
 	CCL->CTRL.reg = CCL_CTRL_ENABLE;							// enable the CCL
 }
 
-# endif
+# endif		//Duet 3 Mini
 
 LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
 {
@@ -2606,6 +2606,22 @@ LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfI
 EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed) noexcept
 {
 	return (driver < GetNumTmcDrivers()) ? driverStates[driver].CheckStallDetectionEnabled(speed) : EndstopValidationResult::stallDetectionNotSupported;
+}
+
+#endif
+
+#if SUPPORT_REMOTE_COMMANDS
+
+GCodeResult SmartDrivers::SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept
+{
+	//TODO
+	return GCodeResult::error;
+}
+
+GCodeResult SmartDrivers::CancelStallEndstopReporting() noexcept
+{
+	//TODO
+	return GCodeResult::ok;
 }
 
 #endif
