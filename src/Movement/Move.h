@@ -353,8 +353,7 @@ public:
 	}
 
 	// Stall endstops
-	GCodeResult SetStallEndstopReporting(const CanMessageCreateInputMonitorNew& msg, const StringRef& reply) noexcept;
-	GCodeResult ChangeStallEndstopReporting(const CanMessageChangeInputMonitorNew& msg) noexcept;
+	GCodeResult SetStallEndstopReporting(const CanMessageEnableStallEndstop& msg, const StringRef& reply) noexcept;
 
 	void AppendDiagnostics(const StringRef& reply) noexcept;
 #endif

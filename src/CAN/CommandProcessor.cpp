@@ -546,33 +546,18 @@ void CommandProcessor::ProcessReceivedMessage(CanMessageBuffer *buf) noexcept
 				break;
 
 			case CanMessageType::createInputMonitorNew:
-				{
-					const CanMessageCreateInputMonitorNew& msg = buf->msg.createInputMonitorNew;
-					requestId = msg.requestId;
-					if (msg.handle.u.parts.type == RemoteInputHandle::typeStallEndstop)
-					{
-						rslt = reprap.GetMove().SetStallEndstopReporting(msg, replyRef);
-					}
-					else
-					{
-						rslt = InputMonitor::Create(msg, buf->dataLength, replyRef, extra);
-					}
-				}
+				requestId = buf->msg.createInputMonitorNew.requestId;
+				rslt = InputMonitor::Create(buf->msg.createInputMonitorNew, buf->dataLength, replyRef, extra);
 				break;
 
 			case CanMessageType::changeInputMonitorNew:
-				{
-					const CanMessageChangeInputMonitorNew& msg = buf->msg.changeInputMonitorNew;
-					requestId = msg.requestId;
-					if (msg.handle.u.parts.type == RemoteInputHandle::typeStallEndstop)
-					{
-						rslt = reprap.GetMove().ChangeStallEndstopReporting(msg);
-					}
-					else
-					{
-						rslt = InputMonitor::Change(msg, replyRef, extra);
-					}
-				}
+				requestId = buf->msg.changeInputMonitorNew.requestId;
+				rslt = InputMonitor::Change(buf->msg.changeInputMonitorNew, replyRef, extra);
+				break;
+
+			case CanMessageType::enableStallEndstop:
+				requestId = buf->msg.enableStallEndstop.requestId;
+				rslt = reprap.GetMove().SetStallEndstopReporting(buf->msg.enableStallEndstop, replyRef);
 				break;
 
 			case CanMessageType::readInputsRequest:

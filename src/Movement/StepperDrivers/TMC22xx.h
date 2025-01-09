@@ -69,8 +69,7 @@ namespace SmartDrivers
 	LocalDriversBitmap GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept;
 #endif
 #if SUPPORT_REMOTE_COMMANDS
-	GCodeResult SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept;
-	GCodeResult CancelStallEndstopReporting() noexcept;
+	GCodeResult SetStallEndstopReporting(uint16_t driverNumber, float speed, const StringRef& reply) noexcept;
 #endif
 #if SUPPORT_TMC2240 && !(SUPPORT_TMC2208 || SUPPORT_TMC2209)
 	float GetDriverTemperature(size_t driver) noexcept;

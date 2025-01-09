@@ -1180,6 +1180,41 @@ GCodeResult CanInterface::GetSetRemoteDriverStallParameters(const CanDriversList
 	return GCodeResult::ok;
 }
 
+// Enable a stall endstop on a emote board
+void CanInterface::EnableRemoteStallEndstop(DriverId did, float speed) THROWS(GCodeException)
+{
+	CanMessageBuffer * const buf = CanMessageBuffer::Allocate();
+	if (buf == nullptr)
+	{
+		return ThrowGCodeException("no CAN buffer available");
+	}
+	const CanRequestId rid = CanInterface::AllocateRequestId(did.boardAddress, buf);
+	auto msg = buf->SetupRequestMessage<CanMessageEnableStallEndstop>(rid, CanInterface::GetCanAddress(), did.boardAddress);
+	msg->driverNumber = did.localDriver;
+	msg->speed = speed;
+	String<StringLength50> reply;
+	if (CanInterface::SendRequestAndGetStandardReply(buf, rid, reply.GetRef(), nullptr) != GCodeResult::ok)
+	{
+		ThrowGCodeException(reply.c_str());
+	}
+}
+
+// Disable all stall endstops on a remote board
+void CanInterface::DisableRemoteStallEndstops(CanAddress boardId) noexcept
+{
+	CanMessageBuffer * const buf = CanMessageBuffer::Allocate();
+	if (buf == nullptr)
+	{
+		return;								// there's very little we can do here in terms of error handling
+	}
+	const CanRequestId rid = CanInterface::AllocateRequestId(boardId, buf);
+	auto msg = buf->SetupRequestMessage<CanMessageEnableStallEndstop>(rid, CanInterface::GetCanAddress(), boardId);
+	msg->driverNumber = CanMessageEnableStallEndstop::disableAll;
+	msg->speed = 0.0;
+	String<1> reply;
+	(void)CanInterface::SendRequestAndGetStandardReply(buf, rid, reply.GetRef(), nullptr);
+}
+
 static GCodeResult GetRemoteInfo(uint8_t infoType, uint32_t boardAddress, uint8_t param, GCodeBuffer& gb, const StringRef& reply, uint8_t *extra = nullptr) THROWS(GCodeException)
 {
 	CanInterface::CheckCanAddress(boardAddress, gb);

@@ -58,8 +58,7 @@ namespace SmartDrivers
 	StandardDriverStatus GetStatus(size_t driver, bool accumulated, bool clearAccumulated) noexcept;
 	EndstopValidationResult CheckStallDetectionEnabled(size_t driver, float speed) noexcept;
 #if SUPPORT_REMOTE_COMMANDS
-	GCodeResult SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept;
-	GCodeResult CancelStallEndstopReporting() noexcept;
+	GCodeResult SetStallEndstopReporting(uint16_t driverNumber, float speed, const StringRef& reply) noexcept;
 #endif
 }
 

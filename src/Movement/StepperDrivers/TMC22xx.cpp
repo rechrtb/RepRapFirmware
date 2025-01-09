@@ -2612,16 +2612,11 @@ EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, 
 
 #if SUPPORT_REMOTE_COMMANDS
 
-GCodeResult SmartDrivers::SetStallEndstopReporting(RemoteDriversBitmap driversToReport) noexcept
+GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float speed, const StringRef& reply) noexcept
 {
 	//TODO
+	reply.copy("not implemented yet");
 	return GCodeResult::error;
-}
-
-GCodeResult SmartDrivers::CancelStallEndstopReporting() noexcept
-{
-	//TODO
-	return GCodeResult::ok;
 }
 
 #endif

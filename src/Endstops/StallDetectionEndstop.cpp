@@ -62,6 +62,7 @@ void StallDetectionEndstop::PrimeAxis(const Kinematics &_ecv_from kin, const Axi
 	localDriversMonitored.Clear();
 #if SUPPORT_CAN_EXPANSION
 	remoteDriversMonitored.Clear();
+	newStallReported = false;
 #endif
 	numDriversLeft = 0;
 	logicalDrivesToMonitor.IterateWithExceptions([this, speed](unsigned int drive, unsigned int count) noexcept
@@ -73,7 +74,6 @@ void StallDetectionEndstop::PrimeAxis(const Kinematics &_ecv_from kin, const Axi
 														}
 													}
 												);
-	FinishPriming();
 }
 
 void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const float speeds[MaxAxesPlusExtruders]) THROWS(GCodeException)
@@ -81,6 +81,7 @@ void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const floa
 	localDriversMonitored.Clear();
 #if SUPPORT_CAN_EXPANSION
 	remoteDriversMonitored.Clear();
+	newStallReported = false;
 #endif
 	numDriversLeft = 0;
 	extruders.IterateWithExceptions([this, speeds](unsigned int extruder, unsigned int count)
@@ -88,47 +89,6 @@ void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const floa
 										AddDriverToMonitoredList(reprap.GetMove().GetExtruderDriver(extruder), speeds[extruder]);
 									}
 								   );
-	FinishPriming();
-}
-
-void StallDetectionEndstop::FinishPriming() THROWS(GCodeException)
-{
-#if SUPPORT_CAN_EXPANSION
-	newStallReported = false;
-
-	// If there any remote stall endstops, set them up to report
-	size_t failedIndex;
-	String<StringLength100> reply;
-	const bool ok = remoteDriversMonitored.IterateWhile([&failedIndex, &reply](const RemoteDriversMonitored& entry, size_t index) noexcept -> bool
-														{
-															RemoteInputHandle h;
-															h.Set(RemoteInputHandle::typeStallEndstop, 0, 0);
-															bool dummyB;
-															const bool ok = CanInterface::CreateHandle(entry.boardId, h, "", entry.driversMonitored.GetRaw(), 0, dummyB, reply.GetRef()) == GCodeResult::ok;
-															if (!ok)
-															{
-																failedIndex = index;
-															}
-															return ok;
-														}
-													   );
-	if (!ok)
-	{
-		localDriversMonitored.Clear();
-
-		// Delete any remote handles that we set up
-		RemoteInputHandle h;
-		h.Set(RemoteInputHandle::typeStallEndstop, 0, 0);
-		String<1> dummy;
-		for (size_t i = 0; i < failedIndex; ++i)
-		{
-			(void)CanInterface::DeleteHandle(remoteDriversMonitored[i].boardId, h, dummy.GetRef());
-		}
-
-		remoteDriversMonitored.Clear();
-		ThrowGCodeException(reply.c_str());
-	}
-#endif
 }
 
 // Add a remote driver to the list of remote drivers monitored. We maintain a bitmap of local drivers monitored on each relevant CAN-connected board.
@@ -137,6 +97,15 @@ void StallDetectionEndstop::AddDriverToMonitoredList(DriverId did, float speed) 
 #if SUPPORT_CAN_EXPANSION
 	if (did.IsRemote())
 	{
+		try
+		{
+			CanInterface::EnableRemoteStallEndstop(did, speed);							// may throw
+		}
+		catch (GCodeException&)
+		{
+			DeleteRemoteStallEndstops();
+			throw;
+		}
 		for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
 		{
 			if (remoteDriversMonitored[i].boardId == did.boardAddress)
@@ -146,7 +115,7 @@ void StallDetectionEndstop::AddDriverToMonitoredList(DriverId did, float speed) 
 			}
 		}
 
-		(void)remoteDriversMonitored.Add(RemoteDriversMonitored(did.boardAddress, RemoteDriversBitmap::MakeFromBits(did.localDriver), speed));		// we don't expect the vector to overflow
+		(void)remoteDriversMonitored.Add(RemoteDriversMonitored(did.boardAddress, RemoteDriversBitmap::MakeFromBits(did.localDriver)));		// we don't expect the vector to overflow
 	}
 	else
 #endif
@@ -296,24 +265,36 @@ void StallDetectionEndstop::SetDrivers(LocalDriversBitmap extruderDrivers) noexc
 
 #if SUPPORT_CAN_EXPANSION
 
+// Delete all remote endstops that have already been set up
+void StallDetectionEndstop::DeleteRemoteStallEndstops() noexcept
+{
+	remoteDriversMonitored.Iterate([](const RemoteDriversMonitored& entry, size_t count) noexcept
+									{
+										CanInterface::DisableRemoteStallEndstops(entry.boardId);
+									}
+								  );
+	remoteDriversMonitored.Clear();
+}
+
 // Record any notifications of stalled remote drivers that we are interested in
 void StallDetectionEndstop::HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept
 {
-	for (size_t i = 0; i < remoteDriversMonitored.Size(); ++i)
-	{
-		RemoteDriversMonitored& entry = remoteDriversMonitored[i];
-		if (boardAddress == entry.boardId)
-		{
-			const RemoteDriversBitmap pending = entry.driversMonitored & ~entry.driversStalled;
-			const RemoteDriversBitmap newStalls = pending & driversReportedStalled;
-			if (newStalls.IsNonEmpty())
-			{
-				entry.driversStalled |= newStalls;
-				newStallReported = true;
-			}
-			return;
-		}
-	}
+	remoteDriversMonitored.IterateWhile([this, boardAddress, driversReportedStalled](RemoteDriversMonitored& entry, size_t count) noexcept -> bool
+										{
+											if (boardAddress == entry.boardId)
+											{
+												const RemoteDriversBitmap pending = entry.driversMonitored & ~entry.driversStalled;
+												const RemoteDriversBitmap newStalls = pending & driversReportedStalled;
+												if (newStalls.IsNonEmpty())
+												{
+													entry.driversStalled |= newStalls;
+													newStallReported = true;
+												}
+												return false;
+											}
+											return true;
+										}
+									   );
 }
 
 #endif

@@ -1448,27 +1448,14 @@ void Move::StopDriversFromRemote(uint16_t whichDrives) noexcept
 }
 
 // Stall endstops
-GCodeResult Move::SetStallEndstopReporting(const CanMessageCreateInputMonitorNew& msg, const StringRef& reply) noexcept
+GCodeResult Move::SetStallEndstopReporting(const CanMessageEnableStallEndstop& msg, const StringRef& reply) noexcept
 {
 #if HAS_SMART_DRIVERS
-	return SmartDrivers::SetStallEndstopReporting(RemoteDriversBitmap((RemoteDriversBitmap::BaseType)msg.threshold));
+	return SmartDrivers::SetStallEndstopReporting(msg.driverNumber, msg.speed, reply);
 #else
-	reply.copy("stall detection not supported on this board");
+	reply.printf("stall detection not supported on board %u", CanInterface::GetCanAddress());
 	return GCodeResult::error;
 #endif
-}
-
-GCodeResult Move::ChangeStallEndstopReporting(const CanMessageChangeInputMonitorNew& msg) noexcept
-{
-	if (msg.action == CanMessageChangeInputMonitorNew::actionDelete)
-	{
-#if HAS_SMART_DRIVERS
-		return SmartDrivers::CancelStallEndstopReporting();
-#else
-		return GCodeResult::ok;
-#endif
-	}
-	return GCodeResult::error;
 }
 
 #endif	// SUPPORT_REMOTE_COMMANDS
