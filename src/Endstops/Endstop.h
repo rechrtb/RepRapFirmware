@@ -106,6 +106,7 @@ public:
 #if SUPPORT_CAN_EXPANSION
 	// Process a remote endstop input change that relates to this endstop
 	virtual void HandleRemoteInputChange(CanAddress src, uint8_t handleMinor, bool state) noexcept { }
+	virtual void DeleteRemoteStallEndstops() noexcept { }		// overridden in class StallEndtop
 #endif
 
 	bool GetAtHighEnd() const noexcept { return atHighEnd; }

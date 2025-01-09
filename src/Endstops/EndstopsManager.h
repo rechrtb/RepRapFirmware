@@ -74,6 +74,7 @@ public:
 	void HandleRemoteZProbeChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state, uint32_t reading) noexcept;
 	void HandleRemoteAnalogZProbeValueChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, uint32_t reading) noexcept;
 	void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept;
+	void DisableRemoteStallEndstops() noexcept;
 #endif
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE

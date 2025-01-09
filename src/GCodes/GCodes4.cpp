@@ -49,7 +49,6 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 	switch (state)
 	{
 	case GCodeState::waitingForSpecialMoveToComplete:
-	case GCodeState::abortWhenMovementFinished:
 		if (   LockCurrentMovementSystemAndWaitForStandstill(gb)		// movement should already be locked, but we need to wait for standstill and fetch the current position
 #if SUPPORT_CAN_EXPANSION
 			&& CanMotion::RevertStoppedDrivers()
@@ -132,16 +131,24 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 							);
 			}
 
+#if SUPPORT_CAN_EXPANSION
+			platform.GetEndstops().DisableRemoteStallEndstops();
+#endif
+
 			if (gb.LatestMachineState().compatibility == Compatibility::NanoDLP && !DoingFileMacro())
 			{
 				reply.copy("Z_move_comp");
 			}
 
 			gb.SetState(GCodeState::normal);
-			if (state == GCodeState::abortWhenMovementFinished)
-			{
-				AbortPrint(gb);
-			}
+		}
+		break;
+
+	case GCodeState::abortWhenMovementFinished:
+		if (LockCurrentMovementSystemAndWaitForStandstill(gb))		// movement should already be locked, but we need to wait for standstill and fetch the current position
+		{
+			gb.SetState(GCodeState::normal);
+			AbortPrint(gb);
 		}
 		break;
 

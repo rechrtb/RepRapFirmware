@@ -38,6 +38,7 @@ public:
 
 #if SUPPORT_CAN_EXPANSION
 	void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept override;	// record any stalled remote drivers that are meant for us
+	void DeleteRemoteStallEndstops() noexcept override;
 #endif
 
 private:
@@ -64,8 +65,6 @@ private:
 	};
 	Vector<RemoteDriversMonitored, MaxRemoteDrivers> remoteDriversMonitored;							// list of relevant remote boards and the drivers we monitor on them
 	std::atomic<bool> newStallReported;																	// if this is true then a new remote stall may have been reported since we last reset it
-
-	void DeleteRemoteStallEndstops() noexcept;
 #endif
 	unsigned int numDriversLeft;
 	bool individualMotors;

@@ -808,6 +808,24 @@ void EndstopsManager::HandleStalledRemoteDrivers(CanAddress boardAddress, Remote
 	}
 }
 
+void EndstopsManager::DisableRemoteStallEndstops() noexcept
+{
+	TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+
+	for (Endstop * es : axisEndstops)
+	{
+		if (es != nullptr)
+		{
+			es->DeleteRemoteStallEndstops();
+		}
+	}
+
+	if (extrudersEndstop != nullptr)
+	{
+		extrudersEndstop->DeleteRemoteStallEndstops();
+	}
+}
+
 #endif
 
 // End
