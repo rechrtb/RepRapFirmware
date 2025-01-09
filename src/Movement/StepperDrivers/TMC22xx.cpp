@@ -2537,7 +2537,7 @@ void EnableStallInterrupt(LocalDriversBitmap drivers) noexcept
 		// Calculate the new LUT control values
 		constexpr uint32_t lutDefault = CCL_LUTCTRL_TRUTH(0xFE) | CCL_LUTCTRL_LUTEO;		// OR function, disabled, event output enabled
 		uint32_t lutInputControls[4] = { lutDefault, lutDefault, lutDefault, lutDefault };
-		drivers.IterateWhile([&lutInputControls](unsigned int driver, unsigned int count) -> bool
+		drivers.IterateWhile([&lutInputControls](unsigned int driver, unsigned int count) noexcept -> bool
 			{ 	if (driver < GetNumTmcDrivers())
 				{
 					const uint32_t cclInput = CclDiagInputs[driver];
@@ -2592,7 +2592,7 @@ static void InitStallDetectionLogic() noexcept
 LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
 {
 	LocalDriversBitmap rslt;
-	driversOfInterest.Iterate([&rslt](unsigned int driverNumber, unsigned int count)
+	driversOfInterest.Iterate([&rslt](unsigned int driverNumber, unsigned int count) noexcept
 								{
 									if (driverNumber < ARRAY_SIZE(DriverDiagPins) && digitalRead(DriverDiagPins[driverNumber]))
 									{
