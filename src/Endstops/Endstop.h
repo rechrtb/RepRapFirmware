@@ -32,7 +32,6 @@ public:
 	virtual bool Stopped() const noexcept = 0;
 	virtual EndstopHitDetails CheckTriggered() noexcept = 0;
 	virtual bool Acknowledge(EndstopHitDetails what) noexcept = 0;
-	virtual EndstopValidationResult Validate(const DDA& dda, uint8_t& failingDriver) const noexcept { return EndstopValidationResult::ok; }		// overridden for stall endstops
 #if SUPPORT_CAN_EXPANSION
 	virtual void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept { }		// overridden for stall endstops
 #endif
@@ -100,7 +99,7 @@ public:
 	virtual EndStopType GetEndstopType() const noexcept = 0;
 	virtual bool IsZProbe() const noexcept { return false; }
 	virtual int GetZProbeNumber() const noexcept { return -1; }
-	virtual bool Prime(const Kinematics &_ecv_from kin, const AxisDriversConfig& axisDrivers) noexcept = 0;		// Prime an endstop to report when triggered returning true if successful
+	virtual void PrimeAxis(const Kinematics &_ecv_from kin, const AxisDriversConfig& axisDrivers, float speed) THROWS(GCodeException) = 0;		// Prime an endstop to report when triggered returning true if successful
 	virtual void AppendDetails(const StringRef& str) noexcept = 0;
 	virtual bool ShouldReduceAcceleration() const noexcept { return false; }
 

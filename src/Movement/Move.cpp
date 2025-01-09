@@ -838,7 +838,7 @@ bool Move::WaitingForAllMovesFinished(MovementSystemNumber msNumber
 
 	// If input shaping is enabled then movement may continue for a little while longer
 #if SUPPORT_ASYNC_MOVES
-	return logicalDrivesOwned.IterateWhile([this](unsigned int axisOrExtruder, unsigned int)->bool
+	return logicalDrivesOwned.IterateWhile([this](unsigned int axisOrExtruder, unsigned int) noexcept -> bool
 												{
 													return !dms[axisOrExtruder].MotionPending();
 												}
@@ -1163,7 +1163,7 @@ void Move::SetMotorPosition(size_t drive, int32_t pos) noexcept
 
 void Move::SetMotorPositions(LogicalDrivesBitmap drives, const int32_t *positions) noexcept
 {
-	drives.Iterate([this, positions](unsigned int drive, unsigned int count) { SetMotorPosition(drive, positions[drive]); });
+	drives.Iterate([this, positions](unsigned int drive, unsigned int count) noexcept { SetMotorPosition(drive, positions[drive]); });
 }
 
 void Move::SetLastEndpoints(MovementSystemNumber msNumber, LogicalDrivesBitmap logicalDrives, const int32_t *_ecv_array ep) noexcept
@@ -1286,7 +1286,7 @@ GCodeResult Move::EutSetRemotePressureAdvance(const CanMessageMultipleDrivesRequ
 	}
 
 	GCodeResult rslt = GCodeResult::ok;
-	drivers.Iterate([this, &msg, &reply, &rslt](unsigned int driver, unsigned int count) -> void
+	drivers.Iterate([this, &msg, &reply, &rslt](unsigned int driver, unsigned int count) noexcept
 						{
 							if (driver >= NumDirectDrivers)
 							{
@@ -1973,7 +1973,7 @@ void Move::AddLinearSegments(const DDA& dda, size_t logicalDrive, uint32_t start
 // Return true if none of the drives passed has any movement pending
 bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 {
-	return drives.IterateWhile([this](unsigned int drive, unsigned int index)->bool
+	return drives.IterateWhile([this](unsigned int drive, unsigned int index) noexcept -> bool
 								{
 									return dms[drive].segments == nullptr;
 								}
@@ -1982,20 +1982,27 @@ bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 
 #if HAS_STALL_DETECT
 
-EndstopValidationResult Move::CheckStallDetectionEnabled(uint8_t axisOrExtruder, float speed, uint8_t& failingDriver) noexcept
+void Move::CheckStallDetectionViable(uint8_t localDriver, float speed) const THROWS(GCodeException)
 {
-	EndstopValidationResult rslt = EndstopValidationResult::ok;
-	IterateLocalDrivers(axisOrExtruder,
-							[speed, &rslt, &failingDriver](uint8_t driver)
-							{
-								if (rslt == EndstopValidationResult::ok)
-								{
-									rslt = SmartDrivers::CheckStallDetectionEnabled(driver, speed);
-									failingDriver = driver;
-								}
-							}
-						);
-	return rslt;
+	const EndstopValidationResult rslt = SmartDrivers::CheckStallDetectionEnabled(localDriver, fabsf(speed));
+	if (rslt != EndstopValidationResult::ok)
+	{
+		const char *_ecv_array errMsg;
+		switch (rslt)
+		{
+		case EndstopValidationResult::stallDetectionNotSupported:	errMsg = "homing move abandoned: driver %u does not support stall detection"; break;
+		case EndstopValidationResult::moveTooSlow:					errMsg = "homing move abandoned: driver %u moving too slowly for stall detection"; break;
+#if SUPPORT_TMC22xx
+		case EndstopValidationResult::driverNotInStealthChopMode:	errMsg = "homing move abandoned: driver %u not in stealthChop mode"; break;
+#endif
+#if SUPPORT_TMC51xx
+		case EndstopValidationResult::driverNotInSpreadCycleMode:	errMsg = "homing move abandoned: driver %u not in spreadCycle mode"; break;
+#endif
+		//case EndstopValidationResult::stallDetectionNotEnabled:	errMsg = "homing move abandoned: driver %u does not have stall detection enabled"; break;		// this one is currently unused
+		default:													errMsg = "homing move abandoned: driver %u stall detection issue"; break;
+		}
+		ThrowGCodeException(errMsg, localDriver);
+	}
 }
 
 #endif

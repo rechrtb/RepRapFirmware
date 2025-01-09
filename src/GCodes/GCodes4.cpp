@@ -56,28 +56,6 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 #endif
 		   )
 		{
-			// Check for move aborted due to incorrectly configured stall detection endstops
-			uint8_t driver;
-			const EndstopValidationResult res = platform.GetEndstops().GetEndstopValidationResult(driver);
-			if (res != EndstopValidationResult::ok)
-			{
-				const char *_ecv_array errMsg;
-				switch (res)
-				{
-				//case EndstopValidationResult::stallDetectionNotEnabled:	errMsg = "driver does not have stall detection enabled"; break;		// this one is currently unused
-				case EndstopValidationResult::stallDetectionNotSupported:	errMsg = "Homing move abandoned because driver %d does not support stall detection"; break;
-				case EndstopValidationResult::moveTooSlow:					errMsg = "Homing move abandoned because driver %d is moving too slowly for stall detection"; break;
-				case EndstopValidationResult::driverNotInStealthChopMode:	errMsg = "Homing move abandoned because driver %d is not in stealthChop mode"; break;
-				case EndstopValidationResult::driverNotInSpreadCycleMode:	errMsg = "Homing move abandoned because driver %d is not in spreadCycle mode"; break;
-				case EndstopValidationResult::ok:
-				default:													errMsg = "Homing move abandoned, driver %d stall detection issue"; break;
-				}
-				gb.LatestMachineState().SetError(errMsg, (int)driver);
-				gb.AbortFile(true);
-				gb.SetState(GCodeState::normal);
-				break;
-			}
-
 			// Check whether we need to action any endstops
 			if (ms.axesToHome.IsNonEmpty())						// check whether we made any G1 H1 moves and need to set axis positions
 			{
@@ -86,7 +64,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				{
 					// Now change the machine coordinates corresponding to endpoints that triggered
 					(ms.axesToHome & ms.endstopsTriggered)
-						.Iterate([this, &move, &ms](unsigned int axis, unsigned int)
+						.Iterate([this, &move, &ms](unsigned int axis, unsigned int) noexcept
 									{
 										const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
 										if (stopType == EndStopPosition::highEndStop)
@@ -115,7 +93,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				{
 					// Adjust the endpoints to take account of the endstops that triggered
 					(ms.axesToHome & ms.endstopsTriggered)
-						.Iterate([this, &move, &ms](unsigned int drive, unsigned int)
+						.Iterate([this, &move, &ms](unsigned int drive, unsigned int) noexcept
 									{
 										const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(drive);
 										if (stopType == EndStopPosition::highEndStop)
@@ -139,7 +117,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			else if (ms.axesToSenseLength.IsNonEmpty())			// check whether we made any G1 H3 moves and need to set the axis limits
 			{
 				(ms.axesToSenseLength & ms.endstopsTriggered)
-					.Iterate([this, &ms](unsigned int axis, unsigned int)
+					.Iterate([this, &ms](unsigned int axis, unsigned int) noexcept
 								{
 									const EndStopPosition stopType = platform.GetEndstops().GetEndStopPosition(axis);
 									if (stopType == EndStopPosition::highEndStop)
@@ -1771,17 +1749,17 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 
 				// See if we can apply the requested Z hop without exceeding machine limits
 				float zHopToUse = t->GetConfiguredRetractHop();
-				zAxes.Iterate([&ms, &zHopToUse](unsigned int axis, unsigned int)->void { ms.coords[axis] += zHopToUse; });
+				zAxes.Iterate([&ms, &zHopToUse](unsigned int axis, unsigned int) noexcept { ms.coords[axis] += zHopToUse; });
 				if (reprap.GetMove().GetKinematics().LimitPosition(ms.coords, nullptr, numVisibleAxes, AxesBitmap::MakeFromBits(Z_AXIS), true, true) != LimitPositionResult::ok)
 				{
 					// We can't apply Z hop to all the Z axes without exceeding machine limits
-					zAxes.Iterate([&ms, &zHopToUse](unsigned int axis, unsigned int)->void { zHopToUse = min<float>(zHopToUse, ms.coords[axis] - ms.initialCoords[axis]); });
+					zAxes.Iterate([&ms, &zHopToUse](unsigned int axis, unsigned int) noexcept { zHopToUse = min<float>(zHopToUse, ms.coords[axis] - ms.initialCoords[axis]); });
 					if (zHopToUse <= 0.0)
 					{
 						gb.SetState(GCodeState::normal);
 						break;
 					}
-					zAxes.Iterate([&ms, zHopToUse](unsigned int axis, unsigned int)->void { ms.coords[axis] = ms.initialCoords[axis] + zHopToUse; });
+					zAxes.Iterate([&ms, zHopToUse](unsigned int axis, unsigned int) noexcept { ms.coords[axis] = ms.initialCoords[axis] + zHopToUse; });
 				}
 
 				t->SetActualZHop(zHopToUse);

@@ -1406,7 +1406,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure) noexcept
 				{
 					float coords2[MaxAxes];
 					ToolOffsetTransform(moveStates[i], moveStates[i].GetPauseRestorePoint().moveCoords, coords2);
-					moveStates[i].GetAxesAndExtrudersOwned().Iterate([&coords, coords2](unsigned int bitNum, unsigned int)->void { coords[bitNum] = coords2[bitNum]; });
+					moveStates[i].GetAxesAndExtrudersOwned().Iterate([&coords, coords2](unsigned int bitNum, unsigned int) noexcept { coords[bitNum] = coords2[bitNum]; });
 				}
 #endif
 				// We no longer use G92 to restore the positions because we don't know whether a tool is loaded.
@@ -1612,11 +1612,11 @@ bool GCodes::SaveMoveStateResumeInfo(const MovementState& ms, FileStore * const 
 			switch (axis)
 			{
 			case X_AXIS:
-				restoreAxis = Tool::GetXAxes(ms.currentTool).IterateWhile([ownedAxes](unsigned int mappedAxis, unsigned int)->bool { return ownedAxes.IsBitSet(mappedAxis); });
+				restoreAxis = Tool::GetXAxes(ms.currentTool).IterateWhile([ownedAxes](unsigned int mappedAxis, unsigned int) noexcept -> bool { return ownedAxes.IsBitSet(mappedAxis); });
 				break;
 
 			case Y_AXIS:
-				restoreAxis = Tool::GetYAxes(ms.currentTool).IterateWhile([ownedAxes](unsigned int mappedAxis, unsigned int)->bool { return ownedAxes.IsBitSet(mappedAxis); });
+				restoreAxis = Tool::GetYAxes(ms.currentTool).IterateWhile([ownedAxes](unsigned int mappedAxis, unsigned int) noexcept -> bool { return ownedAxes.IsBitSet(mappedAxis); });
 				break;
 
 			case Z_AXIS:
@@ -1912,6 +1912,7 @@ void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& m
 		}
 
 		const size_t eMoveCount = tool->DriveCount();
+		float cookedTotalExtrusion = 0.0;
 		if (eMoveCount != 0)
 		{
 			// Set the drive values for this tool
@@ -1966,9 +1967,11 @@ void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& m
 							rawExtruderTotalByDrive[extruder] += extrusionAmount;
 						}
 
-						ms.coords[ExtruderToLogicalDrive(extruder)] = (ms.applyM220M221)
-																		? extrusionAmount * extrusionFactors[extruder]
-																		: extrusionAmount;
+						const float cookedExtrusionAmount = (ms.applyM220M221)
+															? extrusionAmount * extrusionFactors[extruder]
+															: extrusionAmount;
+						ms.coords[ExtruderToLogicalDrive(extruder)] = cookedExtrusionAmount;
+						cookedTotalExtrusion += cookedExtrusionAmount;
 						extrudersMoving.SetBit(extruder);
 #if SUPPORT_ASYNC_MOVES && !PREALLOCATE_TOOL_AXES
 						logicalDrivesMoving.SetBit(ExtruderToLogicalDrive(extruder));
@@ -2020,21 +2023,25 @@ void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& m
 				}
 				else
 				{
-					gb.ThrowGCodeException("Multiple E parameters in G1 commands are not supported in absolute extrusion mode");
+					gb.ThrowGCodeException("multiple E parameters in G1 commands are not supported in absolute extrusion mode");
 				}
 			}
 		}
-	}
 
 #if SUPPORT_ASYNC_MOVES && !PREALLOCATE_TOOL_AXES
-	AllocateAxes(gb, ms, logicalDrivesMoving, ParameterLettersBitmap());
+		AllocateAxes(gb, ms, logicalDrivesMoving, ParameterLettersBitmap());
 #endif
-
-	if (ms.moveType == 1 || ms.moveType == 4)
-	{
-		if (!platform.GetEndstops().EnableExtruderEndstops(extrudersMoving))
+		if (ms.moveType == 1 || ms.moveType == 4)
 		{
-			gb.ThrowGCodeException("Failed to enable extruder endstops");
+			// Enable extruder endstops for the extruders moving
+			// First calculate the extruder speeds so that stall detection endstops can be validated.
+			// We checked before calling this that no axes are moving.
+			float speeds[MaxExtruders];
+			for (size_t i = 0; i < GetNumExtruders(); ++i)
+			{
+				speeds[i] = ms.coords[ExtruderToLogicalDrive(i)] * ms.feedRate / cookedTotalExtrusion;
+			}
+			platform.GetEndstops().EnableExtruderEndstops(extrudersMoving, speeds);			// this will throw if the endstops can't be enabled
 		}
 	}
 }
@@ -2315,6 +2322,12 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 	}
 	else if (ms.moveType != 2)
 	{
+		if (axesMentioned.IsNonEmpty() && gb.Seen(extrudeLetter))
+		{
+			// If we enable both axis and extruder endstops then the extrusion speed calculation goes wrong, so don't allow it (I can't think of a reasonable use case for it)
+			gb.ThrowGCodeException("cannot enable both axis and extruder endstops in the same move");
+		}
+
 		switch (ms.moveType)
 		{
 		case 3:
@@ -2329,11 +2342,49 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 			break;
 		}
 
-		bool reduceAcceleration;
-		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), ms.moveType == 1, reduceAcceleration))
+		// Calculate the approximate axis top speeds so that EnableAxisEndstops can validate stall endstops. Unfortunately this duplicates code in DDA::InitStandardMove.
+		// We assume that the homing move hasn't been commanded at a speed that exceeds any of the individual axis maximum speeds.
+		// The feed rate refers to the composite linear axis movement. We assume hat we don't have both linear and rotational movement.
+		float speeds[MaxAxes];
+		ToolOffsetTransform(ms, ms.currentUserPosition, speeds, axesMentioned);			// put the axis end coordinates in 'speeds'. Don't put them in ms.coords in case we abandon this move.
+		const Kinematics& kin = reprap.GetMove().GetKinematics();
+		if (kin.GetHomingMode() == HomingMode::homeCartesianAxes)
 		{
-			gb.ThrowGCodeException("Failed to enable endstops");
+			// The endstops are on axes, so calculate the axis speeds and then convert them to drive speeds
+			float totalDistanceSquared = 0.0;
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+			{
+				speeds[axis] -= ms.initialCoords[axis];									// convert to movement amount
+				totalDistanceSquared += fsquare(speeds[axis]);
+			}
+			const float speedFactor = ms.feedRate/sqrtf(totalDistanceSquared);
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+			{
+				speeds[axis] *= speedFactor;
+			}
+
+			// Convert the speeds to logical drive speeds
+			kin.ConvertAxisAmountsToLogicalDriveAmounts(speeds, numTotalAxes);
 		}
+		else
+		{
+			// The endstops are on individual logical drives
+			// We already fetched the raw motor coordinates, so we can use the movement amounts directly. The feed rate refers to the axis that is moving the most.
+			float maxDistance = 0.0;
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+			{
+				speeds[axis] -= ms.initialCoords[axis];									// convert to movement amount
+				if (speeds[axis] > maxDistance) { maxDistance = speeds[axis]; }
+			}
+			const float speedFactor = ms.feedRate/maxDistance;
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+			{
+				speeds[axis] *= speedFactor;
+			}
+		}
+
+		bool reduceAcceleration;
+		platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), speeds, ms.moveType == 1, reduceAcceleration); 	// throws if endstops can't be enabled
 		ms.reduceAcceleration = reduceAcceleration;
 		ms.checkEndstops = true;
 		ms.endstopsTriggered.Clear();
@@ -4232,7 +4283,7 @@ GCodeResult GCodes::RetractFilament(GCodeBuffer& gb, bool retract) THROWS(GCodeE
 			// We potentially need to retract/hop or unhop/untrtract
 			const bool needRetraction = currentTool->DriveCount() != 0 && (currentTool->GetRetractLength() != 0.0 || (!retract && currentTool->GetRetractExtra() != 0.0));
 			const bool needZhop = ((retract) ? currentTool->GetConfiguredRetractHop() > 0.0 : currentTool->GetActualZHop() > 0.0)
-								&& currentTool->GetZAxisMap().IterateWhile([this](unsigned int axis, unsigned int)->bool { return IsAxisHomed(axis); } );	// only hop if Z axes have been homed
+								&& currentTool->GetZAxisMap().IterateWhile([this](unsigned int axis, unsigned int) noexcept -> bool { return IsAxisHomed(axis); } );	// only hop if Z axes have been homed
 			if (needRetraction || needZhop)
 			{
 				if (!LockMovement(gb))
@@ -4299,7 +4350,7 @@ GCodeResult GCodes::RetractFilament(GCodeBuffer& gb, bool retract) THROWS(GCodeE
 					{
 						// Set up the reverse Z hop move
 						const float zHopToUse = currentTool->GetActualZHop();
-						currentTool->GetZAxisMap().Iterate([&ms, zHopToUse](unsigned int axis, unsigned int)->void
+						currentTool->GetZAxisMap().Iterate([&ms, zHopToUse](unsigned int axis, unsigned int) noexcept
 															{
 																ms.coords[axis] -= zHopToUse;
 															}
