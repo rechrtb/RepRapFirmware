@@ -1984,24 +1984,10 @@ bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 
 void Move::CheckStallDetectionViable(uint8_t localDriver, float speed) const THROWS(GCodeException)
 {
-	const EndstopValidationResult rslt = SmartDrivers::CheckStallDetectionEnabled(localDriver, fabsf(speed));
-	if (rslt != EndstopValidationResult::ok)
+	String<StringLength100> errorMessage;
+	if (!SmartDrivers::CheckStallDetectionEnabled(localDriver, fabsf(speed), errorMessage.GetRef()))
 	{
-		const char *_ecv_array errMsg;
-		switch (rslt)
-		{
-		case EndstopValidationResult::stallDetectionNotSupported:	errMsg = "homing move abandoned: driver %u does not support stall detection"; break;
-		case EndstopValidationResult::moveTooSlow:					errMsg = "homing move abandoned: driver %u moving too slowly for stall detection"; break;
-#if SUPPORT_TMC22xx
-		case EndstopValidationResult::driverNotInStealthChopMode:	errMsg = "homing move abandoned: driver %u not in stealthChop mode"; break;
-#endif
-#if SUPPORT_TMC51xx
-		case EndstopValidationResult::driverNotInSpreadCycleMode:	errMsg = "homing move abandoned: driver %u not in spreadCycle mode"; break;
-#endif
-		//case EndstopValidationResult::stallDetectionNotEnabled:	errMsg = "homing move abandoned: driver %u does not have stall detection enabled"; break;		// this one is currently unused
-		default:													errMsg = "homing move abandoned: driver %u stall detection issue"; break;
-		}
-		ThrowGCodeException(errMsg, localDriver);
+		ThrowGCodeException(errorMessage.c_str());
 	}
 }
 

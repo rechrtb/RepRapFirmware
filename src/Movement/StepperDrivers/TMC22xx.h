@@ -65,7 +65,7 @@ namespace SmartDrivers
 	GCodeResult SetAnyRegister(size_t driver, const StringRef& reply, uint8_t regNum, uint32_t regVal) noexcept;
 	StandardDriverStatus GetStatus(size_t driver, bool accumulated, bool clearAccumulated) noexcept;
 #if HAS_STALL_DETECT
-	EndstopValidationResult CheckStallDetectionEnabled(size_t driver, float speed) noexcept;
+	bool CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept;
 	LocalDriversBitmap GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept;
 #endif
 #if SUPPORT_REMOTE_COMMANDS

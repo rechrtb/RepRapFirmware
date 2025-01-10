@@ -342,6 +342,10 @@ enum class DriversState : uint8_t
 
 static DriversState driversState = DriversState::shutDown;
 
+#if SUPPORT_REMOTE_COMMANDS
+static RemoteDriversBitmap stallEndstopsEnabled;
+#endif
+
 //----------------------------------------------------------------------------------------------------------------------------------
 // Private types and methods
 
@@ -385,7 +389,7 @@ public:
 	float GetStandstillCurrentPercent() const noexcept;
 	void SetStandstillCurrentPercent(float percent) noexcept;
 
-	EndstopValidationResult CheckStallDetectionEnabled(float speed) noexcept;
+	bool CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) const noexcept;
 
 	int8_t GetCurrentScaler() const noexcept { return currentScaler; }
 	bool SetCurrentScaler(int8_t cs) noexcept;
@@ -456,9 +460,8 @@ private:
 
 	std::atomic<uint32_t> newRegistersToUpdate;				// bitmap of register indices whose values need to be sent to the driver chip
 	std::atomic<uint32_t> registersToUpdate;				// bitmap of register indices whose values need to be sent to the driver chip
-	uint32_t axisNumber;									// the axis number of this driver as used to index the DriveMovements in the DDA
-	uint32_t microstepShiftFactor;							// how much we need to shift 1 left by to get the current microstepping
 	uint32_t motorCurrent;									// the configured motor current in mA
+	uint32_t globalScaler = 0;
 
 #if SUPPORT_CLOSED_LOOP || SUPPORT_PHASE_STEPPING
 	uint32_t phaseToSet;									// phase value to be written to the XDIRECT register, only read/written by the TMC task
@@ -469,10 +472,13 @@ private:
 	uint16_t numReads, numWrites;							// how many successful reads and writes we had
 	static uint16_t numTimeouts;							// how many times a transfer timed out
 
-	int8_t currentScaler = -1;									// CS if manually specified, otherwise -1 to indicate auto calculate
+	uint8_t driverNumber;
+	uint8_t axisNumber;										// the axis number of this driver as used to index the DriveMovements in the DDA
+	uint8_t microstepShiftFactor;							// how much we need to shift 1 left by to get the current microstepping
+
+	int8_t currentScaler = -1;								// CS if manually specified, otherwise -1 to indicate auto calculate
 	uint8_t iRun = 0;
 	uint8_t iHold = 0;
-	uint32_t globalScaler = 0;
 	uint16_t standstillCurrentFraction;						// divide this by 256 to get the motor current standstill fraction
 	uint8_t regIndexBeingUpdated;							// which register we are sending
 	uint8_t regIndexRequested;								// the register we asked to read in the previous transaction, or 0xFF
@@ -520,7 +526,7 @@ uint16_t TmcDriverState::numTimeouts = 0;								// how many times a transfer ti
 void TmcDriverState::Init(uint32_t p_driverNumber) noexcept
 pre(!driversPowered)
 {
-	axisNumber = p_driverNumber;										// axes are mapped straight through to drivers initially
+	axisNumber = driverNumber = p_driverNumber;							// axes are mapped straight through to drivers initially
 	driverBit = LocalDriversBitmap::MakeFromBits(p_driverNumber);
 	enabled = false;
 	registersToUpdate.store(0);
@@ -643,17 +649,19 @@ unsigned int TmcDriverState::GetMicrostepping(bool& interpolation) const noexcep
 }
 
 // Check that stall detection can occur at the specified speed
-EndstopValidationResult TmcDriverState::CheckStallDetectionEnabled(float speed) noexcept
+bool TmcDriverState::CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) const noexcept
 {
 	if (GetDriverMode() > DriverMode::spreadCycle)			// if in stealthChop or direct mode
 	{
-		return EndstopValidationResult::driverNotInSpreadCycleMode;
+		errorMessage.printf("driver %u is not in spreadCycle mode", driverNumber);
+		return false;
 	}
 	if (speed * (float)maxStallStepInterval < (float)(1u << microstepShiftFactor))
 	{
-		return EndstopValidationResult::moveTooSlow;
+		errorMessage.printf("move is too slow for driver %u to detect stall", driverNumber);
+		return false;
 	}
-	return EndstopValidationResult::ok;
+	return true;
 }
 
 bool TmcDriverState::SetRegister(SmartDriverRegister reg, uint32_t regVal) noexcept
@@ -2085,18 +2093,34 @@ StandardDriverStatus SmartDrivers::GetStatus(size_t driver, bool accumulated, bo
 	return StandardDriverStatus();
 }
 
-EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed) noexcept
+bool SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept
 {
-	return (driver < numTmc51xxDrivers) ? driverStates[driver].CheckStallDetectionEnabled(speed) : EndstopValidationResult::stallDetectionNotSupported;
+	if (driver < numTmc51xxDrivers)
+	{
+		return driverStates[driver].CheckStallDetectionEnabled(speed, errorMessage);
+	}
+	errorMessage.printf("driver %u does not support stall detection", driver);
+	return false;
 }
 
 #if SUPPORT_REMOTE_COMMANDS
 
 GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float speed, const StringRef& reply) noexcept
 {
-	//TODO
-	reply.copy("not implemented yet");
-	return GCodeResult::error;
+	if (driverNumber < numTmc51xxDrivers)
+	{
+		if (driverStates[driverNumber].CheckStallDetectionEnabled(speed, reply))
+		{
+			stallEndstopsEnabled.SetBit(driverNumber);
+			return GCodeResult::ok;
+		}
+		return GCodeResult::error;
+	}
+	else
+	{
+		stallEndstopsEnabled.Clear();
+		return GCodeResult::ok;
+	}
 }
 
 #endif

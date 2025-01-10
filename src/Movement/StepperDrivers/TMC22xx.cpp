@@ -112,6 +112,10 @@ enum class DriversState : uint8_t
 
 static DriversState driversState = DriversState::shutDown;
 
+#if SUPPORT_REMOTE_COMMANDS
+static RemoteDriversBitmap stallEndstopsEnabled;
+#endif
+
 #if TMC22xx_USE_SLAVEADDR && TMC22xx_HAS_MUX
 static bool currentMuxState;
 #endif
@@ -560,7 +564,7 @@ public:
 	void SetStallDetectThreshold(int sgThreshold) noexcept;
 	void SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept;
 	void AppendStallConfig(const StringRef& reply) const noexcept;
-	EndstopValidationResult CheckStallDetectionEnabled(float speed) noexcept;
+	bool CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) noexcept;
 #endif
 	void AppendDriverStatus(const StringRef& reply) noexcept;
 	StandardDriverStatus GetStatus(bool accumulated, bool clearAccumulated) noexcept;
@@ -1240,17 +1244,19 @@ void TmcDriverState::AppendStallConfig(const StringRef& reply) const noexcept
 }
 
 // Check that stall detection can occur at the specified speed
-EndstopValidationResult TmcDriverState::CheckStallDetectionEnabled(float speed) noexcept
+bool TmcDriverState::CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) noexcept
 {
 	if (!IsStealthChop())
 	{
-		return EndstopValidationResult::driverNotInStealthChopMode;
+		errorMessage.printf("driver %u is nt in stealthChop mode", driverNumber);
+		return false;
 	}
 	if (speed * (float)StepClockRate < ((12500000/256) << microstepShiftFactor) / writeRegisters[WriteTcoolthrs])
 	{
-		return EndstopValidationResult::moveTooSlow;
+		errorMessage.printf("move is too slow for driver %u to detect stall", driverNumber);
+		return false;
 	}
-	return EndstopValidationResult::ok;
+	return true;
 }
 
 #endif
@@ -2603,9 +2609,14 @@ LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfI
 	return rslt;
 }
 
-EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed) noexcept
+bool SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept
 {
-	return (driver < GetNumTmcDrivers()) ? driverStates[driver].CheckStallDetectionEnabled(speed) : EndstopValidationResult::stallDetectionNotSupported;
+	if (driver < GetNumTmcDrivers())
+	{
+		return driverStates[driver].CheckStallDetectionEnabled(speed, errorMessage);
+	}
+	errorMessage.printf("driver %u does not support stall detection", driver);
+	return false;
 }
 
 #endif
@@ -2614,9 +2625,20 @@ EndstopValidationResult SmartDrivers::CheckStallDetectionEnabled(size_t driver, 
 
 GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float speed, const StringRef& reply) noexcept
 {
-	//TODO
-	reply.copy("not implemented yet");
-	return GCodeResult::error;
+	if (driverNumber < GetNumTmcDrivers())
+	{
+		if (driverStates[driverNumber].CheckStallDetectionEnabled(speed, reply))
+		{
+			stallEndstopsEnabled.SetBit(driverNumber);
+			return GCodeResult::ok;
+		}
+		return GCodeResult::error;
+	}
+	else
+	{
+		stallEndstopsEnabled.Clear();
+		return GCodeResult::ok;
+	}
 }
 
 #endif
