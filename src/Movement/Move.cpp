@@ -44,7 +44,7 @@
 #include <Endstops/ZProbe.h>
 #include <Platform/TaskPriorities.h>
 #include <AppNotifyIndices.h>
-#include <limits>
+#include "StepperDrivers/SmartDrivers.h"
 
 #if SUPPORT_IOBITS
 # include <Platform/PortControl.h>
@@ -55,19 +55,11 @@
 # include <CAN/CanInterface.h>
 #endif
 
-#if SUPPORT_TMC2660
-# include "Movement/StepperDrivers/TMC2660.h"
-#endif
-#if SUPPORT_TMC22xx
-# include "Movement/StepperDrivers/TMC22xx.h"
-#endif
-#if SUPPORT_TMC51xx
-# include "Movement/StepperDrivers/TMC51xx.h"
-#endif
-
 #ifdef DUET3_MB6XD
 # include <pmc/pmc.h>
 #endif
+
+#include <limits>
 
 constexpr float MinStepPulseTiming = 0.2;												// we assume that we always generate step high and low times at least this wide without special action
 

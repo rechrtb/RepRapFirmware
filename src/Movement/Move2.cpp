@@ -14,16 +14,7 @@
 #include <Tools/Tool.h>
 #include <CAN/CanInterface.h>
 #include <CAN/CanDriversData.h>
-
-#if SUPPORT_TMC2660
-# include "Movement/StepperDrivers/TMC2660.h"
-#endif
-#if SUPPORT_TMC22xx
-# include "Movement/StepperDrivers/TMC22xx.h"
-#endif
-#if SUPPORT_TMC51xx
-# include "Movement/StepperDrivers/TMC51xx.h"
-#endif
+#include "StepperDrivers/SmartDrivers.h"
 
 #if SUPPORT_REMOTE_COMMANDS
 # include <CanMessageGenericParser.h>

@@ -36,6 +36,10 @@
 #if SUPPORT_REMOTE_COMMANDS
 # include <Version.h>
 # include <InputMonitors/InputMonitor.h>
+
+# if HAS_STALL_DETECT
+#  include <Movement/StepperDrivers/SmartDrivers.h>			// for extern declaration of driverStallsToNotify
+# endif
 #endif
 
 #include <memory>
@@ -91,10 +95,6 @@ static uint16_t longestWaitMessageType = 0;
 
 static uint32_t peakTimeSyncTxDelay = 0;
 
-#if SUPPORT_REMOTE_COMMANDS
-static unsigned int messagesIgnored = 0;
-#endif
-
 // Debug
 static unsigned int goodTimeStamps = 0;
 static unsigned int badTimeStamps = 0;
@@ -118,6 +118,7 @@ static CanAddress myAddress =
 static uint8_t currentTimeSyncMarker = 0xFF;
 
 #if SUPPORT_REMOTE_COMMANDS
+static unsigned int messagesIgnored = 0;
 static bool inExpansionMode = false;
 static bool inTestMode = false;
 static bool mainBoardAcknowledgedAnnounce = false;
@@ -515,6 +516,15 @@ extern "C" [[noreturn]] void CanSenderLoop(void *) noexcept
 			msg->states = 0;
 			msg->numHandles = 0;
 
+#if HAS_STALL_DETECT
+			// Start by adding any stall detect endstops pending. Do this first so that it must succeed.
+			const uint16_t stallNotifications = SmartDrivers::driverStallsToNotify.exchange(0);
+			if (stallNotifications != 0)
+			{
+				constexpr RemoteInputHandle h(RemoteInputHandle::typeStallEndstop, 0, 0);
+				(void)msg->AddEntry(h.asU16(), (uint32_t)stallNotifications, true);
+			}
+#endif
 			const uint32_t timeToWait = InputMonitor::AddStateChanges(msg);
 			if (msg->numHandles != 0)
 			{

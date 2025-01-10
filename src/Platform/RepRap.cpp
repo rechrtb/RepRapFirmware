@@ -24,20 +24,11 @@
 #include <Hardware/ExceptionHandlers.h>
 #include <Accelerometers/Accelerometers.h>
 #include <CoreNotifyIndices.h>
+#include <Movement/StepperDrivers/SmartDrivers.h>
 #include "Version.h"
 
 #ifdef DUET_NG
 # include "DueXn.h"
-#endif
-
-#if SUPPORT_TMC2660
-# include <Movement/StepperDrivers/TMC2660.h>
-#endif
-#if SUPPORT_TMC22xx
-# include <Movement/StepperDrivers/TMC22xx.h>
-#endif
-#if SUPPORT_TMC51xx
-# include <Movement/StepperDrivers/TMC51xx.h>
 #endif
 
 #if SUPPORT_IOBITS

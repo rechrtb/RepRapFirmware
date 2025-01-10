@@ -19,6 +19,10 @@
 #include <General/Portability.h>
 #include <AppNotifyIndices.h>
 
+#if HAS_STALL_DETECT && SUPPORT_REMOTE_COMMANDS
+# include <CAN/CanInterface.h>
+#endif
+
 #if defined(DUET3_MB6HC)
 
 #include <Platform/RepRap.h>
@@ -343,7 +347,8 @@ enum class DriversState : uint8_t
 static DriversState driversState = DriversState::shutDown;
 
 #if SUPPORT_REMOTE_COMMANDS
-static RemoteDriversBitmap stallEndstopsEnabled;
+static LocalDriversBitmap stallEndstopsEnabled;
+std::atomic<uint16_t> SmartDrivers::driverStallsToNotify(0);
 #endif
 
 //----------------------------------------------------------------------------------------------------------------------------------
@@ -1179,7 +1184,21 @@ void TmcDriverState::TransferSucceeded(const uint8_t *rcvDataBlock) noexcept
 	{
 		readRegisters[ReadDrvStat] |= TMC_RR_SG;
 		accumulatedDriveStatus |= TMC_RR_SG;
-		EndstopOrZProbe::SetDriversStalled(driverBit);
+#if SUPPORT_REMOTE_COMMANDS
+		if (CanInterface::InExpansionMode())
+		{
+			if (stallEndstopsEnabled.IsBitSet(driverNumber))
+			{
+				stallEndstopsEnabled.ClearBit(driverNumber);
+				SmartDrivers::driverStallsToNotify |= 1u << driverNumber;
+				CanInterface::WakeAsyncSender();
+			}
+		}
+		else
+#endif
+		{
+			EndstopOrZProbe::SetDriversStalled(driverBit);
+		}
 	}
 	else
 	{
@@ -2119,6 +2138,7 @@ GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float 
 	else
 	{
 		stallEndstopsEnabled.Clear();
+		driverStallsToNotify = 0;
 		return GCodeResult::ok;
 	}
 }

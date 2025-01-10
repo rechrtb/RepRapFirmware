@@ -50,6 +50,10 @@
 #include <Hardware/IoPorts.h>
 #include <AppNotifyIndices.h>
 
+#if HAS_STALL_DETECT && SUPPORT_REMOTE_COMMANDS
+# include <CAN/CanInterface.h>
+#endif
+
 #if SAME5x || SAMC21
 # include <DmacManager.h>
 # include <Serial.h>
@@ -113,7 +117,7 @@ enum class DriversState : uint8_t
 static DriversState driversState = DriversState::shutDown;
 
 #if SUPPORT_REMOTE_COMMANDS
-static RemoteDriversBitmap stallEndstopsEnabled;
+static LocalDriversBitmap stallEndstopsEnabled;
 #endif
 
 #if TMC22xx_USE_SLAVEADDR && TMC22xx_HAS_MUX
@@ -2521,29 +2525,50 @@ StandardDriverStatus SmartDrivers::GetStatus(size_t driver, bool accumulated, bo
 
 #if HAS_STALL_DETECT
 
+LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
+{
+	LocalDriversBitmap rslt;
+	driversOfInterest.Iterate([&rslt](unsigned int driverNumber, unsigned int count) noexcept
+								{
+									if (driverNumber < ARRAY_SIZE(DriverDiagPins) && digitalRead(DriverDiagPins[driverNumber]))
+									{
+										rslt.SetBit(driverNumber);
+									}
+								}
+							 );
+	return rslt;
+}
+
 # ifdef DUET3MINI
 
 // Stall detection for Duet 3 Mini v0.4 and later
 // Each TMC2209 DIAG output is routed to its own MCU pin, however we don't have enough EXINTs on the SAME54 to give each one its own interrupt.
 // So we route them all to CCL input pins instead, which lets us selectively OR them together in 3 groups and generate an interrupt from the resulting events
 
-// Set up to generate interrupts on the specified drivers stalling
-void EnableStallInterrupt(LocalDriversBitmap drivers) noexcept
+constexpr uint32_t lutDefault = CCL_LUTCTRL_TRUTH(0xFE) | CCL_LUTCTRL_LUTEO;					// OR function, disabled, event output enabled
+static uint32_t lutInputControls[4] = { lutDefault, lutDefault, lutDefault, lutDefault };		// the first element is not used because we don't use LUT0
+
+// Disable all the stall interrupts
+void DisableAllStallInterrupts() noexcept
 {
-	// Disable all the Diag event interrupts
 	for (unsigned int i = 1; i < 3; ++i)
 	{
+		lutInputControls[i] = lutDefault;
 		CCL->LUTCTRL[i].reg &= ~CCL_LUTCTRL_ENABLE;
 		EVSYS->Channel[CclLut0Event + i].CHINTENCLR.reg = EVSYS_CHINTENCLR_EVD | EVSYS_CHINTENCLR_OVR;
 		EVSYS->Channel[CclLut0Event + i].CHINTFLAG.reg = EVSYS_CHINTFLAG_EVD | EVSYS_CHINTENCLR_OVR;
 	}
+}
+
+// Set up to generate interrupts on the specified drivers stalling
+void EnableStallInterrupts(LocalDriversBitmap drivers) noexcept
+{
+	DisableAllStallInterrupts();
 
 	if (!drivers.IsEmpty())
 	{
 		// Calculate the new LUT control values
-		constexpr uint32_t lutDefault = CCL_LUTCTRL_TRUTH(0xFE) | CCL_LUTCTRL_LUTEO;		// OR function, disabled, event output enabled
-		uint32_t lutInputControls[4] = { lutDefault, lutDefault, lutDefault, lutDefault };
-		drivers.IterateWhile([&lutInputControls](unsigned int driver, unsigned int count) noexcept -> bool
+		drivers.IterateWhile([](unsigned int driver, unsigned int count) noexcept -> bool
 			{ 	if (driver < GetNumTmcDrivers())
 				{
 					const uint32_t cclInput = CclDiagInputs[driver];
@@ -2563,9 +2588,32 @@ void EnableStallInterrupt(LocalDriversBitmap drivers) noexcept
 			{
 				CCL->LUTCTRL[i].reg = lutInputControls[i];
 				CCL->LUTCTRL[i].reg = lutInputControls[i] | CCL_LUTCTRL_ENABLE;
-				EVSYS->Channel[CclLut0Event + i].CHINTENSET.reg = EVSYS_CHINTENCLR_EVD;
+				EVSYS->Channel[CclLut0Event + i].CHINTENSET.reg = EVSYS_CHINTENSET_EVD;
 			}
 		}
+	}
+}
+
+void EnableOneStallInterrupt(uint8_t driverNumber) noexcept
+{
+	if (driverNumber < GetNumTmcDrivers())
+	{
+		const uint32_t cclInput = CclDiagInputs[driverNumber];
+		const size_t index = cclInput & 3;
+		lutInputControls[index] |= cclInput & 0x000000FFFFFF0000;
+		CCL->LUTCTRL[index].reg = lutInputControls[index] | CCL_LUTCTRL_ENABLE;
+		EVSYS->Channel[CclLut0Event + index].CHINTENSET.reg = EVSYS_CHINTENSET_EVD;
+	}
+}
+
+void DisableOneStallInterrupt(uint8_t driverNumber) noexcept
+{
+	if (driverNumber < GetNumTmcDrivers())
+	{
+		const uint32_t cclInput = CclDiagInputs[driverNumber];
+		const size_t index = cclInput & 3;
+		lutInputControls[index] &= ~(cclInput & 0x000000FFFFFF0000);
+		CCL->LUTCTRL[index].reg = lutInputControls[index] | CCL_LUTCTRL_ENABLE;
 	}
 }
 
@@ -2593,21 +2641,35 @@ static void InitStallDetectionLogic() noexcept
 	CCL->CTRL.reg = CCL_CTRL_ENABLE;							// enable the CCL
 }
 
-# endif		//Duet 3 Mini
+#  if SUPPORT_REMOTE_COMMANDS
 
-LocalDriversBitmap SmartDrivers::GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept
+std::atomic<uint16_t> SmartDrivers::driverStallsToNotify(0);
+
+// ISR for Diag pins via CCL and event system
+extern "C" void StallEventInterruptEntry() noexcept
 {
-	LocalDriversBitmap rslt;
-	driversOfInterest.Iterate([&rslt](unsigned int driverNumber, unsigned int count) noexcept
+	const LocalDriversBitmap stalledDrivers = SmartDrivers::GetStalledDrivers(stallEndstopsEnabled);
+	if (stalledDrivers.IsNonEmpty())
+	{
+		stallEndstopsEnabled &= ~stalledDrivers;
+		stalledDrivers.Iterate([](unsigned int driver, unsigned int count) noexcept
 								{
-									if (driverNumber < ARRAY_SIZE(DriverDiagPins) && digitalRead(DriverDiagPins[driverNumber]))
-									{
-										rslt.SetBit(driverNumber);
-									}
+									DisableOneStallInterrupt(driver);
 								}
-							 );
-	return rslt;
+							  );
+		SmartDrivers::driverStallsToNotify |= stalledDrivers.GetRaw();
+		CanInterface::WakeAsyncSender();
+	}
 }
+
+// The CCL interrupts arrive as event interrupts 1, 2 and 3
+extern "C" void EVSYS_1_Handler() noexcept __attribute__ ((alias("StallEventInterruptEntry")));
+extern "C" void EVSYS_2_Handler() noexcept __attribute__ ((alias("StallEventInterruptEntry")));
+extern "C" void EVSYS_3_Handler() noexcept __attribute__ ((alias("StallEventInterruptEntry")));
+
+#  endif
+
+# endif		//Duet 3 Mini
 
 bool SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept
 {
@@ -2630,6 +2692,7 @@ GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float 
 		if (driverStates[driverNumber].CheckStallDetectionEnabled(speed, reply))
 		{
 			stallEndstopsEnabled.SetBit(driverNumber);
+			EnableOneStallInterrupt(driverNumber);
 			return GCodeResult::ok;
 		}
 		return GCodeResult::error;
@@ -2637,6 +2700,8 @@ GCodeResult SmartDrivers::SetStallEndstopReporting(uint16_t driverNumber, float 
 	else
 	{
 		stallEndstopsEnabled.Clear();
+		DisableAllStallInterrupts();
+		driverStallsToNotify = 0;
 		return GCodeResult::ok;
 	}
 }
