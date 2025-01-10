@@ -1928,6 +1928,7 @@ void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& m
 				if (gb.LatestMachineState().drivesRelative)
 				{
 					requestedExtrusionAmount = moveArg;
+					ms.latestVirtualExtruderPosition += moveArg;
 				}
 				else
 				{
