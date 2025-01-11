@@ -181,7 +181,7 @@ public:
 	virtual LogicalDrivesBitmap GetControllingDrives(size_t axis, bool forHoming) const noexcept;
 
 	// Convert axis movement or speed amounts to logical drive amounts. Only relevant if GetHomingMode() == HomingMode::homeCartesianAxes.
-	virtual void ConvertAxisAmountsToLogicalDriveAmounts(float amounts[MaxAxes], size_t numTotalAxes) const noexcept { }		// default implementation leaves them unchanged
+	virtual void ConvertAxisAmountsToLogicalDriveAmounts(float amounts[MaxAxes], size_t numVisibleAxes, size_t numTotalAxes) const noexcept { }		// default implementation leaves them unchanged
 
 	// Override this virtual destructor if your constructor allocates any dynamic memory
 	virtual ~Kinematics() override { }

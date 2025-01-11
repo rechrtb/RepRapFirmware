@@ -1976,10 +1976,10 @@ bool Move::AreDrivesStopped(LogicalDrivesBitmap drives) const noexcept
 
 void Move::CheckStallDetectionViable(uint8_t localDriver, float speed) const THROWS(GCodeException)
 {
-	String<StringLength100> errorMessage;
-	if (!SmartDrivers::CheckStallDetectionEnabled(localDriver, fabsf(speed), errorMessage.GetRef()))
+	const char *_ecv_array _ecv_null msg = SmartDrivers::CheckStallDetectionEnabled(localDriver, fabsf(speed));
+	if (msg != nullptr)
 	{
-		ThrowGCodeException(errorMessage.c_str());
+		ThrowGCodeException(msg, localDriver);
 	}
 }
 

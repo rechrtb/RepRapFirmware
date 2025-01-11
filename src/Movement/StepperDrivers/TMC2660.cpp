@@ -240,7 +240,7 @@ public:
 	void SetStallDetectThreshold(int sgThreshold) noexcept;
 	void SetStallDetectFilter(bool sgFilter) noexcept;
 	void SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept;
-	bool CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) noexcept;
+	const char *_ecv_array _ecv_null CheckStallDetectionEnabled(float speed) noexcept;
 
 	void AppendStallConfig(const StringRef& reply) const noexcept;
 	void AppendDriverStatus(const StringRef& reply) noexcept;
@@ -738,14 +738,13 @@ unsigned int TmcDriverState::GetMicrostepping(bool& interpolation) const noexcep
 }
 
 // Check that stall detection can occur at the specified speed
-bool TmcDriverState::CheckStallDetectionEnabled(float speed, const StringRef& errorMessage) noexcept
+const char *_ecv_array _ecv_null TmcDriverState::CheckStallDetectionEnabled(float speed) noexcept
 {
 	if (speed * (float)maxStallStepInterval < (float)(1u << microstepShiftFactor) * 1.2)
 	{
-		errorMessage.printf("move is too slow for driver %u to detect stall", driverNumber);
-		return false;
+		return "move is too slow for driver %u to detect stall";
 	}
-	return true;
+	return nullptr;
 }
 
 // This is called by the ISR when the SPI transfer has completed
@@ -1250,14 +1249,12 @@ StandardDriverStatus SmartDrivers::GetStatus(size_t driver, bool accumulated, bo
 	return rslt;
 }
 
-bool SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept
+// Check whether stall detection is viable. If yes, return nullptr. If no, return a message string in flash memory containing a single %u placeholder for the driver number.
+const char *_ecv_array _ecv_null SmartDrivers::CheckStallDetectionEnabled(size_t driver, float speed) noexcept
 {
-	if (driver < numTmc2660Drivers)
-	{
-		return driverStates[driver].CheckStallDetectionEnabled(speed, errorMessage);
-	}
-	errorMessage.printf("driver %u does not support stall detection", driver);
-	return false;
+	return (driver < numTmc2660Drivers)
+			? driverStates[driver].CheckStallDetectionEnabled(speed)
+				: "driver %u does not support stall detection";
 }
 
 #endif

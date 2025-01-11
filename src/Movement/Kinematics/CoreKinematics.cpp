@@ -431,12 +431,12 @@ LogicalDrivesBitmap CoreKinematics::GetControllingDrives(size_t axis, bool forHo
 }
 
 // Convert axis movement or speed amounts to logical drive amounts. Only relevant if GetHomingMode() == HomingMode::homeCartesianAxes.
-void CoreKinematics::ConvertAxisAmountsToLogicalDriveAmounts(float amounts[MaxAxes], size_t numTotalAxes) const noexcept
+void CoreKinematics::ConvertAxisAmountsToLogicalDriveAmounts(float amounts[MaxAxes], size_t numVisibleAxes, size_t numTotalAxes) const noexcept
 {
 	float convertedAmounts[MaxAxes];
 	for (size_t motor = 0; motor < numTotalAxes; ++motor)
 	{
-		const size_t axisLimit = min<size_t>(numTotalAxes, lastAxis[motor] + 1);
+		const size_t axisLimit = min<size_t>(numVisibleAxes, lastAxis[motor] + 1);
 		size_t axis = firstAxis[motor];
 		if (axis < axisLimit)
 		{

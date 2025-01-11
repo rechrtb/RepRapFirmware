@@ -67,7 +67,7 @@ namespace SmartDrivers
 	StandardDriverStatus GetStatus(size_t driver, bool accumulated, bool clearAccumulated) noexcept;
 
 #if HAS_STALL_DETECT
-	bool CheckStallDetectionEnabled(size_t driver, float speed, const StringRef& errorMessage) noexcept;
+	const char *_ecv_array _ecv_null CheckStallDetectionEnabled(size_t driver, float speed) noexcept;
 	LocalDriversBitmap GetStalledDrivers(LocalDriversBitmap driversOfInterest) noexcept;
 #endif
 

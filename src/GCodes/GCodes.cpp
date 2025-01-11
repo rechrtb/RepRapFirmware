@@ -1848,10 +1848,10 @@ void GCodes::Pop(GCodeBuffer& gb, bool withinSameFile) noexcept
 	reprap.InputsUpdated();
 }
 
-// Set up the extrusion and feed rate of a move for the Move class
+// Set up the feed rate of a move for the Move class
 // 'moveBuffer.moveType' and 'moveBuffer.isCoordinated' must be set up before calling this
 // 'isPrintingMove' is true if there is any axis movement
-void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& ms, bool isPrintingMove) THROWS(GCodeException)
+void GCodes::LoadFeedrateFromGCode(GCodeBuffer& gb, MovementState& ms, bool isPrintingMove) THROWS(GCodeException)
 {
 	// Deal with feed rate, also determine whether M220 and M221 speed and extrusion factors apply to this move
 	if (ms.isCoordinated || machineType == MachineType::fff)
@@ -1887,7 +1887,13 @@ void GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, MovementState& m
 		ms.feedRate = ConvertSpeedFromMmPerMin(MaximumG0FeedRate);			// use maximum feed rate, the M203 parameters will limit it
 		ms.usingStandardFeedrate = false;
 	}
+}
 
+// Set up the extrusion of a move for the Move class
+// 'moveBuffer.moveType' and 'moveBuffer.isCoordinated' must be set up before calling this
+// 'isPrintingMove' is true if there is any axis movement
+void GCodes::LoadExtrusionFromGCode(GCodeBuffer& gb, MovementState& ms, bool isPrintingMove) THROWS(GCodeException)
+{
 	// Zero every extruder drive as some drives may not be moved
 	for (size_t drive = numTotalAxes; drive < MaxAxesPlusExtruders; drive++)
 	{
@@ -2280,6 +2286,8 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 		}
 	}
 
+	LoadFeedrateFromGCode(gb, ms, axesMentioned.IsNonEmpty());							// set up feedrate before we to the endstop calculations
+
 	AxesBitmap realAxesMoving;				// we'll need this later but only if ms.moveType == 0
 	if (ms.moveType ==  0)
 	{
@@ -2347,7 +2355,6 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 		// We assume that the homing move hasn't been commanded at a speed that exceeds any of the individual axis maximum speeds.
 		// The feed rate refers to the composite linear axis movement. We assume hat we don't have both linear and rotational movement.
 		float speeds[MaxAxes];
-		ToolOffsetTransform(ms, ms.currentUserPosition, speeds, axesMentioned);			// put the axis end coordinates in 'speeds'. Don't put them in ms.coords in case we abandon this move.
 		const Kinematics& kin = reprap.GetMove().GetKinematics();
 		if (kin.GetHomingMode() == HomingMode::homeCartesianAxes)
 		{
@@ -2355,17 +2362,20 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 			float totalDistanceSquared = 0.0;
 			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 			{
-				speeds[axis] -= ms.initialCoords[axis];									// convert to movement amount
+				speeds[axis] = ms.coords[axis] - ms.initialCoords[axis];				// get movement amount
 				totalDistanceSquared += fsquare(speeds[axis]);
 			}
+			//debugPrintf("speeds1a %.3g, %.3g, %.3g dsquared %.3g\n", (double)speeds[0], (double)speeds[1], (double)speeds[2], (double)totalDistanceSquared);
 			const float speedFactor = ms.feedRate/sqrtf(totalDistanceSquared);
 			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 			{
 				speeds[axis] *= speedFactor;
 			}
 
+			//debugPrintf("speeds2 %.3g, %.3g, %.3g\n", (double)speeds[0], (double)speeds[1], (double)speeds[2]);
 			// Convert the speeds to logical drive speeds
-			kin.ConvertAxisAmountsToLogicalDriveAmounts(speeds, numTotalAxes);
+			kin.ConvertAxisAmountsToLogicalDriveAmounts(speeds, numVisibleAxes, numTotalAxes);
+			//debugPrintf("speeds3 %.3g, %.3g, %.3g\n", (double)speeds[0], (double)speeds[1], (double)speeds[2]);
 		}
 		else
 		{
@@ -2391,7 +2401,7 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated) THROWS(GCodeExc
 		ms.endstopsTriggered.Clear();
 	}
 
-	LoadExtrusionAndFeedrateFromGCode(gb, ms, axesMentioned.IsNonEmpty());	// for type 1 moves, this must be called after calling EnableAxisEndstops, because EnableExtruderEndstop assumes that
+	LoadExtrusionFromGCode(gb, ms, axesMentioned.IsNonEmpty());				// for type 1 moves, this must be called after calling EnableAxisEndstops, because EnableExtruderEndstop assumes that
 
 	const bool isPrintingMove = ms.hasPositiveExtrusion && axesMentioned.IsNonEmpty();
 	if (ms.IsFirstMoveSincePrintingResumed())								// if this is the first move after skipping an object
@@ -2897,7 +2907,8 @@ bool GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise) THROWS(GCodeException)
 	}
 #endif
 
-	LoadExtrusionAndFeedrateFromGCode(gb, ms, true);
+	LoadFeedrateFromGCode(gb, ms, true);
+	LoadExtrusionFromGCode(gb, ms, true);
 
 	if (ms.IsFirstMoveSincePrintingResumed())
 	{

@@ -65,12 +65,13 @@ void StallDetectionEndstop::PrimeAxis(const Kinematics &_ecv_from kin, const Axi
 	newStallReported = false;
 #endif
 	numDriversLeft = 0;
-	logicalDrivesToMonitor.IterateWithExceptions([this, speed](unsigned int drive, unsigned int count) noexcept
+	logicalDrivesToMonitor.IterateWithExceptions([this, speed](unsigned int drive, unsigned int count) THROWS(GCodeException)
 													{
-														const AxisDriversConfig& config = reprap.GetMove().GetAxisDriversConfig(drive);
+														const Move& move = reprap.GetMove();
+														const AxisDriversConfig& config = move.GetAxisDriversConfig(drive);
 														for (size_t i = 0; i < config.numDrivers; ++i)
 														{
-															AddDriverToMonitoredList(config.driverNumbers[i], speed);
+															AddDriverToMonitoredList(config.driverNumbers[i], speed * move.DriveStepsPerMm(drive));
 														}
 													}
 												);
@@ -84,9 +85,10 @@ void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const floa
 	newStallReported = false;
 #endif
 	numDriversLeft = 0;
-	extruders.IterateWithExceptions([this, speeds](unsigned int extruder, unsigned int count)
+	extruders.IterateWithExceptions([this, speeds](unsigned int extruder, unsigned int count) THROWS(GCodeException)
 									{
-										AddDriverToMonitoredList(reprap.GetMove().GetExtruderDriver(extruder), speeds[extruder]);
+										const Move& move = reprap.GetMove();
+										AddDriverToMonitoredList(move.GetExtruderDriver(extruder), speeds[extruder] * move.DriveStepsPerMm(ExtruderToLogicalDrive(extruder)));
 									}
 								   );
 }
