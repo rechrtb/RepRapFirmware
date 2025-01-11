@@ -3382,9 +3382,9 @@ float Move::GetTmcDriversTemperature(unsigned int boardNumber) const noexcept
 #elif defined(DUET_M)
 	const LocalDriversBitmap mask = LocalDriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
 #elif defined(PCCB_10)
-	const DriversBitmap mask = (boardNumber == 0)
-							? DriversBitmap::MakeLowestNBits(2)							// drivers 0,1 are on-board
-								: DriversBitmap::MakeLowestNBits(5).ShiftUp(2);			// drivers 2-7 are on the DueX5
+	const LocalDriversBitmap mask = (boardNumber == 0)
+							? LocalDriversBitmap::MakeLowestNBits(2)							// drivers 0,1 are on-board
+								: LocalDriversBitmap::MakeLowestNBits(5).ShiftUp(2);			// drivers 2-7 are on the DueX5
 #else
 # error Undefined board
 #endif
