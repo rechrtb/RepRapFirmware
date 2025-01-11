@@ -2541,7 +2541,11 @@ void RepRap::PrepareToLoadIap() noexcept
 
 	// Allow time for the firmware update message to be sent
 	const uint32_t now = millis();
-	while (platform->FlushMessages() && millis() - now < 2000) { }
+	do
+	{
+		(void)platform->FlushMessages();	// make sure the USB and aux messages get sent
+		RTOSIface::Yield();					// let the network task have the CPU
+	} while (millis() - now < 1000);		// added delay call to try to give the network task more CPU time to fetch the message
 
 	// The machine will be unresponsive for a few seconds, don't risk damaging the heaters.
 	// This also shuts down tasks and interrupts that might make use of the RAM that we are about to load the IAP binary into.
