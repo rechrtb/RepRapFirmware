@@ -101,7 +101,7 @@ void StallDetectionEndstop::AddDriverToMonitoredList(DriverId did, float speed) 
 	{
 		try
 		{
-			CanInterface::EnableRemoteStallEndstop(did, speed);							// may throw
+			CanInterface::EnableRemoteStallEndstop(did, fabsf(speed));						// may throw
 		}
 		catch (GCodeException&)
 		{

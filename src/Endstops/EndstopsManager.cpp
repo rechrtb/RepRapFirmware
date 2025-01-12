@@ -768,7 +768,7 @@ void EndstopsManager::HandleRemoteZProbeChange(CanAddress src, uint8_t handleMaj
 {
 	if (handleMajor < ARRAY_SIZE(zProbes))
 	{
-		TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+		ReadLocker lock(zProbesLock);					// make sure Z peobes are not changed or deleted while we operate on them
 		ZProbe * const zp = zProbes[handleMajor];
 		if (zp != nullptr)
 		{
@@ -781,7 +781,7 @@ void EndstopsManager::HandleRemoteAnalogZProbeValueChange(CanAddress src, uint8_
 {
 	if (handleMajor < ARRAY_SIZE(zProbes))
 	{
-		TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+		ReadLocker lock(zProbesLock);					// make sure Z peobes are not changed or deleted while we operate on them
 		ZProbe * const zp = zProbes[handleMajor];
 		if (zp != nullptr)
 		{
@@ -792,7 +792,7 @@ void EndstopsManager::HandleRemoteAnalogZProbeValueChange(CanAddress src, uint8_
 
 void EndstopsManager::HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept
 {
-	TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+	ReadLocker lock(endstopsLock);						// make sure endstops are not changed or deleted while we operate on them
 
 	for (Endstop * es : axisEndstops)
 	{
@@ -810,7 +810,7 @@ void EndstopsManager::HandleStalledRemoteDrivers(CanAddress boardAddress, Remote
 
 void EndstopsManager::DisableRemoteStallEndstops() noexcept
 {
-	TaskCriticalSectionLocker lock;						// make sure endstops are not changed or deleted while we operate on them
+	ReadLocker lock(endstopsLock);						// make sure endstops are not changed or deleted while we operate on them
 
 	for (Endstop * es : axisEndstops)
 	{

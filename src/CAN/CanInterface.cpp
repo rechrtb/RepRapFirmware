@@ -501,7 +501,6 @@ static void SendCanMessage(CanDevice::TxBufferNumber whichBuffer, uint32_t timeo
 	}
 }
 
-//TODO can we get rid of the CanSender task if we send movement messages via the Tx FIFO?
 // This task picks up motion messages and sends them
 extern "C" [[noreturn]] void CanSenderLoop(void *) noexcept
 {
@@ -1190,7 +1189,7 @@ GCodeResult CanInterface::GetSetRemoteDriverStallParameters(const CanDriversList
 	return GCodeResult::ok;
 }
 
-// Enable a stall endstop on a emote board
+// Enable a stall endstop on a remote board
 void CanInterface::EnableRemoteStallEndstop(DriverId did, float speed) THROWS(GCodeException)
 {
 	CanMessageBuffer * const buf = CanMessageBuffer::Allocate();
@@ -1202,10 +1201,15 @@ void CanInterface::EnableRemoteStallEndstop(DriverId did, float speed) THROWS(GC
 	auto msg = buf->SetupRequestMessage<CanMessageEnableStallEndstop>(rid, CanInterface::GetCanAddress(), did.boardAddress);
 	msg->driverNumber = did.localDriver;
 	msg->speed = speed;
-	String<StringLength50> reply;
-	if (CanInterface::SendRequestAndGetStandardReply(buf, rid, reply.GetRef(), nullptr) != GCodeResult::ok)
+
+	// Static buffer to allow a string to be stored that is referred to by a thrown exception.
+	// This isn't ideal, however I consider it unlikely that both motion systems will execute homing moves involving remote drivers at the same time.
+	// An alternative would be to enlarge the GCodeException class to store a copy of the string instead of a pointer to it.
+	static String<StringLength50> enableEndstopsReply;
+	enableEndstopsReply.Clear();
+	if (CanInterface::SendRequestAndGetStandardReply(buf, rid, enableEndstopsReply.GetRef(), nullptr) != GCodeResult::ok)
 	{
-		ThrowGCodeException(reply.c_str());
+		ThrowGCodeException(enableEndstopsReply.c_str());
 	}
 }
 
