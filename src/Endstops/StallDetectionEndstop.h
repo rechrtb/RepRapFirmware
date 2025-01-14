@@ -34,7 +34,7 @@ public:
 	bool ShouldReduceAcceleration() const noexcept override { return true; }
 
 	void SetDrivers(LocalDriversBitmap extruderDrivers) noexcept;										// for setting which local extruder drives are active extruder endstops
-	void PrimeExtruders(AxesBitmap extruders, const float speeds[MaxAxesPlusExtruders]) THROWS(GCodeException);
+	void PrimeExtruders(ExtrudersBitmap extruders, const float speeds[MaxExtruders]) THROWS(GCodeException);
 
 #if SUPPORT_CAN_EXPANSION
 	void HandleStalledRemoteDrivers(CanAddress boardAddress, RemoteDriversBitmap driversReportedStalled) noexcept override;	// record any stalled remote drivers that are meant for us

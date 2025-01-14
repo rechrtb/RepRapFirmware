@@ -77,7 +77,7 @@ void StallDetectionEndstop::PrimeAxis(const Kinematics &_ecv_from kin, const Axi
 												);
 }
 
-void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const float speeds[MaxAxesPlusExtruders]) THROWS(GCodeException)
+void StallDetectionEndstop::PrimeExtruders(ExtrudersBitmap extruders, const float speeds[MaxExtruders]) THROWS(GCodeException)
 {
 	localDriversMonitored.Clear();
 #if SUPPORT_CAN_EXPANSION
