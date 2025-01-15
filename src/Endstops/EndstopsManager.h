@@ -39,7 +39,7 @@ public:
 	bool EnableZProbe(size_t probeNumber, bool probingAway = false) noexcept __attribute__ ((warn_unused_result));
 
 	// Enable extruder endstops, adding to any axis endstops already set up
-	void EnableExtruderEndstops(ExtrudersBitmap logicalDrivesMoving, const float speeds[MaxExtruders]) THROWS(GCodeException);
+	void EnableExtruderEndstops(ExtrudersBitmap logicalDrivesMoving, const float speeds[MaxExtruders], bool& reduceAcceleration) THROWS(GCodeException);
 
 	// Get the first endstop that has triggered and remove it from the active list if appropriate
 	EndstopHitDetails CheckEndstops() noexcept;
