@@ -103,7 +103,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(EndstopsManager)
 
 EndstopsManager::EndstopsManager() noexcept
 		: activeEndstops(nullptr),
-#if HAS_STALL_DETECT
+#if HAS_STALL_DETECT || SUPPORT_CAN_EXPANSION
 		  extrudersEndstop(nullptr),
 #endif
 		  isHomingMove(false)
