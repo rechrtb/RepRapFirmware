@@ -2592,6 +2592,7 @@ static uint32_t lutInputControls[4] = { lutDefault, lutDefault, lutDefault, lutD
 // Disable all the stall interrupts
 static void DisableAllStallInterrupts() noexcept
 {
+	CCL->CTRL.reg = 0;										// SAME5x errata: the LUT config registers are enable-protected by the global enable bit
 	for (unsigned int i = 1; i < 3; ++i)
 	{
 		lutInputControls[i] = lutDefault;
@@ -2599,6 +2600,7 @@ static void DisableAllStallInterrupts() noexcept
 		EVSYS->Channel[CclLut0Event + i].CHINTENCLR.reg = EVSYS_CHINTENCLR_EVD | EVSYS_CHINTENCLR_OVR;
 		EVSYS->Channel[CclLut0Event + i].CHINTFLAG.reg = EVSYS_CHINTFLAG_EVD | EVSYS_CHINTENCLR_OVR;
 	}
+	CCL->CTRL.reg = CCL_CTRL_ENABLE;						// SAME5x errata: the LUT config registers are enable-protected by the global enable bit
 }
 
 #if 0	// unused
@@ -2614,7 +2616,7 @@ static void EnableStallInterrupts(LocalDriversBitmap drivers) noexcept
 			{ 	if (driver < GetNumTmcDrivers())
 				{
 					const uint32_t cclInput = CclDiagInputs[driver];
-					lutInputControls[cclInput & 3] |= cclInput & 0x000000FFFFFF0000;
+					lutInputControls[cclInput & 3] |= cclInput & (CCL_LUTCTRL_INSEL0_Msk | CCL_LUTCTRL_INSEL1_Msk | CCL_LUTCTRL_INSEL2_Msk);
 					return true;
 				}
 				else
@@ -2626,7 +2628,7 @@ static void EnableStallInterrupts(LocalDriversBitmap drivers) noexcept
 		// Now set up the CCL with those inputs. We only use CCL 1-3 so leave 0 alone for possible other applications.
 		for (unsigned int i = 1; i < 4; ++i)
 		{
-			if (lutInputControls[i] & 0x000000FFFFFF0000)		// if any inputs are enabled
+			if (lutInputControls[i] & (CCL_LUTCTRL_INSEL0_Msk | CCL_LUTCTRL_INSEL1_Msk | CCL_LUTCTRL_INSEL2_Msk))		// if any inputs are enabled
 			{
 				CCL->LUTCTRL[i].reg = lutInputControls[i];
 				CCL->LUTCTRL[i].reg = lutInputControls[i] | CCL_LUTCTRL_ENABLE;
@@ -2643,7 +2645,7 @@ static void EnableOneStallInterrupt(uint8_t driverNumber) noexcept
 	{
 		const uint32_t cclInput = CclDiagInputs[driverNumber];
 		const size_t index = cclInput & 3;
-		lutInputControls[index] |= cclInput & 0x000000FFFFFF0000;
+		lutInputControls[index] |= cclInput & (CCL_LUTCTRL_INSEL0_Msk | CCL_LUTCTRL_INSEL1_Msk | CCL_LUTCTRL_INSEL2_Msk);
 		CCL->CTRL.reg = 0;										// SAME5x errata: the LUT config registers are enable-protected by the global enable bit
 		CCL->LUTCTRL[index].reg = lutInputControls[index];
 		CCL->LUTCTRL[index].reg = lutInputControls[index] | CCL_LUTCTRL_ENABLE;
@@ -2658,7 +2660,7 @@ static void DisableOneStallInterrupt(uint8_t driverNumber) noexcept
 	{
 		const uint32_t cclInput = CclDiagInputs[driverNumber];
 		const size_t index = cclInput & 3;
-		lutInputControls[index] &= ~(cclInput & 0x000000FFFFFF0000);
+		lutInputControls[index] &= ~(cclInput & (CCL_LUTCTRL_INSEL0_Msk | CCL_LUTCTRL_INSEL1_Msk | CCL_LUTCTRL_INSEL2_Msk));
 		CCL->CTRL.reg = 0;										// SAME5x errata: the LUT config registers are enable-protected by the global enable bit
 		CCL->LUTCTRL[index].reg = lutInputControls[index];
 		CCL->LUTCTRL[index].reg = lutInputControls[index] | CCL_LUTCTRL_ENABLE;
