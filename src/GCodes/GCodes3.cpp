@@ -538,7 +538,9 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 		for (size_t i = 0; i < numValues; ++i)
 		{
 			move.SetExtruderDriver(i, drivers[i]);
+#if SUPPORT_CAN_EXPANSION || SUPPORT_PHASE_STEPPING
 			const size_t drive = ExtruderToLogicalDrive(i);
+#endif
 #if SUPPORT_CAN_EXPANSION
 			axesToUpdate.SetBit(drive);
 #endif

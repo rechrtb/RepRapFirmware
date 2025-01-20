@@ -283,10 +283,7 @@ inline bool DriveMovement::GetCurrentMotion(uint32_t when, MotionParameters& mPa
 					currentMotorPosition = positionAtSegmentStart + netStepsThisSegment;
 					distanceCarriedForwards += seg->GetLength() - (motioncalc_t)netStepsThisSegment;
 					phaseStepsTakenSinceMoveStart += seg->GetLength();
-					if (isExtruder)
-					{
-						movementAccumulator += netStepsThisSegment;		// update the amount of extrusion
-					}
+					movementAccumulator += netStepsThisSegment;		// update the amount of extrusion
 					MoveSegment *oldSeg = seg;
 					segments = oldSeg->GetNext();
 					MoveSegment::Release(oldSeg);
