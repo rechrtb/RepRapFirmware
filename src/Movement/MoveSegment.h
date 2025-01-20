@@ -60,7 +60,8 @@ union MovementFlags final
 		uint32_t nonPrintingMove : 1,							// true if the move that generated this segment does not have both forwards extrusion and associated axis movement; used for filament monitoring
 				 checkEndstops : 1,								// true if we need to check endstops or Z probe while executing this segment
 				 noShaping : 1,									// true if input shaping should be disabled for this move
-				 executing : 1;									// normally clear, set in a MoveSegment when the move starts to be executed
+				 executing : 1,									// normally clear, set in a MoveSegment when the move starts to be executed
+				 isExtruder : 1;								// true if this segment is for an extruder
 	};
 
 	constexpr void Clear() noexcept { all = 0; }
@@ -79,6 +80,14 @@ union MovementFlags final
 	{
 		all |= other.all;
 		return *this;
+	}
+
+	MovementFlags AddIsExtruder() const noexcept
+	{
+		MovementFlags ret;
+		ret.all = all;
+		ret.isExtruder = true;
+		return ret;
 	}
 };
 

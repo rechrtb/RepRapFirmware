@@ -517,7 +517,6 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 					reprap.MoveUpdated();
 				}
 				move.SetAxisDriversConfig(drive, numValues, drivers);
-				move.SetAsExtruder(drive, false);
 #if SUPPORT_CAN_EXPANSION
 				axesToUpdate.SetBit(drive);
 #endif
@@ -540,7 +539,6 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 		{
 			move.SetExtruderDriver(i, drivers[i]);
 			const size_t drive = ExtruderToLogicalDrive(i);
-			move.SetAsExtruder(drive, true);
 #if SUPPORT_CAN_EXPANSION
 			axesToUpdate.SetBit(drive);
 #endif
