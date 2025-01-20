@@ -2451,6 +2451,8 @@ void Move::CheckEndstops(bool executingMove) noexcept
 }
 
 // Generate the step pulses of internal drivers used by this DDA
+// Note, we use the movement timer ticks to decide when to generate step pulses, but we must use th raw step timer to enforce delays between pulses.
+// 'now'is the movement timer ticks
 void Move::StepDrivers(uint32_t now) noexcept
 {
 	uint32_t driversStepping = 0;
@@ -2489,10 +2491,11 @@ void Move::StepDrivers(uint32_t now) noexcept
 		// Wait until step low and direction setup time have elapsed
 		const uint32_t locLastStepPulseTime = lastStepHighTime;
 		const uint32_t locLastDirChangeTime = lastDirChangeTime;
-		while (now - locLastStepPulseTime < GetSlowDriverStepPeriodClocks() || now - locLastDirChangeTime < GetSlowDriverDirSetupClocks())
+		uint32_t rawNow;
+		do
 		{
-			now = StepTimer::GetTimerTicks();
-		}
+			rawNow = StepTimer::GetTimerTicks();
+		} while (rawNow - locLastStepPulseTime < GetSlowDriverStepPeriodClocks() || rawNow - locLastDirChangeTime < GetSlowDriverDirSetupClocks());
 
 		StepPins::StepDriversLow(StepPins::AllDriversBitmap & (~driversStepping));		// disable the step pins of the drivers we don't want to step
 		StepPins::StepDriversHigh(driversStepping);										// set up the drivers that we do want to step
