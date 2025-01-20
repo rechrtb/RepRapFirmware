@@ -139,7 +139,7 @@ private:
 	int32_t positionAtSegmentStart;						// the value of currentMotorPosition at the start of the current segment
 	int32_t positionAtMoveStart;						// the position at the start of the current move, if it is an isolated move
 #if STEPS_DEBUG
-	motioncalc_t positionRequested;						// accumulated position changes requested by moves executed
+	motioncalc_t positionRequested;						// accumulated position changes requested by moves executed - caution, the step ISR modifies this!
 #endif
 
 	// These values change as the segment is executed

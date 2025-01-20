@@ -130,6 +130,9 @@ public:
 	// Get the length
 	motioncalc_t GetLength() const noexcept { return distance; }
 
+	// Make a small correction to the length. Only ever called on the last segment in a list.
+	void AdjustLength(motioncalc_t adjustment) noexcept { distance += adjustment; }
+
 	// Set the parameters of this segment
 	void SetParameters(uint32_t p_startTime, uint32_t p_duration, motioncalc_t p_distance, motioncalc_t p_a J_FORMAL_PARAMETER(p_j), MovementFlags p_flags) noexcept;
 

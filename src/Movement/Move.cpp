@@ -977,7 +977,6 @@ void Move::Diagnostics(MessageType mtype) noexcept
 	for (size_t drive = 0; drive < reprap.GetGCodes().GetTotalAxes(); ++drive)
 	{
 		scratchString.catf(" %.2f/%" PRIi32 "/%.2f", (double)dms[drive].positionRequested, dms[drive].currentMotorPosition, (double)dms[drive].distanceCarriedForwards);
-		dms[drive].positionRequested = (float)dms[drive].currentMotorPosition;
 	}
 	scratchString.cat('\n');
 	p.Message(mtype, scratchString.c_str());
@@ -1876,7 +1875,10 @@ void Move::AddLinearSegments(const DDA& dda, size_t logicalDrive, uint32_t start
 #endif
 
 #if STEPS_DEBUG
-	dm.positionRequested += steps;
+	{
+		AtomicCriticalSectionLocker lock;
+		dm.positionRequested += steps;				// currently we compile for C++17 so we can't make this variable atomic
+	}
 #endif
 
 	if (moveFlags.noShaping)
