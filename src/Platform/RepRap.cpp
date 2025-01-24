@@ -1138,6 +1138,8 @@ bool RepRap::SpinTimeoutImminent() const noexcept
 	return ticksInSpinState >= HighMainTaskTicksInSpinState;
 }
 
+#if 0	// removed because we ran out of flash memory on Duet 2
+
 // Get the JSON status response for the web server or the M408 command.
 // Type 1 is the ordinary JSON status response.
 // Type 2 is the same except that static parameters are also included.
@@ -1577,6 +1579,10 @@ OutputBuffer *_ecv_null RepRap::GetStatusResponse(uint8_t type, ResponseSource s
 	return response;
 }
 
+#endif
+
+#if 0	// removed because we ran out of flash memory on Duet 2
+
 OutputBuffer *_ecv_null RepRap::GetConfigResponse() noexcept
 {
 	// We need some resources to return a valid config response...
@@ -1656,6 +1662,8 @@ OutputBuffer *_ecv_null RepRap::GetConfigResponse() noexcept
 
 	return response;
 }
+
+#endif
 
 // Get the JSON status response for PanelDue
 // Type 0 was the old-style webserver status response, but is no longer supported.

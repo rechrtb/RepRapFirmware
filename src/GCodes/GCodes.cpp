@@ -5087,6 +5087,7 @@ void GCodes::CheckReportDue(GCodeBuffer& gb, const StringRef& reply) const noexc
 OutputBuffer *_ecv_null GCodes::GenerateJsonStatusResponse(int type, int seq, ResponseSource source) const noexcept
 {
 	OutputBuffer *_ecv_null statusResponse = nullptr;
+#if 0	// removed support for types > 1because we ran out of flash memory on Duet 2
 	switch (type)
 	{
 		case 0:
@@ -5107,6 +5108,9 @@ OutputBuffer *_ecv_null GCodes::GenerateJsonStatusResponse(int type, int seq, Re
 			statusResponse = reprap.GetConfigResponse();
 			break;
 	}
+#else
+	statusResponse = reprap.GetLegacyStatusResponse(type + 2, seq);
+#endif
 	if (statusResponse != nullptr)
 	{
 		statusResponse->cat('\n');
