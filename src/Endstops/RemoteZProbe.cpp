@@ -40,7 +40,7 @@ RemoteZProbe::~RemoteZProbe()
 GCodeResult RemoteZProbe::AppendPinNames(const StringRef& str) noexcept
 {
 	String<StringLength100> reply;
-	const GCodeResult rslt = CanInterface::GetHandlePinName(boardAddress, handle, state, reply.GetRef());
+	const GCodeResult rslt = CanInterface::GetHandlePinName(boardAddress, handle, nullptr, reply.GetRef());
 	if (rslt == GCodeResult::ok)
 	{
 		str.cat(", input pin ");
@@ -56,21 +56,32 @@ GCodeResult RemoteZProbe::AppendPinNames(const StringRef& str) noexcept
 // Get the raw reading. Not used with scanning Z probes except for reporting in the object model.
 uint32_t RemoteZProbe::GetRawReading() const noexcept
 {
-	return (type == ZProbeType::scanningAnalog) ? lastValue
-			: (state) ? 1000 : 0;
+	return (type == ZProbeType::scanningAnalog && !useTouchMode) ? lastValue
+			: (touchTriggered) ? 1000 : 0;
 }
 
 bool RemoteZProbe::SetProbing(bool isProbing) noexcept
 {
 	String<StringLength100> reply;
 	GCodeResult rslt = GCodeResult::ok;
-	if (isProbing && type == ZProbeType::scanningAnalog)
+	if (type == ZProbeType::scanningAnalog && useTouchMode)
 	{
-		rslt = CanInterface::ChangeHandleThreshold(boardAddress, handle, targetAdcValue, state, reply.GetRef());
+		touchTriggered = false;
+		if (isProbing)
+		{
+			rslt = CanInterface::ChangeHandleSetTouchMode(boardAddress, handle, (uint32_t)((uint16_t)touchModeSensitivity * 65535), reply.GetRef());
+		}
 	}
-	if (rslt == GCodeResult::ok)
+	else
 	{
-		rslt = CanInterface::ChangeHandleResponseTime(boardAddress, handle, (isProbing) ? ActiveProbeReportInterval : InactiveProbeReportInterval, state, reply.GetRef());
+		if (isProbing && type == ZProbeType::scanningAnalog)
+		{
+			rslt = CanInterface::ChangeHandleThreshold(boardAddress, handle, targetAdcValue, nullptr, reply.GetRef());
+		}
+		if (rslt == GCodeResult::ok)
+		{
+			rslt = CanInterface::ChangeHandleResponseTime(boardAddress, handle, (isProbing) ? ActiveProbeReportInterval : InactiveProbeReportInterval, nullptr, reply.GetRef());
+		}
 	}
 	if (rslt != GCodeResult::ok)
 	{
@@ -98,7 +109,7 @@ GCodeResult RemoteZProbe::Create(const StringRef& pinNames, const StringRef& rep
 	RemoteInputHandle h;
 	h.Set(RemoteInputHandle::typeZprobe, number, 0);
 	const uint16_t threshold = (type == ZProbeType::scanningAnalog) ? DefaultZProbeADValue : 0;		// nonzero threshold makes it an analog handle
-	const GCodeResult rc = CanInterface::CreateHandle(boardAddress, h, pinNames.c_str(), threshold, ActiveProbeReportInterval, state, reply);
+	const GCodeResult rc = CanInterface::CreateHandle(boardAddress, h, pinNames.c_str(), threshold, ActiveProbeReportInterval, nullptr, reply);
 	if (rc < GCodeResult::error)						// don't set the handle unless it is valid, or we will get an error when this probe is deleted
 	{
 		handle = h;
@@ -142,7 +153,7 @@ GCodeResult RemoteZProbe::HandleG31(GCodeBuffer& gb, const StringRef& reply) /*o
 	GCodeResult rslt = ZProbe::HandleG31(gb, reply);
 	if (type == ZProbeType::scanningAnalog && gb.Seen('P') && (rslt == GCodeResult::ok || rslt <= GCodeResult::warning))
 	{
-		const GCodeResult rslt2 = CanInterface::ChangeHandleThreshold(boardAddress, handle, targetAdcValue, state, reply);
+		const GCodeResult rslt2 = CanInterface::ChangeHandleThreshold(boardAddress, handle, targetAdcValue, nullptr, reply);
 		if (rslt2 > rslt) { rslt = rslt2; }
 	}
 	return rslt;
@@ -222,27 +233,15 @@ GCodeResult RemoteZProbe::CalibrateDriveLevel(GCodeBuffer& gb, const StringRef& 
 	return CanInterface::SetHandleDriveLevel(boardAddress, handle, param, returnedDriveLevel, reply);
 }
 
-// Set touch mode parameters (M558.3)
-GCodeResult RemoteZProbe::SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
-{
-	bool seen = false;
-	gb.TryGetBValue('S', useTouchMode, seen);
-	gb.TryGetFValue('H', touchModeTriggerHeight, seen);
-	gb.TryGetLimitedFValue('V', touchModeSensitivity, seen, 0.0, 1.0);
-
-	if (!seen)
-	{
-		reply.printf("Z probe %u touch mode: %s active, trigger height %.2f, sensitivity %.2f", number, (useTouchMode) ? "" : "not ", (double)touchModeTriggerHeight, (double)touchModeSensitivity);
-	}
-	return GCodeResult::ok;
-}
-
 // Callback function for digital Z probes
 void RemoteZProbe::HandleRemoteInputChange(CanAddress src, uint8_t handleMinor, bool newState, uint32_t reading) noexcept
 {
 	if (src == boardAddress)
 	{
-		state = newState;
+		if (type == ZProbeType::scanningAnalog && useTouchMode)
+		{
+			touchTriggered = newState;
+		}
 		lastValue = reading;
 	}
 }

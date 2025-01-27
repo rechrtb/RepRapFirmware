@@ -30,7 +30,6 @@ public:
 
 	// The following should never be called for a non-scanning probe, so by default we just return error with no message
 	virtual GCodeResult CalibrateDriveLevel(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException) { return GCodeResult::error; }
-	virtual GCodeResult SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException) { return GCodeResult::error; }
 #endif
 
 #if SUPPORT_CAN_EXPANSION
@@ -51,6 +50,7 @@ public:
 	float GetOffset(size_t axisNumber) const noexcept { return offsets[axisNumber]; }
 	float GetConfiguredTriggerHeight() const noexcept { return -offsets[Z_AXIS]; }
 	float GetActualTriggerHeight() const noexcept { return actualTriggerHeight; }
+	float GetActiveModeTriggerHeight() const noexcept;
 	float GetDiveHeight(int tapsDone) const noexcept;
 	float GetStartingHeight(bool firstTap, float previousHeightError = 0.0) const noexcept;
 	float GetProbingSpeed(int tapsDone) const noexcept { return probeSpeeds[(tapsDone < 0) ? 0 : 1]; }
@@ -80,6 +80,7 @@ public:
 	float GetScanningHeight() const noexcept;
 	GCodeResult SetScanningCoefficients(float aParam, float bParam, float cParam) noexcept;
 	GCodeResult ReportScanningCoefficients(const StringRef& reply) noexcept;
+	GCodeResult SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 	void CalibrateScanningProbe(const int32_t calibrationReadings[], size_t numCalibrationReadingsTaken, float heightChangePerPoint, const StringRef& reply) noexcept;
 	float ConvertReadingToHeightDifference(int32_t reading) const noexcept;
 #endif
@@ -121,10 +122,11 @@ protected:
 #if SUPPORT_SCANNING_PROBES
 	// Scanning support
 	float scanCoefficients[4];
-	bool isCalibrated = false;
-	bool useTouchMode = false;
 	float touchModeTriggerHeight = DefaultScanningProbeTouchModeTriggerHeight;
 	float touchModeSensitivity = DefaultScanningProbeTouchModeSensitivity;
+	bool isCalibrated = false;
+	bool useTouchMode = false;
+	bool touchTriggered = false;		// the state of the probe, used when it is in touch mode
 #endif
 
 	uint8_t number;
@@ -132,6 +134,10 @@ protected:
 	int8_t sensor;						// the sensor number used for temperature calibration
 	bool isDeployedByUser;				// true if the user has used the M401 command to deploy this probe and not sent M402 to retract it
 };
+
+#if !SUPPORT_SCANNING_PROBES
+inline float ZProbe::GetActiveModeTriggerHeight() const noexcept { return GetActualTriggerHeight(); }
+#endif
 
 // MotorStall Z probes have no port, also in a CAN environment the local and remote proxy versions are the same
 class MotorStallZProbe final : public ZProbe
