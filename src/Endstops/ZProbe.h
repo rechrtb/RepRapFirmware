@@ -122,6 +122,9 @@ protected:
 	// Scanning support
 	float scanCoefficients[4];
 	bool isCalibrated = false;
+	bool useTouchMode = false;
+	float touchModeTriggerHeight = DefaultScanningProbeTouchModeTriggerHeight;
+	float touchModeSensitivity = DefaultScanningProbeTouchModeSensitivity;
 #endif
 
 	uint8_t number;

@@ -42,6 +42,7 @@ public:
 	// Functions used only with scanning Z probes
 	GCodeResult GetCalibratedReading(float& val) const noexcept override;
 	GCodeResult CalibrateDriveLevel(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException) override;
+	GCodeResult SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException) override;
 	float GetLatestHeight() const noexcept override;
 
 	void ScanningProbeCallback(RemoteInputHandle h, uint32_t val) noexcept;

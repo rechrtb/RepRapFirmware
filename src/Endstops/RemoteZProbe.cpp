@@ -222,6 +222,21 @@ GCodeResult RemoteZProbe::CalibrateDriveLevel(GCodeBuffer& gb, const StringRef& 
 	return CanInterface::SetHandleDriveLevel(boardAddress, handle, param, returnedDriveLevel, reply);
 }
 
+// Set touch mode parameters (M558.3)
+GCodeResult RemoteZProbe::SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
+{
+	bool seen = false;
+	gb.TryGetBValue('S', useTouchMode, seen);
+	gb.TryGetFValue('H', touchModeTriggerHeight, seen);
+	gb.TryGetLimitedFValue('V', touchModeSensitivity, seen, 0.0, 1.0);
+
+	if (!seen)
+	{
+		reply.printf("Z probe %u touch mode: %s active, trigger height %.2f, sensitivity %.2f", number, (useTouchMode) ? "" : "not ", (double)touchModeTriggerHeight, (double)touchModeSensitivity);
+	}
+	return GCodeResult::ok;
+}
+
 // Callback function for digital Z probes
 void RemoteZProbe::HandleRemoteInputChange(CanAddress src, uint8_t handleMinor, bool newState, uint32_t reading) noexcept
 {
