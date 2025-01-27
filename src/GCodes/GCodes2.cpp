@@ -3533,7 +3533,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			case 558: // Set or report Z probe type and for which axes it is used; M558.1 calibrate Z probe; M558.2 calibrate scanning Z probe drive strength
 				result =
 #if SUPPORT_SCANNING_PROBES
-						(gb.GetCommandFraction() > 2) ? TryMacroFile(gb) :
+						(gb.GetCommandFraction() > 3) ? TryMacroFile(gb) :
 #endif
 							platform.GetEndstops().HandleM558(gb, reply);
 				break;
