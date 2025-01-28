@@ -83,6 +83,7 @@ public:
 	GCodeResult SetTouchModeParameters(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 	void CalibrateScanningProbe(const int32_t calibrationReadings[], size_t numCalibrationReadingsTaken, float heightChangePerPoint, const StringRef& reply) noexcept;
 	float ConvertReadingToHeightDifference(int32_t reading) const noexcept;
+	void ClearTouchTriggered() noexcept { touchTriggered = false; }		// called before doing a probing move so we don't get an "already triggered" error
 #endif
 
 #if HAS_MASS_STORAGE || HAS_SBC_INTERFACE
