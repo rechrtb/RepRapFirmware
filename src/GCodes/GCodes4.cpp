@@ -956,7 +956,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 						}
 						ms.checkEndstops = true;
 						ms.reduceAcceleration = true;
-						ms.coords[Z_AXIS] = -zp->GetDiveHeight(-1) + zp->GetActualTriggerHeight();
+						ms.coords[Z_AXIS] = -zp->GetDiveHeight(-1) + zp->GetActiveModeTriggerHeight();
 						ms.feedRate = zp->GetProbingSpeed(tapsDone);
 						ms.linearAxesMentioned = true;
 						NewSingleSegmentMoveAvailable(ms);
@@ -991,7 +991,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				}
 
 				// Grid probing never does an additional fast tap, so we can always include this tap in the average
-				g30zHeightError = ms.coords[Z_AXIS] - zp->GetActualTriggerHeight();
+				g30zHeightError = ms.coords[Z_AXIS] - zp->GetActiveModeTriggerHeight();
 				g30zHeightErrorSum += g30zHeightError;
 			}
 
@@ -1365,7 +1365,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 						ms.checkEndstops = true;
 						ms.reduceAcceleration = true;
 						ms.coords[Z_AXIS] = (IsAxisHomed(Z_AXIS))
-													? reprap.GetMove().AxisMinimum(Z_AXIS) - zp->GetDiveHeight(-1) + zp->GetActualTriggerHeight()	// Z axis has been homed, so no point in going very far
+													? reprap.GetMove().AxisMinimum(Z_AXIS) - zp->GetDiveHeight(-1) + zp->GetActiveModeTriggerHeight()	// Z axis has been homed, so no point in going very far
 													: -1.1 * reprap.GetMove().AxisTotalLength(Z_AXIS);	// Z axis not homed yet, so treat this as a homing move
 						ms.feedRate = zp->GetProbingSpeed(tapsDone);
 						ms.linearAxesMentioned = true;
@@ -1411,7 +1411,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 					zp->SetLastStoppedHeight(g30zStoppedHeight);
 					if (tapsDone > 0)											// don't accumulate the result if we are doing fast-then-slow probing and this was the fast probe
 					{
-						g30zHeightError = g30zStoppedHeight - zp->GetActualTriggerHeight();
+						g30zHeightError = g30zStoppedHeight - zp->GetActiveModeTriggerHeight();
 						g30zHeightErrorSum += g30zHeightError;
 					}
 				}
@@ -1431,7 +1431,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				if (tapsDone <= 1 && !hadProbingError)
 				{
 					// Reset the Z axis origin according to the height error so that we can move back up to the dive height
-					ms.coords[Z_AXIS] = zp->GetActualTriggerHeight();
+					ms.coords[Z_AXIS] = zp->GetActiveModeTriggerHeight();
 					ms.SetNewPositionOfOwnedAxes(ms.coords);
 
 					// Find the coordinates of the Z probe to pass to SetZeroHeightError

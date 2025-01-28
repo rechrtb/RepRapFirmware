@@ -206,7 +206,7 @@ float ZProbe::GetDiveHeight(int tapsDone) const noexcept
 float ZProbe::GetStartingHeight(bool firstTap, float previousHeightError) const noexcept
 {
 	return ((!firstTap && diveHeights[1] < diveHeights[0]) ? diveHeights[1] + previousHeightError : diveHeights[0])
-			+ GetActualTriggerHeight();
+			+ GetActiveModeTriggerHeight();
 }
 
 #if SUPPORT_SCANNING_PROBES
