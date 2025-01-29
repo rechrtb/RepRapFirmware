@@ -53,7 +53,7 @@ public:
 	float GetActiveModeTriggerHeight() const noexcept;
 	float GetDiveHeight(int tapsDone) const noexcept;
 	float GetStartingHeight(bool firstTap, float previousHeightError = 0.0) const noexcept;
-	float GetProbingSpeed(int tapsDone) const noexcept { return probeSpeeds[(tapsDone < 0) ? 0 : 1]; }
+	float GetProbingSpeed(int tapsDone) const noexcept;
 	float GetScanningSpeed() const noexcept { return probeSpeeds[2]; }
 	bool FastThenSlowProbing() const noexcept { return probeSpeeds[1] < probeSpeeds[0]; }
 	float GetTravelSpeed() const noexcept { return travelSpeed; }
@@ -125,6 +125,7 @@ protected:
 	float scanCoefficients[4];
 	float touchModeTriggerHeight = DefaultScanningProbeTouchModeTriggerHeight;
 	float touchModeSensitivity = DefaultScanningProbeTouchModeSensitivity;
+	float touchModeProbeSpeed = ConvertSpeedFromMmPerMin(DefaultScanningProbeTouchModeProbeSpeed);
 	bool isCalibrated = false;
 	bool useTouchMode = false;
 	bool touchTriggered = false;		// the state of the probe, used when it is in touch mode
@@ -138,6 +139,7 @@ protected:
 
 #if !SUPPORT_SCANNING_PROBES
 inline float ZProbe::GetActiveModeTriggerHeight() const noexcept { return GetActualTriggerHeight(); }
+inline float ZProbe::GetProbingSpeed(int tapsDone) const noexcept { return probeSpeeds[(tapsDone < 0) ? 0 : 1]; }
 #endif
 
 // MotorStall Z probes have no port, also in a CAN environment the local and remote proxy versions are the same
