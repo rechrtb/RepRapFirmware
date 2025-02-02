@@ -1911,11 +1911,113 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 				break;
 
 			case Function::take:
+				{
+					ExpressionValue nextOperand;
+					GetNextOperand(nextOperand, evaluate);
+					ConvertToUnsigned(nextOperand, evaluate);
+					switch (rslt.GetType())
+					{
+					case TypeCode::ObjectModelArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::HeapArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::CString:
+						{
+							const size_t len = min<size_t>(strlen(rslt.sVal), nextOperand.uVal);
+							const StringHandle sh(rslt.sVal, len);
+							rslt.SetStringHandle(sh);
+						}
+						break;
+
+					case TypeCode::HeapString:
+						{
+							ExpressionValue copy(rslt);
+							WriteLocker lock(Heap::heapLock);
+							const ReadLockedPointer<const char> p = copy.shVal.Get();
+							const size_t len = min<size_t>(strlen(p.Ptr()), nextOperand.uVal);
+							const StringHandle sh(p.Ptr(), len);
+							rslt.SetStringHandle(sh);
+						}
+						break;
+
+					default:
+						ThrowParseException("first operand of function is not an array or string");
+					}
+				}
+				break;
+
 			case Function::drop:
+				{
+					ExpressionValue nextOperand;
+					GetNextOperand(nextOperand, evaluate);
+					ConvertToUnsigned(nextOperand, evaluate);
+					switch (rslt.GetType())
+					{
+					case TypeCode::ObjectModelArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::HeapArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::CString:
+						{
+							const size_t slen = strlen(rslt.sVal);
+							const size_t offset = min<size_t>(slen, nextOperand.uVal);
+							StringHandle sh(rslt.sVal + offset, slen - offset);
+							rslt.SetStringHandle(sh);
+						}
+						break;
+
+					case TypeCode::HeapString:
+						{
+							ExpressionValue copy(rslt);
+							WriteLocker lock(Heap::heapLock);
+							const ReadLockedPointer<const char> p = copy.shVal.Get();
+							const size_t slen = strlen(p.Ptr());
+							const size_t offset = min<size_t>(slen, nextOperand.uVal);
+							StringHandle sh(p.Ptr() + offset, slen - offset);
+							rslt.SetStringHandle(sh);
+						}
+						break;
+
+					default:
+						ThrowParseException("first operand of function is not an array or string");
+					}
+				}
+				break;
+
 			case Function::indexof:
-//				CheckArrayOrString(rslt);
-				// First operand must be an array or string
-				ThrowParseException("not implemented");
+				{
+					ExpressionValue nextOperand;
+					GetNextOperand(nextOperand, evaluate);
+					switch (rslt.GetType())
+					{
+					case TypeCode::ObjectModelArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::HeapArray:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::CString:
+						ThrowParseException("not implemented");
+						break;
+
+					case TypeCode::HeapString:
+						ThrowParseException("not implemented");
+						break;
+
+					default:
+						ThrowParseException("first operand of function is not an array or string");
+					}
+				}
 				break;
 
 			default:
