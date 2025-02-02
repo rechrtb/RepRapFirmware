@@ -1951,11 +1951,39 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 					switch (rslt.GetType())
 					{
 					case TypeCode::ObjectModelArray:
-						ThrowParseException("not implemented");
+						{
+							const ObjectModelArrayTableEntry *const entry = _ecv_not_null(rslt.omVal->FindObjectModelArrayEntry(rslt.param & 0xFF));
+							ObjectExplorationContext context;
+							ReadLocker locker(entry->lockPointer);
+							const size_t len = min<size_t>(entry->GetNumElements(rslt.omVal, context), nextOperand.uVal);
+							ArrayHandle ah;
+							WriteLocker lock(Heap::heapLock);
+							ah.Allocate(len);
+							for (size_t i = 0; i < len; ++i)
+							{
+								context.AddIndex(i);
+								ExpressionValue elem(entry->GetElement(rslt.omVal, context));
+								ah.AssignElement(i, elem);
+								context.RemoveIndex();
+							}
+							rslt.SetArrayHandle(ah);
+						}
 						break;
 
 					case TypeCode::HeapArray:
-						ThrowParseException("not implemented");
+						{
+							WriteLocker lock(Heap::heapLock);
+							const size_t len = min<size_t>(rslt.ahVal.GetNumElements(), nextOperand.uVal);
+							ArrayHandle ah;
+							ah.Allocate(len);
+							for (size_t i = 0; i < len; ++i)
+							{
+								ExpressionValue elem;
+								(void)rslt.ahVal.GetElement(i, elem);
+								ah.AssignElement(i, elem);
+							}
+							rslt.SetArrayHandle(ah);
+						}
 						break;
 
 					case TypeCode::CString:
@@ -1991,11 +2019,50 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 					switch (rslt.GetType())
 					{
 					case TypeCode::ObjectModelArray:
-						ThrowParseException("not implemented");
+						{
+							const ObjectModelArrayTableEntry *const entry = _ecv_not_null(rslt.omVal->FindObjectModelArrayEntry(rslt.param & 0xFF));
+							ObjectExplorationContext context;
+							ReadLocker locker(entry->lockPointer);
+							const size_t numOriginalElements = entry->GetNumElements(rslt.omVal, context);
+							const size_t offset = min<size_t>(numOriginalElements, nextOperand.uVal);
+							const size_t len = numOriginalElements - offset;
+							ArrayHandle ah;
+							if (len != 0)
+							{
+								WriteLocker lock(Heap::heapLock);
+								ah.Allocate(len);
+								ObjectExplorationContext context;
+								for (size_t i = 0; i < len; ++i)
+								{
+									context.AddIndex(i + offset);
+									ExpressionValue elem(entry->GetElement(rslt.omVal, context));
+									ah.AssignElement(i, elem);
+									context.RemoveIndex();
+								}
+							}
+							rslt.SetArrayHandle(ah);
+						}
 						break;
 
-					case TypeCode::HeapArray:
-						ThrowParseException("not implemented");
+						case TypeCode::HeapArray:
+						{
+							WriteLocker lock(Heap::heapLock);
+							const size_t numOriginalElements = rslt.ahVal.GetNumElements();
+							const size_t offset = min<size_t>(numOriginalElements, nextOperand.uVal);
+							const size_t len = numOriginalElements - offset;
+							ArrayHandle ah;
+							if (len != 0)
+							{
+								ah.Allocate(len);
+								for (size_t i = 0; i < len; ++i)
+								{
+									ExpressionValue elem;
+									(void)rslt.ahVal.GetElement(i + offset, elem);
+									ah.AssignElement(i, elem);
+								}
+							}
+							rslt.SetArrayHandle(ah);
+						}
 						break;
 
 					case TypeCode::CString:
