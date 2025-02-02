@@ -72,7 +72,7 @@ void LineReader::SkipTabsAndSpaces() noexcept
 
 // These can't be declared locally inside ParseIdentifierExpression because NamedEnum includes static data
 NamedEnum(NamedConstant, unsigned int, _false, iterations, line, _null, pi, _result, _true, input);
-NamedEnum(Function, unsigned int, abs, acos, asin, atan, atan2, ceil, cos, datetime, degrees, drop, exists, exp, fileexists, fileread, floor, indexof, isnan, log, max, min, mod, pow, radians, random, sin, sqrt, take, tan, vector);
+NamedEnum(Function, unsigned int, abs, acos, asin, atan, atan2, ceil, cos, datetime, degrees, drop, exists, exp, fileexists, fileread, find, floor, isnan, log, max, min, mod, pow, radians, random, sin, sqrt, take, tan, vector);
 
 const char *_ecv_array const InvalidExistsMessage = "invalid 'exists' expression";
 const char *_ecv_array const ExpectedNonNegativeIntMessage = "expected non-negative integer";
@@ -1379,6 +1379,39 @@ void ExpressionParser::ParseNumber(ExpressionValue& rslt) noexcept
 	}
 }
 
+static void SetStrStrResult(ExpressionValue& e, const char *_ecv_array s1, const char *_ecv_array s2) noexcept
+{
+	const char *_ecv_array _ecv_null q = strstr(s1, s2);
+	e.SetInt((q == nullptr) ? -1 : q - s1);
+}
+
+void ExpressionParser::SetFindResult(ExpressionValue& e1, const char *_ecv_array s, const ExpressionValue& e2) THROWS(GCodeException)
+{
+	switch (e2.GetType())
+	{
+	case TypeCode::Char:
+		{
+			const char *_ecv_array _ecv_null q = strchr(s, e2.cVal);
+			e1.SetInt((q == nullptr) ? -1 : q - s);
+		}
+		break;
+
+	case TypeCode::CString:
+		SetStrStrResult(e1, s, e2.sVal);
+		break;
+
+	case TypeCode::HeapString:
+		{
+			ReadLockedPointer<const char> p = e2.shVal.Get();
+			SetStrStrResult(e1, s, p.Ptr());
+		}
+		break;
+
+	default:
+		ThrowParseException("incompatible operand types");
+	}
+}
+
 // Parse an identifier expression
 // If 'evaluate' is false then the object model path may not exist, in which case we must ignore error that and parse it all anyway
 // This means we can use expressions such as: if {a.b == null || a.b.c == 1}
@@ -1992,7 +2025,7 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 				}
 				break;
 
-			case Function::indexof:
+			case Function::find:
 				{
 					ExpressionValue nextOperand;
 					GetNextOperand(nextOperand, evaluate);
@@ -2007,11 +2040,14 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 						break;
 
 					case TypeCode::CString:
-						ThrowParseException("not implemented");
+						SetFindResult(rslt, rslt.sVal, nextOperand);
 						break;
 
 					case TypeCode::HeapString:
-						ThrowParseException("not implemented");
+						{
+							ReadLockedPointer<const char> p1 = rslt.shVal.Get();
+							SetFindResult(rslt, p1.Ptr(), nextOperand);
+						}
 						break;
 
 					default:
