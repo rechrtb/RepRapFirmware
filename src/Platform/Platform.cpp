@@ -2839,7 +2839,7 @@ void Platform::EnablePanelDuePort() noexcept
 {
 	auxDevices[0].SetBaudRate(57600);
 	auxDevices[0].SetMode(AuxMode::panelDue);
-	commsParams[1] = 1
+	commsParams[1] = 1;
 	reprap.GetGCodes().GetSerialGCodeBuffer(1)->Enable(1);
 }
 
