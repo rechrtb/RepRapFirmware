@@ -2075,7 +2075,9 @@ static constexpr AuxMode auxModes[] =
 AuxMode Platform::GetChannelMode(size_t chan) const noexcept
 {
 	return (chan == 0) ? auxModes[commsParams[0] & 7]
+#if HAS_AUX_DEVICES
 			: (chan < NumSerialChannels) ? auxDevices[chan - 1].GetMode()
+#endif
 				: AuxMode::disabled;
 }
 
