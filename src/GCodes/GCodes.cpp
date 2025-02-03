@@ -4116,9 +4116,9 @@ void GCodes::HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const 
 			|| &gb == Queue2GCode()
 #endif
 #if HAS_AUX_DEVICES
-			|| (&gb == AuxGCode() && !platform.IsAuxRaw(0))
+			|| (&gb == AuxGCode() && !platform.IsChanRaw(1))
 # ifdef SERIAL_AUX2_DEVICE
-			|| (&gb == Aux2GCode() && !platform.IsAuxRaw(1))
+			|| (&gb == Aux2GCode() && !platform.IsChanRaw(2))
 # endif
 #endif
 			|| gb.IsDoingFileMacro()
@@ -4151,6 +4151,7 @@ void GCodes::HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const 
 
 	case Compatibility::NanoDLP:				// nanoDLP is like Marlin except that G0 and G1 commands return "Z_move_comp<LF>" before "ok<LF>"
 	case Compatibility::Marlin:
+	default:
 		if (gb.IsLastCommand() && !gb.IsDoingFileMacro())
 		{
 			// Put "ok" at the end
@@ -4177,13 +4178,6 @@ void GCodes::HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const 
 		{
 			platform.MessageF(mt, "%s\n", reply);
 		}
-		break;
-
-	case Compatibility::Teacup:
-	case Compatibility::Sprinter:
-	case Compatibility::Repetier:
-	default:
-		platform.MessageF(mt, "Emulation of %s is not supported\n", gb.LatestMachineState().compatibility.ToString());
 		break;
 	}
 }
@@ -4220,6 +4214,7 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *_ecv_null reply) noexcep
 
 	case Compatibility::Marlin:
 	case Compatibility::NanoDLP:
+	default:
 		if (gb.GetCommandLetter() == 'M')
 		{
 			// The response to some M-codes is handled differently in Marlin mode
@@ -4262,13 +4257,6 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *_ecv_null reply) noexcep
 			platform.MessageF(type, "%s\n", response);
 		}
 		return;
-
-	case Compatibility::Teacup:
-	case Compatibility::Sprinter:
-	case Compatibility::Repetier:
-	default:
-		platform.MessageF(type, "Emulation of %s is not supported\n", gb.LatestMachineState().compatibility.ToString());
-		break;
 	}
 
 	// If we get here then we didn't handle the message, so release the buffer(s)
