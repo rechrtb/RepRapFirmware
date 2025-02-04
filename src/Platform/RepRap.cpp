@@ -2145,7 +2145,7 @@ GCodeResult RepRap::GetFileInfoResponse(c_string _ecv_null filename, OutputBuffe
 		return GCodeResult::notFinished;
 	}
 
-	if (!OutputBuffer::Allocate(response))
+	if (!OutputBuffer::Allocate(response, false))
 	{
 		return GCodeResult::notFinished;
 	}
@@ -2282,7 +2282,7 @@ void RepRap::AppendStringArray(OutputBuffer *buf, c_string _ecv_null name, size_
 OutputBuffer *RepRap::GetModelResponse(const GCodeBuffer *_ecv_null gb, c_string _ecv_null key, c_string _ecv_null flags) const THROWS(GCodeException)
 {
 	OutputBuffer *outBuf;
-	if (OutputBuffer::Allocate(outBuf))
+	if (OutputBuffer::Allocate(outBuf, false))
 	{
 		if (key == nullptr) { key = ""; }
 		if (flags == nullptr) { flags = ""; }

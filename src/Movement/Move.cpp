@@ -3071,7 +3071,7 @@ GCodeResult Move::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& repl
 		drivers = LocalDriversBitmap::MakeLowestNBits(numSmartDrivers);
 	}
 
-	if (!OutputBuffer::Allocate(buf))
+	if (!OutputBuffer::Allocate(buf, false))
 	{
 		return GCodeResult::notFinished;
 	}

@@ -1523,7 +1523,7 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 		OutputBuffer *_ecv_null buffer = gcodeReply.GetLastItem();
 		if (buffer == nullptr || buffer->IsReferenced())
 		{
-			if (!OutputBuffer::Allocate(buffer))
+			if (!OutputBuffer::Allocate(buffer, false))
 			{
 				// No more space available, stop here
 				return;

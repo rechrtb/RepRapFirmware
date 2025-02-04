@@ -994,7 +994,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					else
 					{
-						if (!OutputBuffer::Allocate(outBuf))
+						if (!OutputBuffer::Allocate(outBuf, false))
 						{
 							return false;												// cannot allocate an output buffer, try again later
 						}
@@ -3276,7 +3276,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 
 					// Need a valid output buffer to continue
-					if (!OutputBuffer::Allocate(outBuf))
+					if (!OutputBuffer::Allocate(outBuf, false))
 					{
 						// No buffer available, try again later
 						return false;
