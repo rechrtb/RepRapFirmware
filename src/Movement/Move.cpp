@@ -78,12 +78,7 @@ constexpr ObjectModelArrayTableEntry Move::objectModelArrayTable[] =
 	// 0. Axes
 	{
 		nullptr,					// no lock needed
-		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext& context) noexcept -> size_t
-				{
-					const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-					// The array gets too large to send when we want all fields and there are a lot of axes, so restrict the number of axes returned to 9
-					return (context.TruncateLongArrays()) ? min<size_t>(numAxes, 9) : numAxes;
-				},
+		[] (const ObjectModel *_ecv_from self, const ObjectExplorationContext& context) noexcept -> size_t { return reprap.GetGCodes().GetTotalAxes(); },
 		[] (const ObjectModel *_ecv_from self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(self, 9); }
 	},
 	// 1. Extruders
@@ -142,6 +137,11 @@ constexpr ObjectModelArrayTableEntry Move::objectModelArrayTable[] =
 };
 
 DEFINE_GET_OBJECT_MODEL_ARRAY_TABLE(Move)
+
+size_t Move::GetMaxElementsToReturn(const ObjectModelArrayTableEntry *entry) const noexcept
+{
+	return (entry == &objectModelArrayTable[0]) ? 9 : 0;				// return at most 9 elements of move.axes
+}
 
 static inline const char *_ecv_array GetFilamentName(size_t extruder) noexcept
 {

@@ -497,6 +497,8 @@ public:
 protected:
 	DECLARE_OBJECT_MODEL_WITH_ARRAYS
 
+	size_t GetMaxElementsToReturn(const ObjectModelArrayTableEntry *entry) const noexcept override;
+
 private:
 	enum class MoveState : uint8_t
 	{
