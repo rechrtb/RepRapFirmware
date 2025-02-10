@@ -366,7 +366,7 @@ bool OutputBuffer::WriteToFile(FileData& f) const noexcept
 		TaskCriticalSectionLocker lock;
 
 		buf = freeOutputBuffers;
-		if (buf != nullptr /*&& (allowReserved || OUTPUT_BUFFER_COUNT - usedOutputBuffers > RESERVED_OUTPUT_BUFFERS)*/)
+		if (buf != nullptr && (allowReserved || OUTPUT_BUFFER_COUNT - usedOutputBuffers > RESERVED_OUTPUT_BUFFERS))
 		{
 			freeOutputBuffers = buf->next;
 			usedOutputBuffers++;
