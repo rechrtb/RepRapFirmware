@@ -140,7 +140,7 @@ DEFINE_GET_OBJECT_MODEL_ARRAY_TABLE(Move)
 
 size_t Move::GetMaxElementsToReturn(const ObjectModelArrayTableEntry *entry) const noexcept
 {
-	return (entry == &objectModelArrayTable[0]) ? 9 : 0;				// return at most 9 elements of move.axes
+	return (entry == &objectModelArrayTable[0]) ? MaxReportedAxes : 0;				// return at most this number of elements of move.axes unless just move.axes is requested
 }
 
 static inline const char *_ecv_array GetFilamentName(size_t extruder) noexcept

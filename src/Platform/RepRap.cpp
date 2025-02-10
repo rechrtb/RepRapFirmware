@@ -312,6 +312,7 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 #endif
 	{ "monitorsPerHeater",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxMonitorsPerHeater),				ObjectModelEntryFlags::verbose },
 	{ "portsPerHeater",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxPortsPerHeater),					ObjectModelEntryFlags::verbose },
+	{ "reportedAxes",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxReportedAxes),						ObjectModelEntryFlags::verbose },
 	{ "restorePoints",			OBJECT_MODEL_FUNC_NOSELF((int32_t)NumVisibleRestorePoints),				ObjectModelEntryFlags::verbose },
 	{ "sensors",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSensors),							ObjectModelEntryFlags::verbose },
 	{ "spindles",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSpindles),							ObjectModelEntryFlags::verbose },
@@ -420,7 +421,7 @@ constexpr uint8_t RepRap::objectModelTableDescriptor[] =
 #else
 	0,																						// directories
 #endif
-	26 + SUPPORT_LED_STRIPS,																// limits
+	27 + SUPPORT_LED_STRIPS,																// limits
 	22 + HAS_VOLTAGE_MONITOR + SUPPORT_LASER,												// state
 	2,																						// state.beep
 	12 + (unsigned int)HAS_NETWORKING + (2 * HAS_MASS_STORAGE) + ((unsigned int)HAS_MASS_STORAGE | (unsigned int)HAS_EMBEDDED_FILES | (unsigned int)HAS_SBC_INTERFACE) + SUPPORT_LED_STRIPS,	// seqs
