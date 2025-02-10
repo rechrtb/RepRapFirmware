@@ -322,11 +322,10 @@ extern "C" uint64_t TaskResetRunTimeCounter() noexcept
 	return ret;
 }
 
-// Write data about the current task
-void Tasks::Diagnostics(MessageType mtype) noexcept
+// Populate the reply buffer with task diagnostics
+void Tasks::Diagnostics(const StringRef& reply) noexcept
 {
-	Platform& p = reprap.GetPlatform();
-	p.Message(mtype, "=== RTOS ===\n");
+	reply.copy("=== RTOS ===");
 	// Print memory stats
 	{
 		const char *_ecv_array const ramstart =
@@ -335,20 +334,16 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 #else
 			reinterpret_cast<const char *_ecv_array>(IRAM_ADDR);
 #endif
-		p.MessageF(mtype, "Static ram: %d\n", (const char *_ecv_array)&_end - ramstart);
+		reply.lcatf("Static ram: %d", (const char *_ecv_array)&_end - ramstart);
 
 		const struct mallinfo mi = mallinfo();
-		p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
-		p.MessageF(mtype, "Never used RAM %d, free system stack %d words\n", GetNeverUsedRam(), GetHandlerFreeStack()/4);
-
-		//DEBUG
-		//p.MessageF(mtype, "heap top %.08" PRIx32 ", limit %.08" PRIx32 "\n", (uint32_t)heapTop, (uint32_t)heapLimit);
-		//ENDDB
+		reply.lcatf("Dynamic ram: %d of which %d recycled", mi.uordblks, mi.fordblks);
+		reply.lcatf("Never used RAM %d, free system stack %d words", GetNeverUsedRam(), GetHandlerFreeStack()/4);
 	}	// end memory stats scope
 
 	const uint64_t timeSinceLastCall = TaskResetRunTimeCounter();
 	float totalCpuPercent = 0.0;
-	p.Message(mtype, "Tasks:");
+	reply.lcat("Tasks:");
 	for (TaskBase *_ecv_from _ecv_null t = TaskBase::GetTaskList(); t != nullptr; t = t->GetNext())
 	{
 		ExtendedTaskStatus_t taskDetails;
@@ -385,8 +380,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 
 		const float cpuPercent = (100 * (float)taskDetails.ulRunTimeCounter)/(float)timeSinceLastCall;
 		totalCpuPercent += cpuPercent;
-		String<StringLength50> str;
-		str.printf(" %s(%u,%s", taskDetails.pcTaskName, (unsigned int)taskDetails.uxCurrentPriority, stateText);
+		reply.catf(" %s(%u,%s", taskDetails.pcTaskName, (unsigned int)taskDetails.uxCurrentPriority, stateText);
 		switch (taskDetails.eCurrentState)
 		{
 		case esResourceWaiting:
@@ -396,7 +390,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 				{
 					if ((const void *)m == taskDetails.pvResource)
 					{
-						str.catf(" %s", m->GetName());
+						reply.catf(" %s", m->GetName());
 						break;
 					}
 					m = m->GetNext();
@@ -405,26 +399,24 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			break;
 
 		case esNotifyWaiting:
-			str.catf(" %" PRIu32, taskDetails.notifyIndex);
+			reply.catf(" %" PRIu32, taskDetails.notifyIndex);
 			break;
 
 		default:
 			break;
 		}
-		str.catf(",%.1f%%,%u)", (double)cpuPercent, (unsigned int)taskDetails.usStackHighWaterMark);
-		p.Message(mtype, str.c_str());
+		reply.catf(",%.1f%%,%u)", (double)cpuPercent, (unsigned int)taskDetails.usStackHighWaterMark);
 	}
-	p.MessageF(mtype, ", total %.1f%%\nOwned mutexes:", (double)totalCpuPercent);
+	reply.catf(", total %.1f%%\nOwned mutexes:", (double)totalCpuPercent);
 
 	for (const Mutex *_ecv_null m = Mutex::GetMutexList(); m != nullptr; m = m->GetNext())
 	{
 		const TaskHandle _ecv_null holder = m->GetHolder();
 		if (holder != nullptr)
 		{
-			p.MessageF(mtype, " %s(%s)", m->GetName(), pcTaskGetName(holder->GetFreeRTOSHandle()));
+			reply.catf(" %s(%s)", m->GetName(), pcTaskGetName(holder->GetFreeRTOSHandle()));
 		}
 	}
-	p.Message(mtype, "\n");
 }
 
 TaskHandle Tasks::GetMainTask() noexcept

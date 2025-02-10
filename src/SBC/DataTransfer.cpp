@@ -525,11 +525,11 @@ void DataTransfer::InitFromTask() noexcept
 	sbcTaskHandle = TaskBase::GetCallerTaskHandle();
 }
 
-void DataTransfer::Diagnostics(MessageType mtype) noexcept
+void DataTransfer::Diagnostics(const StringRef& reply) noexcept
 {
-	reprap.GetPlatform().MessageF(mtype, "Transfer state: %d, failed transfers: %u, checksum errors: %u\n", (int)state, failedTransfers, checksumErrors);
-	reprap.GetPlatform().MessageF(mtype, "RX/TX seq numbers: %d/%d\n", (int)rxHeader.sequenceNumber, (int)txHeader.sequenceNumber);
-	reprap.GetPlatform().MessageF(mtype, "SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
+	reply.lcatf("Transfer state: %d, failed transfers: %u, checksum errors: %u\n", (int)state, failedTransfers, checksumErrors);
+	reply.lcatf("RX/TX seq numbers: %d/%d\n", (int)rxHeader.sequenceNumber, (int)txHeader.sequenceNumber);
+	reply.lcatf("SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
 }
 
 const PacketHeader *DataTransfer::ReadPacket() noexcept

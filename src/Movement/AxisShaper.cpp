@@ -306,11 +306,6 @@ GCodeResult AxisShaper::Configure(GCodeBuffer& gb, const StringRef& reply) THROW
 	return GCodeResult::ok;
 }
 
-void AxisShaper::Diagnostics(MessageType mtype) noexcept
-{
-	// We no longer report anything here
-}
-
 #if SUPPORT_CAN_EXPANSION
 
 GCodeResult AxisShaper::UpdateRemoteInputShaping(const StringRef& reply) const noexcept

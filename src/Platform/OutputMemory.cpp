@@ -366,7 +366,7 @@ bool OutputBuffer::WriteToFile(FileData& f) const noexcept
 		TaskCriticalSectionLocker lock;
 
 		buf = freeOutputBuffers;
-		if (buf != nullptr && (allowReserved || OUTPUT_BUFFER_COUNT - usedOutputBuffers > RESERVED_OUTPUT_BUFFERS))
+		if (buf != nullptr /*&& (allowReserved || OUTPUT_BUFFER_COUNT - usedOutputBuffers > RESERVED_OUTPUT_BUFFERS)*/)
 		{
 			freeOutputBuffers = buf->next;
 			usedOutputBuffers++;
@@ -474,10 +474,9 @@ bool OutputBuffer::WriteToFile(FileData& f) const noexcept
 	}
 }
 
-/*static*/ void OutputBuffer::Diagnostics(MessageType mtype) noexcept
+/*static*/ void OutputBuffer::Diagnostics(const StringRef& reply) noexcept
 {
-	reprap.GetPlatform().MessageF(mtype, "Used output buffers: %d of %d (%d max)\n",
-			usedOutputBuffers, OUTPUT_BUFFER_COUNT, maxUsedOutputBuffers);
+	reply.lcatf("Used output buffers: %d of %d (%d max)", usedOutputBuffers, OUTPUT_BUFFER_COUNT, maxUsedOutputBuffers);
 }
 
 //*************************************************************************************************

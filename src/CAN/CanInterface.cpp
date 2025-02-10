@@ -1260,22 +1260,20 @@ GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddres
 		GCodeResult res;
 		do
 		{
-			// The standard reply buffer is only 256 bytes long. We need a bigger one to receive the software reset data.
-			String<StringLength500> infoBuffer;
-			res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, infoBuffer.GetRef(), &lastPart);
+			// We can use 'reply' to buffer the returned data
+			res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, reply, &lastPart);
 			if (res != GCodeResult::ok)
 			{
-				reply.copy(infoBuffer.c_str());
 				return res;
 			}
 			if (type == 0 && currentPart == 0)
 			{
 				p.MessageF(mt, "Diagnostics for board %u:\n", (unsigned int)boardAddress);
 			}
-			if (!infoBuffer.IsEmpty())						// driverless boards may return empty response parts
+			if (!reply.IsEmpty())						// boards may return empty response parts
 			{
-				infoBuffer.cat('\n');						// don't use MessageF, the format buffer is too small
-				p.Message(mt, infoBuffer.c_str());
+				reply.cat('\n');
+				p.Message(mt, reply.c_str());
 			}
 			++currentPart;
 		} while (currentPart <= lastPart);
@@ -1505,42 +1503,40 @@ GCodeResult CanInterface::ProcessM655(GCodeBuffer& gb, const StringRef& reply) T
 	return cons.SendAndGetResponse(CanMessageType::m655, addr, reply, nullptr);
 }
 
-void CanInterface::Diagnostics(MessageType mtype) noexcept
+void CanInterface::Diagnostics(const StringRef& reply) noexcept
 {
-	Platform& p = reprap.GetPlatform();
-	p.Message(mtype, "=== CAN ===\n");
+	reply.copy("=== CAN ===");
 	// If the user runs M122 after an emergency stop, can0dev will be null
 	if (can0dev == nullptr)
 	{
-		p.Message(mtype, "Disabled\n");
+		reply.lcat("Disabled");
 	}
 	else
 	{
 		CanDevice::CanStats stats;
 		can0dev->GetAndClearStats(stats);
-		p.MessageF(mtype, "Messages queued %u, received %u, lost %u, "
+		reply.lcatf("Messages queued %u, received %u, lost %u, "
 #if SUPPORT_REMOTE_COMMANDS
-							"ignored %u, "
+					"ignored %u, "
 #endif
-							"errs %u, boc %u\n",
-							stats.messagesQueuedForSending, stats.messagesReceived, stats.messagesLost,
+					"errs %u, boc %u\n",
+					stats.messagesQueuedForSending, stats.messagesReceived, stats.messagesLost,
 #if SUPPORT_REMOTE_COMMANDS
-							messagesIgnored,
+					messagesIgnored,
 #endif
-							stats.protocolErrors, stats.busOffCount);
+					stats.protocolErrors, stats.busOffCount);
 	}
 
 #if SUPPORT_REMOTE_COMMANDS
 	messagesIgnored = 0;
 #endif
 
-	p.MessageF(mtype,
-				"Longest wait %" PRIu32 "ms for reply type %u, peak Tx sync delay %" PRIu32
+	reply.lcatf("Longest wait %" PRIu32 "ms for reply type %u, peak Tx sync delay %" PRIu32
 				", free buffers %u (min %u)"
 	//debug
 				", ts %u/%u/%u"
 	//end debug
-				"\n",
+				,
 					longestWaitTime, longestWaitMessageType, peakTimeSyncTxDelay,
 					CanMessageBuffer::GetFreeBuffers(), CanMessageBuffer::GetAndClearMinFreeBuffers()
 	//debug
@@ -1548,11 +1544,11 @@ void CanInterface::Diagnostics(MessageType mtype) noexcept
 	//end debug
 				);
 
-	String<StringLength100> str;
+	reply.lcat("Tx timeouts");
 	char c = ' ';
 	for (unsigned int& txt : txTimeouts)
 	{
-		str.catf("%c%u", c, txt);
+		reply.catf("%c%u", c, txt);
 		txt = 0;
 		c = ',';
 	}
@@ -1562,10 +1558,9 @@ void CanInterface::Diagnostics(MessageType mtype) noexcept
 		CanId id;
 		id.SetReceivedId(lastCancelledId);
 		lastCancelledId = 0;
-		str.catf(" last cancelled message type %u dest %u", (unsigned int)id.MsgType(), id.Dst());
+		reply.catf(" last cancelled message type %u dest %u", (unsigned int)id.MsgType(), id.Dst());
 	}
 
-	reprap.GetPlatform().MessageF(mtype, "Tx timeouts%s\n", str.c_str());
 	longestWaitTime = 0;
 	longestWaitMessageType = 0;
 	peakTimeSyncTxDelay = 0;

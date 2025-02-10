@@ -88,7 +88,7 @@ public:
 	// Release all OutputBuffer objects in a chain
 	static void ReleaseAll(OutputBuffer *_ecv_null volatile &buf) noexcept;
 
-	static void Diagnostics(MessageType mtype) noexcept;
+	static void Diagnostics(const StringRef& reply) noexcept;
 
 	static unsigned int GetFreeBuffers() noexcept { return OUTPUT_BUFFER_COUNT - usedOutputBuffers; }
 

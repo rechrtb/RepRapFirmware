@@ -1475,9 +1475,9 @@ void HttpResponder::SendData() noexcept
 	}
 }
 
-void HttpResponder::Diagnostics(MessageType mt) const noexcept
+void HttpResponder::Diagnostics(const StringRef& reply) const noexcept
 {
-	GetPlatform().MessageF(mt, " HTTP(%d)", (int)responderState);
+	reply.catf(" HTTP(%d)", (int)responderState);
 }
 
 /*static*/ void HttpResponder::InitStatic() noexcept
@@ -1617,9 +1617,9 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 	}
 }
 
-/*static*/ void HttpResponder::CommonDiagnostics(MessageType mtype) noexcept
+/*static*/ void HttpResponder::CommonDiagnostics(const StringRef& reply) noexcept
 {
-	GetPlatform().MessageF(mtype, "HTTP sessions: %u of %u\n", numSessions, MaxHttpSessions);
+	reply.lcatf("HTTP sessions: %u of %u", numSessions, MaxHttpSessions);
 }
 
 void HttpResponder::AddCorsHeader() noexcept

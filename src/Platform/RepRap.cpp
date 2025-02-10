@@ -729,7 +729,8 @@ void RepRap::Spin() noexcept
 	// Check if we need to send diagnostics
 	if (diagnosticsDestination != MessageType::NoDestinationMessage)
 	{
-		Diagnostics(diagnosticsDestination);
+		String<GCodeReplyLength> buf;
+		Diagnostics(diagnosticsDestination, buf.GetRef());
 		diagnosticsDestination = MessageType::NoDestinationMessage;
 	}
 
@@ -806,114 +807,191 @@ void RepRap::Spin() noexcept
 	RTOSIface::Yield();
 }
 
-void RepRap::Timing(MessageType mtype) noexcept
+void RepRap::Timing(const StringRef& reply) noexcept
 {
-	platform->MessageF(mtype, "Slowest loop: %.2fms; fastest: %.2fms\n", (double)(slowLoop * StepClocksToMillis), (double)(fastLoop * StepClocksToMillis));
+	reply.lcatf("Slowest loop: %.2fms; fastest: %.2fms", (double)(slowLoop * StepClocksToMillis), (double)(fastLoop * StepClocksToMillis));
 	fastLoop = UINT32_MAX;
 	slowLoop = 0;
 }
 
-void RepRap::Diagnostics(MessageType mtype) noexcept
+// Report diagnostics. 'reply' is the buffer normally used for GCode replies, which we can use here as a scratch buffer.
+void RepRap::Diagnostics(MessageType mtype, const StringRef& reply) noexcept
 {
-	platform->Message(mtype, "=== Diagnostics ===\n");
-
-	// Print the firmware version, board type etc.
-
-#ifdef DUET_NG
-	c_string_or_null const expansionName = DuetExpansion::GetExpansionBoardName();
-#endif
-
-	platform->MessageF(mtype,
-		// Format string
-		"%s"											// firmware name
-		" version %s (%s%s) running on %s"				// firmware version, date, time, electronics
-#ifdef DUET_NG
-		"%s%s"											// optional DueX expansion board
-#endif
-#if HAS_SBC_INTERFACE || SUPPORT_REMOTE_COMMANDS
-		" (%s mode)"									// standalone, SBC or expansion mode
-#endif
-		"\n",
-
-		// Parameters to match format string
-		FIRMWARE_NAME,
-		VERSION, DATE, TIME_SUFFIX, platform->GetElectronicsString()
-#ifdef DUET_NG
-		, ((expansionName == nullptr) ? "" : " + ")
-		, ((expansionName == nullptr) ? "" : expansionName)
-#endif
-#if HAS_SBC_INTERFACE || SUPPORT_REMOTE_COMMANDS
-		,
-# if SUPPORT_REMOTE_COMMANDS
-						(CanInterface::InExpansionMode()) ? "expansion" :
-# endif
-# if HAS_SBC_INTERFACE
-						(UsingSbcInterface()) ? "SBC" :
-# endif
-							"standalone"
-#endif
-	);
-
-#if MCU_HAS_UNIQUE_ID
+	for (unsigned int i = 0; i < GetNumberOfDiagnosticParts(); ++i)
 	{
-		String<StringLength50> idChars;
-		platform->GetUniqueId().AppendCharsToString(idChars.GetRef());
-		platform->MessageF(mtype, "Board ID: %s\n", idChars.c_str());
-	}
-#endif
-
-	// Show the used and free buffer counts. Do this early in case we are running out of them and the diagnostics get truncated.
-	OutputBuffer::Diagnostics(mtype);
-
-	// If there was an error running config.g, print it
-	if (!configErrorMessage.IsNull())
-	{
-		auto msg  = configErrorMessage.Get();
-		auto fname = configErrorFilename.Get();
-		platform->MessageF(mtype, "Error in %s line %u while starting up: %s\n", fname.Ptr(), configErrorLine, msg.Ptr());
-	}
-
-	// Now print diagnostics for other modules
-	Tasks::Diagnostics(mtype);
-	platform->Diagnostics(mtype);				// this includes a call to our Timing() function and the software reset data
-
-#ifndef DUET_NG			// Duet 2 doesn't currently need this feature, so omit it to save memory
-	// Print and clear any disgnostic messages we have accumulated
-	for (DebugLogRecord& r : debugRecords)
-	{
-		if (r.msg != nullptr)
+		reply.Clear();
+		GetDiagnosticsPart(i, reply);
+		if (!reply.IsEmpty())
 		{
-			platform->MessageF(mtype, r.msg, r.data[0], r.data[1], r.data[2], r.data[3]);
-			r.msg = nullptr;
+			reply.cat('\n');
+			platform->Message(mtype, reply.c_str());
 		}
 	}
-#endif
+	justSentDiagnostics = true;
+}
 
-#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
-	MassStorage::Diagnostics(mtype);
-#endif
-	move->Diagnostics(mtype);
-	heat->Diagnostics(mtype);
-	gCodes->Diagnostics(mtype);
-	FilamentMonitor::Diagnostics(mtype);
+// Get a part of the diagnostics info. This is called by GCodes2.cpp when running in normal mode and by CommandProcessor.cpp when running in expansion mode.
+void RepRap::GetDiagnosticsPart(unsigned int partNumber, const StringRef& reply) noexcept
+{
+	switch (partNumber)
+	{
+	case 0:
+		reply.copy("=== Diagnostics ===");
+		{
+		// Print the firmware version, board type etc.
 #ifdef DUET_NG
-	DuetExpansion::Diagnostics(mtype);
+			c_string_or_null const expansionName = DuetExpansion::GetExpansionBoardName();
+#endif
+			reply.lcatf(
+				// Format string
+				"%s"											// firmware name
+				" version %s (%s%s) running on %s"				// firmware version, date, time, electronics
+#ifdef DUET_NG
+				"%s%s"											// optional DueX expansion board
+#endif
+#if HAS_SBC_INTERFACE || SUPPORT_REMOTE_COMMANDS
+				" (%s mode)"									// standalone, SBC or expansion mode
+#endif
+				,
+
+				// Parameters to match format string
+				FIRMWARE_NAME,
+				VERSION, DATE, TIME_SUFFIX, platform->GetElectronicsString()
+#ifdef DUET_NG
+				, ((expansionName == nullptr) ? "" : " + ")
+				, ((expansionName == nullptr) ? "" : expansionName)
+#endif
+#if HAS_SBC_INTERFACE || SUPPORT_REMOTE_COMMANDS
+				,
+# if SUPPORT_REMOTE_COMMANDS
+				(CanInterface::InExpansionMode()) ? "expansion" :
+# endif
+# if HAS_SBC_INTERFACE
+				(UsingSbcInterface()) ? "SBC" :
+# endif
+				"standalone"
+#endif
+			);
+		}
+
+#if MCU_HAS_UNIQUE_ID
+		reply.lcat("Board ID: ");
+		platform->GetUniqueId().AppendCharsToString(reply);
+#endif
+		break;
+
+	case 1:
+		// Show the used and free buffer counts. Do this early in case we are running out of them and the diagnostics get truncated.
+		OutputBuffer::Diagnostics(reply);
+
+		// If there was an error running config.g, print it
+		if (!configErrorMessage.IsNull())
+		{
+			auto msg  = configErrorMessage.Get();
+			auto fname = configErrorFilename.Get();
+			reply.lcatf("Error in %s line %u while starting up: %s\n", fname.Ptr(), configErrorLine, msg.Ptr());
+		}
+		break;
+
+	case 2:
+		Tasks::Diagnostics(reply);
+		break;
+
+	case 3:
+	case 4:
+	case 5:
+		platform->Diagnostics(partNumber - 3, reply);
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts:
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+		MassStorage::Diagnostics(reply);
+#endif
+#ifndef DUET_NG			// Duet 2 doesn't currently need this feature, so omit it to save memory
+		// Print and clear any disgnostic messages we have accumulated
+		for (DebugLogRecord& r : debugRecords)
+		{
+			if (r.msg != nullptr)
+			{
+				reply.lcatf(r.msg, r.data[0], r.data[1], r.data[2], r.data[3]);
+				r.msg = nullptr;
+			}
+		}
+#endif
+		break;
+
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 1:
+	case 3 + Platform::NumPlatformDiagnosticParts + 2:
+	case 3 + Platform::NumPlatformDiagnosticParts + 3:
+	case 3 + Platform::NumPlatformDiagnosticParts + 4:
+	case 3 + Platform::NumPlatformDiagnosticParts + 5:
+		move->Diagnostics(partNumber - (3 + Platform::NumPlatformDiagnosticParts + 1), reply);
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 6:
+		heat->Diagnostics(reply);
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 7:
+#if SUPPORT_REMOTE_COMMANDS
+		if (!CanInterface::InExpansionMode())
+#endif
+		{
+			gCodes->Diagnostics(reply);
+		}
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 8:
+		FilamentMonitor::AllDiagnostics(reply);
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 9:
+#ifdef DUET_NG
+		DuetExpansion::Diagnostics(reply);
 #endif
 #if SUPPORT_CAN_EXPANSION
-	CanInterface::Diagnostics(mtype);
+		CanInterface::Diagnostics(reply);
 #endif
-#if HAS_SBC_INTERFACE
-	if (usingSbcInterface)
-	{
-		sbcInterface->Diagnostics(mtype);
-	}
-	else
-#endif
-	{
-		network->Diagnostics(mtype);
-	}
+		break;
 
-	justSentDiagnostics = true;
+	case 3 + Platform::NumPlatformDiagnosticParts + 10:
+
+#if HAS_SBC_INTERFACE
+		if (usingSbcInterface)
+		{
+			sbcInterface->Diagnostics(reply);
+		}
+		else
+#endif
+#if SUPPORT_REMOTE_COMMANDS
+		if (!CanInterface::InExpansionMode())
+#endif
+		{
+			network->Diagnostics(0, reply);
+		}
+		break;
+
+	case 3 + Platform::NumPlatformDiagnosticParts + 11:
+	case 3 + Platform::NumPlatformDiagnosticParts + 12:
+#if HAS_SBC_INTERFACE
+		if (!usingSbcInterface)
+#endif
+		{
+#if SUPPORT_REMOTE_COMMANDS
+			if (!CanInterface::InExpansionMode())
+#endif
+			{
+				network->Diagnostics(partNumber - (3 + Platform::NumPlatformDiagnosticParts + 10), reply);
+			}
+		}
+		break;
+	}
+}
+
+unsigned int RepRap::GetNumberOfDiagnosticParts() const noexcept
+{
+	return 3 + Platform::NumPlatformDiagnosticParts + 13;
 }
 
 // Turn off the heaters, disable the motors, and deactivate the Heat, Move and GCodes classes. Leave everything else working.
@@ -2807,7 +2885,7 @@ void MemoryChecker::Report(uint32_t tag) noexcept
 {
 	if (fault)
 	{
-		constexpr const char *msg = "mem CRC fail between %08" PRIx32 " and %08" PRIx32 ", tag %08" PRIx32 "\n";
+		constexpr const char *msg = "mem CRC fail between %08" PRIx32 " and %08" PRIx32 ", tag %08" PRIx32;
 		if (reprap.Debug(Module::Debug))
 		{
 			debugPrintf(msg, GetStartAddress(), GetEndAddress(), tag);

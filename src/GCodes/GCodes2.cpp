@@ -2179,7 +2179,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 					if (type == 0)
 					{
-						reprap.Diagnostics(mt);
+						reprap.Diagnostics(mt, reply);
+						reply.Clear();
 					}
 					else
 					{

@@ -53,8 +53,6 @@ public:
 	GCodeResult EutSetInputShaping(const CanMessageSetInputShapingNew& msg, size_t dataLength, const StringRef& reply) noexcept;
 #endif
 
-	void Diagnostics(MessageType mtype) noexcept;
-
 protected:
 	DECLARE_OBJECT_MODEL_WITH_ARRAYS
 
