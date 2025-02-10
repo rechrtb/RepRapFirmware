@@ -239,8 +239,9 @@ static GCodeResult EutGetInfo(const CanMessageReturnInfo& msg, const StringRef& 
 	default:
 		if (msg.type >= CanMessageReturnInfo::typeDiagnosticsPart0 && msg.type < CanMessageReturnInfo::typeDiagnosticsPart0 + reprap.GetNumberOfDiagnosticParts())
 		{
+			reply.Clear();
 			reprap.GetDiagnosticsPart(msg.type - CanMessageReturnInfo::typeDiagnosticsPart0, reply);
-			extra = reprap.GetNumberOfDiagnosticParts();
+			extra = reprap.GetNumberOfDiagnosticParts() - 1;
 		}
 		else
 		{

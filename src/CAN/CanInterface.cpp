@@ -1261,12 +1261,13 @@ GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddres
 		do
 		{
 			// We can use 'reply' to buffer the returned data
+			reply.Clear();
 			res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, reply, &lastPart);
 			if (res != GCodeResult::ok)
 			{
 				return res;
 			}
-			if (type == 0 && currentPart == 0)
+			if (currentPart == 0)
 			{
 				p.MessageF(mt, "Diagnostics for board %u:\n", (unsigned int)boardAddress);
 			}
@@ -1277,6 +1278,7 @@ GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddres
 			}
 			++currentPart;
 		} while (currentPart <= lastPart);
+		reply.Clear();
 		return res;
 	}
 
