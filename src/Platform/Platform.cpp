@@ -2095,7 +2095,6 @@ GCodeResult Platform::HandleM575(GCodeBuffer& gb, const StringRef& reply) THROWS
 	// See if a mode is provided
 	if (gb.Seen('S'))
 	{
-
 		const uint32_t val = gb.GetLimitedUIValue('S', ARRAY_SIZE(auxModes));
 		const AuxMode newMode = auxModes[val];
 		if (newMode == AuxMode::device)
